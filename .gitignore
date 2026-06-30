@@ -1,0 +1,43 @@
+# 依赖
+node_modules/
+.pnp/
+.pnp.js
+
+# 构建产物
+dist/
+build/
+*.local
+
+# Android 构建缓存
+android/.gradle/
+android/build/
+android/app/build/
+android/capacitor-cordova-android-plugins/build/
+android/local.properties
+
+# 日志
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# Capacitor
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+
+# Keystore（如需自定义签名则取消注释）
+# android/smart-tasks.keystore
+# android/smart-tasks.keystore.jks
