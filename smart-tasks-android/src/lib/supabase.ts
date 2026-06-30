@@ -3,8 +3,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 // ⚠️ 用户配置区：把下面两个值换成你自己的 Supabase 项目
-const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
-const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
+const SUPABASE_URL = 'https://zxasxqnfohubugynkjyi.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable__HcWaSS2mOmWBb1w1YMlSw_WyklcDOY';
 
 let client: SupabaseClient | null = null;
 
