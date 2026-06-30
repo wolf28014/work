@@ -100,9 +100,9 @@ export default function KanbanView({ onEdit }: Props) {
       </button>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* 左侧：分类列表 */}
+        {/* 左侧：分类列表（重新设计） */}
         <aside
-          className="w-24 flex-shrink-0 bg-slate-50 dark:bg-black/30 overflow-y-auto no-scrollbar border-r border-slate-100 dark:border-slate-800"
+          className="w-[88px] flex-shrink-0 bg-slate-100/60 dark:bg-black/40 overflow-y-auto no-scrollbar border-r border-slate-200/60 dark:border-slate-800/60 py-2.5 px-2 space-y-2"
         >
           {STATUS_ORDER.map(status => {
             const sc = STATUS_COLORS[status];
@@ -116,35 +116,46 @@ export default function KanbanView({ onEdit }: Props) {
                 onDragOver={e => { e.preventDefault(); setDragOverStatus(status); }}
                 onDragLeave={() => setDragOverStatus(null)}
                 onDrop={() => handleDropToColumn(status)}
-                className={`relative w-full flex flex-col items-center justify-center py-4 px-1 transition-all active:scale-95 ${
+                className={`relative w-full flex flex-col items-center justify-center py-3 px-1 rounded-2xl transition-all active:scale-95 ${
                   isActive
-                    ? 'bg-white dark:bg-slate-800'
+                    ? 'bg-white dark:bg-slate-800 shadow-md ring-2 ring-emerald-500/40'
                     : isDragOver
-                    ? 'bg-emerald-50 dark:bg-emerald-900/30'
-                    : ''
+                    ? 'bg-emerald-50 dark:bg-emerald-900/40 ring-2 ring-emerald-400/60'
+                    : 'bg-white/50 dark:bg-slate-800/30'
                 }`}
+                style={isActive ? { boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)' } : {}}
               >
-                {/* 左侧高亮条 */}
-                {isActive && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-emerald-500 rounded-r-full" />
-                )}
-                {/* 状态色圆点 */}
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${sc.bg} mb-1.5`}>
-                  <div className={`w-3 h-3 rounded-full ${sc.bar}`} />
+                {/* 状态色图标块 */}
+                <div
+                  className={`w-11 h-11 rounded-2xl flex items-center justify-center mb-1.5 ${sc.bg} relative`}
+                  style={isActive ? { boxShadow: `0 2px 8px ${sc.bar.replace('bg-', '')}` } : {}}
+                >
+                  <div className={`w-4 h-4 rounded-full ${sc.bar} ${isActive ? 'scale-110' : ''} transition-transform`} />
+                  {/* 任务数徽章 */}
+                  {count > 0 && (
+                    <div className={`absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full ${
+                      isActive ? 'bg-emerald-500 text-white' : 'bg-slate-500 text-white'
+                    } flex items-center justify-center text-[10px] font-bold leading-none`}>
+                      {count > 99 ? '99+' : count}
+                    </div>
+                  )}
                 </div>
                 {/* 状态名 */}
-                <div className={`text-[11px] font-medium leading-tight ${
-                  isActive ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-600 dark:text-slate-400'
+                <div className={`text-[12px] font-semibold leading-tight ${
+                  isActive ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-200'
                 }`}>
                   {STATUS_LABELS[status]}
-                </div>
-                {/* 任务数 */}
-                <div className={`text-[10px] mt-0.5 ${count > 0 ? 'text-slate-500 dark:text-slate-400' : 'text-slate-300 dark:text-slate-600'}`}>
-                  {count}
                 </div>
               </button>
             );
           })}
+
+          {/* 底部提示 */}
+          <div className="pt-2 px-1 text-center">
+            <div className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight">
+              拖拽任务<br/>到此切换
+            </div>
+          </div>
         </aside>
 
         {/* 右侧：任务列表 */}
@@ -152,17 +163,17 @@ export default function KanbanView({ onEdit }: Props) {
           {/* 当前列头部 */}
           <div className={`px-4 py-3 sticky top-0 z-10 glass border-b border-slate-100 dark:border-slate-800`}>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[selectedStatus].bar}`} />
-                <span className="text-[15px] font-semibold">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-3 h-3 rounded-full ${STATUS_COLORS[selectedStatus].bar}`} />
+                <span className="text-[16px] font-bold">
                   {STATUS_LABELS[selectedStatus]}
                 </span>
-                <span className="text-[12px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                <span className={`text-[12px] font-semibold px-2 py-0.5 rounded-full ${STATUS_COLORS[selectedStatus].bg} ${STATUS_COLORS[selectedStatus].text}`}>
                   {currentTasks.length}
                 </span>
               </div>
               <div className="text-[11px] text-slate-400">
-                长按任务可切换状态
+                长按拖拽
               </div>
             </div>
           </div>

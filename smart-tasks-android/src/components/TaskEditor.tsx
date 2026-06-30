@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { Task } from '../lib/db';
 import { useTaskStore } from '../lib/store';
 import { PRIORITY_LABELS, STATUS_LABELS, STATUS_ORDER, todayStr } from '../lib/task-utils';
-import { parseTaskWithAI, getAISettings } from '../lib/ai-client';
+import { parseTaskWithAI, getAISettings, aiSplitSubtasks, aiTaskSummary } from '../lib/ai-client';
 import { showToast } from './Toast';
 
 interface Props {
@@ -22,6 +22,9 @@ export default function TaskEditor({ task, onClose }: Props) {
   const [subtasks, setSubtasks] = useState(task?.subtasks || []);
   const [newSubtask, setNewSubtask] = useState('');
   const [parsing, setParsing] = useState(false);
+  const [splitting, setSplitting] = useState(false);
+  const [summary, setSummary] = useState<string>('');
+  const [loadingSummary, setLoadingSummary] = useState(false);
 
   async function handleAIParse() {
     if (!title.trim()) return;
@@ -42,6 +45,49 @@ export default function TaskEditor({ task, onClose }: Props) {
       showToast(e.message || 'AI 解析失败', 'error');
     } finally {
       setParsing(false);
+    }
+  }
+
+  async function handleAISplit() {
+    if (!title.trim()) { showToast('请先填写任务标题', 'error'); return; }
+    setSplitting(true);
+    try {
+      const result = await aiSplitSubtasks(title, description);
+      // 合并到现有子任务，避免重复
+      const existingTitles = new Set(subtasks.map(s => s.title));
+      const newSubs = result
+        .filter(t => !existingTitles.has(t))
+        .map((t, i) => ({ id: 'sub_' + Date.now() + '_' + i, title: t, done: false, order: subtasks.length + i }));
+      if (newSubs.length === 0) {
+        showToast('AI 生成的子任务已存在', 'info');
+      } else {
+        setSubtasks([...subtasks, ...newSubs]);
+        showToast(`AI 生成了 ${newSubs.length} 个子任务 ✨`, 'success');
+      }
+    } catch (e: any) {
+      showToast(e.message || 'AI 拆解失败', 'error');
+    } finally {
+      setSplitting(false);
+    }
+  }
+
+  async function handleAISummary() {
+    if (!task) { showToast('请先保存任务', 'error'); return; }
+    setLoadingSummary(true);
+    setSummary('');
+    try {
+      const result = await aiTaskSummary({
+        ...task,
+        title, description, priority, status,
+        dueDate: dueDate || null,
+        tags: selectedTags,
+        subtasks,
+      });
+      setSummary(result);
+    } catch (e: any) {
+      showToast(e.message || 'AI 总结失败', 'error');
+    } finally {
+      setLoadingSummary(false);
     }
   }
 
@@ -201,10 +247,24 @@ export default function TaskEditor({ task, onClose }: Props) {
           )}
 
           <div>
-            <div className="text-[13px] font-medium text-slate-500 mb-2 px-1">子任务</div>
+            <div className="flex items-center justify-between mb-2 px-1">
+              <div className="text-[13px] font-medium text-slate-500">子任务</div>
+              {getAISettings() && (
+                <button
+                  onClick={handleAISplit}
+                  disabled={splitting || !title.trim()}
+                  className="text-[11px] px-2.5 py-1 bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 rounded-full font-medium disabled:opacity-50 active:scale-95 transition-transform"
+                >
+                  {splitting ? '✨ 拆解中…' : '✨ AI 拆解子任务'}
+                </button>
+              )}
+            </div>
             <div className="ios-list-group mb-2">
               {subtasks.length === 0 && (
-                <div className="px-4 py-3 text-sm text-slate-400 text-center">暂无子任务</div>
+                <div className="px-4 py-3 text-sm text-slate-400 text-center">
+                  暂无子任务
+                  {getAISettings() && <span className="block text-[11px] mt-1 text-violet-500">点上方 ✨ 让 AI 帮你拆解</span>}
+                </div>
               )}
               {subtasks.map(s => (
                 <div key={s.id} className="ios-list-item">
@@ -225,6 +285,34 @@ export default function TaskEditor({ task, onClose }: Props) {
               <button onClick={addSubtask} className="px-4 bg-slate-100 dark:bg-slate-800 rounded-xl text-sm font-medium">添加</button>
             </div>
           </div>
+
+          {/* AI 任务总结（仅编辑模式可用） */}
+          {task && getAISettings() && (
+            <div>
+              <div className="flex items-center justify-between mb-2 px-1">
+                <div className="text-[13px] font-medium text-slate-500">✨ AI 任务总结</div>
+                <button
+                  onClick={handleAISummary}
+                  disabled={loadingSummary}
+                  className="text-[11px] px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-full font-medium disabled:opacity-50 active:scale-95 transition-transform"
+                >
+                  {loadingSummary ? '生成中…' : summary ? '重新生成' : '生成总结'}
+                </button>
+              </div>
+              {summary && (
+                <div className="ios-card p-3.5 bg-emerald-50/50 dark:bg-emerald-900/20 fade-in">
+                  <div className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
+                    {summary}
+                  </div>
+                </div>
+              )}
+              {!summary && !loadingSummary && (
+                <div className="text-[11px] text-slate-400 px-1">
+                  AI 会分析任务现状、风险点，给出下一步建议
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
