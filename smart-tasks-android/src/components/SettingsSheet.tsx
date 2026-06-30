@@ -1,19 +1,79 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTaskStore } from '../lib/store';
 import { getAISettings, saveAISettings, clearAISettings } from '../lib/ai-client';
 import { exportAllData, importAllData } from '../lib/db';
 import { tasksToCSV } from '../lib/task-utils';
 import { showToast } from './Toast';
+import {
+  PRESET_BACKGROUNDS,
+  getBackgroundSettings,
+  saveBackgroundSettings,
+  saveCustomImage,
+  getCustomImage,
+  clearCustomImage,
+  type BackgroundSettings,
+} from '../lib/background';
 
 interface Props { onClose: () => void; }
 
 export default function SettingsSheet({ onClose }: Props) {
   const { theme, toggleTheme, tasks, purgeTask, restoreTask } = useTaskStore();
-  const [tab, setTab] = useState<'general' | 'ai' | 'data' | 'trash'>('general');
+  const [tab, setTab] = useState<'general' | 'background' | 'ai' | 'data' | 'trash'>('general');
   const existingAI = getAISettings();
   const [baseURL, setBaseURL] = useState(existingAI?.baseURL || 'https://open.bigmodel.cn/api/paas/v4');
   const [apiKey, setApiKey] = useState(existingAI?.apiKey || '');
   const [model, setModel] = useState(existingAI?.model || 'glm-4-flash');
+
+  // 背景设置
+  const [bgSettings, setBgSettings] = useState<BackgroundSettings>(getBackgroundSettings);
+  const [customImage, setCustomImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    getCustomImage().then(setCustomImage).catch(() => {});
+  }, []);
+
+  function applyBackground(s: BackgroundSettings) {
+    setBgSettings(s);
+    saveBackgroundSettings(s);
+    // 触发全局事件让 App 重新读取
+    window.dispatchEvent(new CustomEvent('background-changed'));
+  }
+
+  async function handleUploadImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('图片不能超过 5MB', 'error');
+      e.target.value = '';
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      showToast('请选择图片文件', 'error');
+      e.target.value = '';
+      return;
+    }
+    try {
+      // 压缩图片：用 canvas 缩放到最大 1920px
+      const compressed = await compressImage(file, 1920, 0.85);
+      await saveCustomImage(compressed);
+      setCustomImage(compressed);
+      applyBackground({ type: 'custom', customImageId: 'custom-bg' });
+      showToast('背景已应用', 'success');
+    } catch (err: any) {
+      showToast('上传失败：' + err.message, 'error');
+    }
+    e.target.value = '';
+  }
+
+  async function handleClearCustom() {
+    await clearCustomImage();
+    setCustomImage(null);
+    if (bgSettings.type === 'custom') {
+      applyBackground({ type: 'preset', presetId: 'pearl' });
+    }
+    showToast('已清除自定义背景', 'info');
+  }
 
   function saveAI() {
     if (!baseURL || !apiKey || !model) { showToast('请填写完整', 'error'); return; }
@@ -80,9 +140,10 @@ export default function SettingsSheet({ onClose }: Props) {
           <span className="w-10" />
         </div>
 
-        <div className="flex border-b border-slate-100 dark:border-slate-800 px-4">
+        <div className="flex border-b border-slate-100 dark:border-slate-800 px-4 overflow-x-auto no-scrollbar">
           {([
             { id: 'general', label: '通用' },
+            { id: 'background', label: '背景' },
             { id: 'ai', label: 'AI' },
             { id: 'data', label: '数据' },
             { id: 'trash', label: '回收站' },
@@ -90,7 +151,7 @@ export default function SettingsSheet({ onClose }: Props) {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex-1 py-2.5 text-sm font-medium relative ${tab === t.id ? 'text-emerald-500' : 'text-slate-500'}`}
+              className={`flex-1 min-w-[56px] py-2.5 text-sm font-medium relative ${tab === t.id ? 'text-emerald-500' : 'text-slate-500'}`}
             >
               {t.label}
               {tab === t.id && (<div className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-emerald-500 rounded-full" />)}
@@ -117,6 +178,100 @@ export default function SettingsSheet({ onClose }: Props) {
               <div className="ios-list-item">
                 <span className="text-sm flex-1">项目</span>
                 <span className="text-xs text-slate-400">Smart-Tasks Android</span>
+              </div>
+            </div>
+          )}
+
+          {tab === 'background' && (
+            <div className="space-y-4">
+              <div>
+                <div className="text-[13px] font-medium text-slate-500 mb-2 px-1">预设背景</div>
+                <div className="grid grid-cols-3 gap-2.5">
+                  {PRESET_BACKGROUNDS.map(preset => {
+                    const isActive = bgSettings.type === 'preset' && bgSettings.presetId === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        onClick={() => applyBackground({ type: 'preset', presetId: preset.id })}
+                        className={`relative aspect-[3/4] rounded-2xl overflow-hidden transition-all active:scale-95 ${
+                          isActive ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : ''
+                        }`}
+                        style={{ background: preset.cssBackground }}
+                      >
+                        <div className={`absolute inset-x-0 bottom-0 py-1.5 text-center text-[10px] font-medium ${
+                          preset.textMode === 'light' ? 'text-white bg-black/30' : 'text-slate-700 bg-white/60'
+                        }`}>
+                          {preset.name}
+                        </div>
+                        {isActive && (
+                          <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                            <span className="text-white text-xs">✓</span>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[13px] font-medium text-slate-500 mb-2 px-1">自定义背景</div>
+                <div className="ios-list-group">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="ios-list-item w-full text-left active:bg-slate-50 dark:active:bg-slate-800"
+                  >
+                    <span className="text-2xl">🖼️</span>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">上传图片</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">JPG/PNG/WebP，最大 5MB</div>
+                    </div>
+                    <span className="text-slate-400">›</span>
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleUploadImage}
+                    className="hidden"
+                  />
+                  {customImage && (
+                    <>
+                      <button
+                        onClick={() => applyBackground({ type: 'custom', customImageId: 'custom-bg' })}
+                        className="ios-list-item w-full text-left active:bg-slate-50 dark:active:bg-slate-800"
+                      >
+                        <div
+                          className="w-10 h-10 rounded-lg bg-cover bg-center flex-shrink-0"
+                          style={{ backgroundImage: `url(${customImage})` }}
+                        />
+                        <div className="flex-1">
+                          <div className="text-sm font-medium">使用自定义背景</div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            {bgSettings.type === 'custom' ? '当前应用中' : '点击应用'}
+                          </div>
+                        </div>
+                        {bgSettings.type === 'custom' && <span className="text-emerald-500">✓</span>}
+                      </button>
+                      <button
+                        onClick={handleClearCustom}
+                        className="ios-list-item w-full text-left active:bg-slate-50 dark:active:bg-slate-800"
+                      >
+                        <span className="text-2xl">🗑️</span>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-rose-500">删除自定义图片</div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">从本地存储中移除</div>
+                        </div>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="ios-card p-3 bg-amber-50 dark:bg-amber-900/20">
+                <div className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">
+                  💡 提示：浅色背景适合白天使用，深色背景护眼适合夜间。自定义图片会自动压缩存储在本地，不会上传到任何服务器。
+                </div>
               </div>
             </div>
           )}
@@ -217,4 +372,35 @@ export default function SettingsSheet({ onClose }: Props) {
       </div>
     </div>
   );
+}
+
+// 图片压缩：缩放到 maxSize 内，转 JPEG base64
+function compressImage(file: File, maxSize: number, quality: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxSize) {
+          height = Math.round(height * maxSize / width);
+          width = maxSize;
+        } else if (height > maxSize) {
+          width = Math.round(width * maxSize / height);
+          height = maxSize;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('Canvas 不支持'));
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => reject(new Error('图片加载失败'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('文件读取失败'));
+    reader.readAsDataURL(file);
+  });
 }

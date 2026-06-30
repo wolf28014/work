@@ -10,6 +10,12 @@ import TaskEditor from './components/TaskEditor';
 import SettingsSheet from './components/SettingsSheet';
 import AIChatSheet from './components/AIChatSheet';
 import Toast from './components/Toast';
+import {
+  getBackgroundSettings,
+  getCustomImage,
+  resolveBackgroundCss,
+  type BackgroundSettings,
+} from './lib/background';
 
 // 启动时获取实际状态栏高度并设置到 CSS 变量
 async function setupStatusBar() {
@@ -49,15 +55,38 @@ function Shell() {
   const [aiOpen, setAIOpen] = useState(false);
   const { loading } = useTaskStore();
 
+  // 背景设置
+  const [bgSettings, setBgSettings] = useState<BackgroundSettings>(getBackgroundSettings);
+  const [customImage, setCustomImage] = useState<string | null>(null);
+
   useEffect(() => {
     setupStatusBar();
+    getCustomImage().then(setCustomImage).catch(() => {});
+    // 监听背景变化事件
+    const handler = () => {
+      setBgSettings(getBackgroundSettings());
+      getCustomImage().then(setCustomImage).catch(() => {});
+    };
+    window.addEventListener('background-changed', handler);
+    return () => window.removeEventListener('background-changed', handler);
   }, []);
+
+  // 解析当前应用的背景
+  const bgResolved = resolveBackgroundCss(bgSettings, customImage);
 
   function openNewTask() { setEditorTask(null); setEditorOpen(true); }
   function openEditTask(task: any) { setEditorTask(task); setEditorOpen(true); }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div
+      className="flex flex-col h-screen overflow-hidden relative"
+      style={bgResolved ? { background: bgResolved.css } : {}}
+    >
+      {/* 自定义图片背景时，加一层半透明遮罩，让卡片更突出 */}
+      {bgSettings.type === 'custom' && (
+        <div className="absolute inset-0 bg-black/30 pointer-events-none z-0" />
+      )}
+
       <header className="app-header glass sticky top-0 z-30" style={{ paddingTop: 'var(--safe-top)' }}>
         <div className="flex items-center justify-between px-4 h-14">
           <button onClick={() => setAIOpen(true)} className="w-9 h-9 rounded-full flex items-center justify-center text-lg active:opacity-60" aria-label="AI 助手">✨</button>
