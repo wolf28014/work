@@ -251,11 +251,22 @@ export default function TaskEditor({ task, onClose }: Props) {
                 </button>
               )}
             </div>
-            <div className="ios-list-group mb-2">
+            {/* 添加子任务输入框 - 移到上方，方便快速添加 */}
+            <div className="flex gap-2 mb-2">
+              <input
+                value={newSubtask}
+                onChange={e => setNewSubtask(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addSubtask(); }}
+                placeholder="输入子任务后按回车或点添加…"
+                className="ios-input flex-1"
+              />
+              <button onClick={addSubtask} className="px-4 bg-emerald-500 text-white rounded-xl text-sm font-medium active:scale-95 transition-transform">添加</button>
+            </div>
+            <div className="ios-list-group">
               {subtasks.length === 0 && (
                 <div className="px-4 py-3 text-sm text-slate-400 text-center">
-                  暂无子任务
-                  {getAISettings() && <span className="block text-[11px] mt-1 text-violet-500">点上方 ✨ 让 AI 帮你拆解</span>}
+                  暂无子任务，在上方输入框添加
+                  {getAISettings() && <span className="block text-[11px] mt-1 text-violet-500">或点右上角 ✨ 让 AI 帮你拆解</span>}
                 </div>
               )}
               {subtasks.map(s => (
@@ -265,16 +276,6 @@ export default function TaskEditor({ task, onClose }: Props) {
                   <button onClick={() => removeSubtask(s.id)} className="text-slate-400 text-lg px-2">×</button>
                 </div>
               ))}
-            </div>
-            <div className="flex gap-2">
-              <input
-                value={newSubtask}
-                onChange={e => setNewSubtask(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') addSubtask(); }}
-                placeholder="添加子任务…"
-                className="ios-input flex-1"
-              />
-              <button onClick={addSubtask} className="px-4 bg-slate-100 dark:bg-slate-800 rounded-xl text-sm font-medium">添加</button>
             </div>
           </div>
 
