@@ -148,6 +148,20 @@ body.dark {
 
 .fade-in { animation: fadeIn 0.2s ease-out; }
 
+/* Tab 切换动画：从右侧滑入（向左切换） */
+@keyframes tabSlideInLeft {
+  from { transform: translateX(40px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.tab-slide-in-left { animation: tabSlideInLeft 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
+
+/* Tab 切换动画：从左侧滑入（向右切换） */
+@keyframes tabSlideInRight {
+  from { transform: translateX(-40px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.tab-slide-in-right { animation: tabSlideInRight 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
+
 .modal-mask {
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(4px);

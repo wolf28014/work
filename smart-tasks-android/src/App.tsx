@@ -49,6 +49,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 
 function Shell() {
   const [tab, setTab] = useState<Tab>('list');
+  const [tabDirection, setTabDirection] = useState<'left' | 'right'>('left');
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorTask, setEditorTask] = useState<any>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -111,28 +112,27 @@ function Shell() {
   const switchTab = useCallback((direction: 'left' | 'right') => {
     const currentIndex = TABS.findIndex(t => t.id === tab);
     if (direction === 'left') {
-      if (currentIndex < TABS.length - 1) setTab(TABS[currentIndex + 1].id);
+      if (currentIndex < TABS.length - 1) {
+        setTabDirection('left');  // 新 Tab 从右侧滑入
+        setTab(TABS[currentIndex + 1].id);
+      }
     } else {
-      if (currentIndex > 0) setTab(TABS[currentIndex - 1].id);
+      if (currentIndex > 0) {
+        setTabDirection('right');  // 新 Tab 从左侧滑入
+        setTab(TABS[currentIndex - 1].id);
+      }
     }
   }, [tab]);
 
-  // 主页面：边缘滑动切换 Tab（全面屏手势）
-  // 从左边缘 35px 内右滑 → 上一个 Tab
-  // 从右边缘 35px 内左滑 → 下一个 Tab
+  // 主页面：任意位置左右滑动切换 Tab（不限边缘）
+  // 向左滑（手指向左）→ 下一个 Tab
+  // 向右滑（手指向右）→ 上一个 Tab
   function handleTouchStart(e: React.TouchEvent) {
     if (editorOpen || settingsOpen || aiOpen || authOpen || legalOpen) return;
     const touch = e.touches[0];
-    const screenWidth = window.innerWidth;
-    // 只有从屏幕边缘开始才记录，避免误触
-    if (touch.clientX < 35 || touch.clientX > screenWidth - 35) {
-      touchStartX.current = touch.clientX;
-      touchStartY.current = touch.clientY;
-      touchStartTime.current = Date.now();
-    } else {
-      touchStartX.current = null;
-      touchStartY.current = null;
-    }
+    touchStartX.current = touch.clientX;
+    touchStartY.current = touch.clientY;
+    touchStartTime.current = Date.now();
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
@@ -143,10 +143,10 @@ function Shell() {
     const dt = Date.now() - touchStartTime.current;
     touchStartX.current = null;
     touchStartY.current = null;
-    // 必须横向滑动且距离够
-    if (Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx) || dt > 600) return;
-    if (dx < 0) switchTab('left');  // 右边缘左滑 → 下一个
-    else switchTab('right');        // 左边缘右滑 → 上一个
+    // 必须横向滑动且距离够（80px），垂直距离不超过水平
+    if (Math.abs(dx) < 80 || Math.abs(dy) > Math.abs(dx) * 0.8 || dt > 600) return;
+    if (dx < 0) switchTab('left');  // 向左滑 → 下一个
+    else switchTab('right');        // 向右滑 → 上一个
   }
 
   // 首次启动未同意隐私政策
@@ -188,7 +188,10 @@ function Shell() {
             <div className="text-slate-400 animate-pulse">加载中…</div>
           </div>
         ) : (
-          <div key={tab} className="fade-in">
+          <div
+            key={tab}
+            className={tabDirection === 'left' ? 'tab-slide-in-left' : 'tab-slide-in-right'}
+          >
             {tab === 'list' && <ListView onEdit={openEditTask} onNew={openNewTask} />}
             {tab === 'kanban' && <KanbanView onEdit={openEditTask} onNew={openNewTask} />}
             {tab === 'calendar' && <CalendarView onEdit={openEditTask} onNew={openNewTask} />}
@@ -200,17 +203,23 @@ function Shell() {
 
       <nav className="tab-bar z-30">
         <div className="flex items-center justify-around px-2 h-14">
-          {TABS.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-all"
-              style={{ opacity: tab === t.id ? 1 : 0.55 }}
-            >
-              <span className="text-xl" style={{ transform: tab === t.id ? 'scale(1.1)' : 'scale(1)' }}>{t.icon}</span>
-              <span className={`text-[10px] ${tab === t.id ? 'text-emerald-500 font-semibold' : 'text-slate-500 dark:text-slate-400'}`}>{t.label}</span>
-            </button>
-          ))}
+          {TABS.map((t, idx) => {
+            const currentIdx = TABS.findIndex(x => x.id === tab);
+            return (
+              <button
+                key={t.id}
+                onClick={() => {
+                  setTabDirection(idx > currentIdx ? 'left' : 'right');
+                  setTab(t.id);
+                }}
+                className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-all"
+                style={{ opacity: tab === t.id ? 1 : 0.55 }}
+              >
+                <span className="text-xl" style={{ transform: tab === t.id ? 'scale(1.1)' : 'scale(1)' }}>{t.icon}</span>
+                <span className={`text-[10px] ${tab === t.id ? 'text-emerald-500 font-semibold' : 'text-slate-500 dark:text-slate-400'}`}>{t.label}</span>
+              </button>
+            );
+          })}
         </div>
       </nav>
 
