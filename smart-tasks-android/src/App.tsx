@@ -135,48 +135,19 @@ function Shell() {
   }, []);
 
   async function handleAuthSuccess() {
-    try { await mergeLocalToCloud(); }
-    catch (e) { console.log('Merge failed:', e); }
+    try {
+      // 登录成功后自动合并本地数据到云端
+      await mergeLocalToCloud();
+      // 后续每次创建/编辑/删除任务，store 里已经自动调用 syncTaskToCloud
+      // 实时同步无需额外处理
+    } catch (e) { console.log('Merge failed:', e); }
   }
 
   function openNewTask() { setEditorTask(null); setEditorOpen(true); }
   function openEditTask(task: any) { setEditorTask(task); setEditorOpen(true); }
 
-  const switchTab = useCallback((direction: 'left' | 'right') => {
-    const currentIndex = TABS.findIndex(t => t.id === tab);
-    if (direction === 'left') {
-      if (currentIndex < TABS.length - 1) {
-        setTabDirection('left');
-        setTab(TABS[currentIndex + 1].id);
-      }
-    } else {
-      if (currentIndex > 0) {
-        setTabDirection('right');
-        setTab(TABS[currentIndex - 1].id);
-      }
-    }
-  }, [tab]);
-
-  function handleTouchStart(e: React.TouchEvent) {
-    if (editorOpen || settingsOpen || aiOpen || authOpen || legalOpen || proOpen) return;
-    const touch = e.touches[0];
-    touchStartX.current = touch.clientX;
-    touchStartY.current = touch.clientY;
-    touchStartTime.current = Date.now();
-  }
-
-  function handleTouchEnd(e: React.TouchEvent) {
-    if (touchStartX.current === null || touchStartY.current === null) return;
-    const touch = e.changedTouches[0];
-    const dx = touch.clientX - touchStartX.current;
-    const dy = touch.clientY - touchStartY.current;
-    const dt = Date.now() - touchStartTime.current;
-    touchStartX.current = null;
-    touchStartY.current = null;
-    if (Math.abs(dx) < 80 || Math.abs(dy) > Math.abs(dx) * 0.8 || dt > 600) return;
-    if (dx < 0) switchTab('left');
-    else switchTab('right');
-  }
+  // 取消左右滑切换 Tab（与任务卡片滑动手势冲突）
+  // Tab 切换只通过点击底部 Tab Bar
 
   if (!privacyAgreed) {
     return <PrivacyConsentSheet />;
@@ -305,8 +276,6 @@ function Shell() {
 
       <main
         className="flex-1 overflow-y-auto no-scrollbar"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
       >
         {loading ? (
           <div className="flex flex-col items-center justify-center h-full gap-3">

@@ -336,13 +336,8 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                 <div className="text-[13px] font-medium text-slate-500 mb-2 px-1">通用</div>
                 <div className="ios-list-group">
                   <div className="ios-list-item">
-                    <span className="text-sm flex-1">深色模式</span>
-                    <button
-                      onClick={toggleTheme}
-                      className={`w-12 h-7 rounded-full p-0.5 transition-colors ${theme === 'dark' ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                    >
-                      <div className={`w-6 h-6 bg-white rounded-full shadow transition-transform ${theme === 'dark' ? 'translate-x-5' : ''}`} />
-                    </button>
+                    <span className="text-sm flex-1">主题</span>
+                    <span className="text-xs text-slate-400">暗色（默认）</span>
                   </div>
                   <button
                     onClick={async () => {

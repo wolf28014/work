@@ -100,18 +100,17 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
     if (touchStartX.current === null) return;
     setDragging(false);
     if (isHorizontal.current === true) {
+      // 滑动超过阈值后保持揭示状态，显示确认按钮
+      // 不直接执行，需要用户点击确认按钮
       if (dragX <= -SWIPE_THRESHOLD) {
-        // 触发删除
-        setDragX(0);
-        softDeleteTask(task.id);
-        showToast('已移入回收站', 'info');
+        setDragX(-88); // 保持删除按钮揭示
       } else if (dragX >= SWIPE_THRESHOLD) {
-        // 触发完成（或恢复）
-        setDragX(0);
-        handleCheck();
+        setDragX(88); // 保持完成按钮揭示
       } else {
-        setDragX(0);
+        setDragX(0); // 回弹
       }
+    } else {
+      setDragX(0);
     }
     touchStartX.current = null;
     touchStartY.current = null;
@@ -131,27 +130,38 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
   return (
     <>
       <div className="relative overflow-hidden" style={{ borderRadius: 'var(--r-card)' }}>
-        {/* 左侧揭示：完成 */}
-        <div
-          className="absolute inset-y-0 left-0 flex items-center justify-center swipe-reveal-right"
-          style={{ width: 88, transform: dragX > 0 ? `translateX(${dragX - 88}px)` : 'translateX(-88px)', transition: dragging ? 'none' : 'transform 0.25s' }}
+        {/* 左侧揭示：完成确认按钮 */}
+        <button
+          className="absolute inset-y-0 left-0 flex items-center justify-center"
+          style={{ width: 88, transform: dragX > 0 ? `translateX(${dragX - 88}px)` : 'translateX(-88px)', transition: dragging ? 'none' : 'transform 0.25s', background: 'var(--primary)', border: 'none' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setDragX(0);
+            handleCheck();
+          }}
         >
-          <div className="flex flex-col items-center" style={{ color: 'var(--primary)' }}>
+          <div className="flex flex-col items-center" style={{ color: 'var(--bg)' }}>
             <span style={{ fontSize: 22 }}>{isDone ? '↺' : '✓'}</span>
             <span style={{ fontSize: 11, fontWeight: 600 }}>{isDone ? '恢复' : '完成'}</span>
           </div>
-        </div>
+        </button>
 
-        {/* 右侧揭示：删除 */}
-        <div
-          className="absolute inset-y-0 right-0 flex items-center justify-center swipe-reveal-left"
-          style={{ width: 88, transform: dragX < 0 ? `translateX(${dragX + 88}px)` : 'translateX(88px)', transition: dragging ? 'none' : 'transform 0.25s' }}
+        {/* 右侧揭示：删除确认按钮 */}
+        <button
+          className="absolute inset-y-0 right-0 flex items-center justify-center"
+          style={{ width: 88, transform: dragX < 0 ? `translateX(${dragX + 88}px)` : 'translateX(88px)', transition: dragging ? 'none' : 'transform 0.25s', background: 'var(--pri-high)', border: 'none' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setDragX(0);
+            softDeleteTask(task.id);
+            showToast('已移入回收站', 'info');
+          }}
         >
-          <div className="flex flex-col items-center" style={{ color: 'var(--pri-high)' }}>
+          <div className="flex flex-col items-center" style={{ color: 'var(--bg)' }}>
             <span style={{ fontSize: 22 }}>🗑</span>
             <span style={{ fontSize: 11, fontWeight: 600 }}>删除</span>
           </div>
-        </div>
+        </button>
 
         {/* 卡片本体 */}
         <div
