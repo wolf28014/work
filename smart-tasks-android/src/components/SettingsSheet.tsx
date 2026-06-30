@@ -321,6 +321,7 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                         const result = await checkUpdateManual();
                         if (result.hasUpdate) {
                           setUpdateInfo({ version: result.version!, url: result.url!, notes: result.notes! });
+                          showToast(`发现新版本 v${result.version}，点击下方下载`, 'success');
                         }
                       } finally { setChecking(false); }
                     }}
@@ -335,6 +336,33 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                       <span className="text-xs text-slate-400">v{CURRENT_VERSION} ›</span>
                     )}
                   </button>
+                  {/* 有新版本时显示下载按钮和说明 */}
+                  {updateInfo && (
+                    <div className="ios-card p-4 mt-2 bg-emerald-50 dark:bg-emerald-900/20 fade-in">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-emerald-500 text-lg">✨</span>
+                        <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                          发现新版本 v{updateInfo.version}
+                        </span>
+                      </div>
+                      <div className="text-[12px] text-slate-700 dark:text-slate-200 leading-relaxed mb-3 whitespace-pre-wrap max-h-32 overflow-y-auto no-scrollbar">
+                        {updateInfo.notes || '暂无更新说明'}
+                      </div>
+                      <button
+                        onClick={() => {
+                          // 用浏览器打开下载链接
+                          window.open(updateInfo.url, '_blank');
+                          showToast('正在跳转浏览器下载…', 'info');
+                        }}
+                        className="w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-semibold active:scale-95 transition-transform"
+                      >
+                        📥 下载新版本 APK
+                      </button>
+                      <div className="text-[10px] text-slate-500 text-center mt-2">
+                        下载完成后点击安装即可覆盖更新
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
