@@ -221,6 +221,8 @@ const ABOUT_INFO = `
 - 后端服务：Supabase
 `;
 
+import SwipeableSheet from './SwipeableSheet';
+
 export default function LegalSheet({ onClose, type }: Props) {
   const title = {
     privacy: '隐私政策',
@@ -237,15 +239,7 @@ export default function LegalSheet({ onClose, type }: Props) {
   }[type];
 
   return (
-    <div className="fixed inset-0 z-[60] modal-mask flex items-end" onClick={onClose}>
-      <div
-        className="w-full bg-white dark:bg-black slide-up max-h-[92vh] overflow-y-auto no-scrollbar rounded-t-3xl"
-        onClick={e => e.stopPropagation()}
-        style={{ paddingBottom: 'calc(20px + var(--safe-bottom))' }}
-      >
-        <div className="flex justify-center pt-2 pb-1">
-          <div className="w-10 h-1 bg-slate-300 dark:bg-slate-700 rounded-full" />
-        </div>
+    <SwipeableSheet onClose={onClose} zIndex={60} showEdgeIndicator={false}>
         <div className="flex items-center justify-between px-4 py-2 sticky top-0 bg-white dark:bg-black z-10 border-b border-slate-100 dark:border-slate-800">
           <button onClick={onClose} className="text-blue-500 text-[15px]">返回</button>
           <span className="text-[15px] font-semibold">{title}</span>
@@ -254,7 +248,6 @@ export default function LegalSheet({ onClose, type }: Props) {
         <div className="px-5 py-4 text-[14px] leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
           {content}
         </div>
-      </div>
-    </div>
+    </SwipeableSheet>
   );
 }

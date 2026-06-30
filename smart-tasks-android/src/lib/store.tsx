@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useReducer, type ReactNode } from 'react';
 import type { Task, PomodoroSession, Tag } from './db';
-import { getAllTasks, saveTask, deleteTaskPermanent, getAllPomodoros, addPomodoroSession, getAllTags, saveTag } from './db';
+import { getAllTasks, saveTask, deleteTaskPermanent, getAllPomodoros, addPomodoroSession, getAllTags, saveTag, deleteTag as deleteTagDB } from './db';
 import { genId } from './db';
 import { generateNextRecurrence } from './task-utils';
-import { syncTaskToCloud, syncPomodoroToCloud, syncTagToCloud } from './auth';
+import { syncTaskToCloud, syncPomodoroToCloud, syncTagToCloud, deleteTagFromCloud } from './auth';
 
 interface State {
   tasks: Task[];
@@ -60,6 +60,8 @@ interface ContextValue extends State {
   purgeTask: (id: string) => Promise<void>;
   recordPomodoro: (taskId: string, duration: number) => Promise<void>;
   ensureTag: (name: string, color?: string) => Promise<Tag>;
+  updateTagColor: (id: string, color: string) => Promise<void>;
+  deleteTag: (id: string) => Promise<void>;
   toggleTheme: () => void;
 }
 
@@ -215,6 +217,32 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'ADD_TAG', tag });
       syncTagToCloud(tag).catch(e => console.log('Sync failed:', e));
       return tag;
+    },
+    async updateTagColor(id, color) {
+      const existing = state.tags.find(t => t.id === id);
+      if (!existing) return;
+      const updated = { ...existing, color, updatedAt: Date.now() };
+      await saveTag(updated);
+      dispatch({ type: 'ADD_TAG', tag: updated }); // ADD_TAG 是 upsert 行为（已存在会替换）
+      syncTagToCloud(updated).catch(e => console.log('Sync failed:', e));
+    },
+    async deleteTag(id) {
+      const tag = state.tags.find(t => t.id === id);
+      if (!tag) return;
+      // 同时从所有任务的 tags 数组中移除该标签
+      for (const t of state.tasks) {
+        if (t.deletedAt) continue;
+        if (t.tags.includes(tag.name)) {
+          const newTags = t.tags.filter(tn => tn !== tag.name);
+          const updated = { ...t, tags: newTags, updatedAt: Date.now() };
+          await saveTask(updated);
+          dispatch({ type: 'UPDATE_TASK', task: updated });
+          syncTaskToCloud(updated).catch(e => console.log('Sync failed:', e));
+        }
+      }
+      await deleteTagDB(id);
+      dispatch({ type: 'DELETE_TAG', id });
+      deleteTagFromCloud(id).catch(e => console.log('Sync failed:', e));
     },
     toggleTheme() {
       dispatch({ type: 'SET_THEME', theme: state.theme === 'light' ? 'dark' : 'light' });
