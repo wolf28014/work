@@ -38,6 +38,9 @@ android/app/src/main/assets/public/
 android/app/src/main/assets/capacitor.config.json
 android/app/src/main/assets/capacitor.plugins.json
 
-# Keystore（如需自定义签名则取消注释）
-# android/smart-tasks.keystore
-# android/smart-tasks.keystore.jks
+# Keystore 签名密钥（绝对不能提交，包含签名权限）
+smart-tasks-android/android/smart-tasks.keystore
+smart-tasks-android/android/*.keystore
+smart-tasks-android/android/*.jks
+*.keystore
+*.jks

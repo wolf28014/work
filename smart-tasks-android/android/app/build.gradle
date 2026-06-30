@@ -18,10 +18,21 @@ android {
     }
     signingConfigs {
         release {
-            storeFile rootProject.file('smart-tasks.keystore')
-            storePassword 'smarttasks123'
-            keyAlias 'smart-tasks'
-            keyPassword 'smarttasks123'
+            // 从 local.properties 读取签名信息（该文件不提交到仓库）
+            // local.properties 内容示例：
+            //   keystore_path=smart-tasks.keystore
+            //   keystore_password=your_password
+            //   key_alias=smart-tasks
+            //   key_password=your_password
+            def props = new Properties()
+            def propsFile = rootProject.file('local.properties')
+            if (propsFile.exists()) {
+                props.load(new FileInputStream(propsFile))
+            }
+            storeFile rootProject.file(props.getProperty('keystore_path', 'smart-tasks.keystore'))
+            storePassword props.getProperty('keystore_password', System.env.KEYSTORE_PASSWORD ?: '')
+            keyAlias props.getProperty('key_alias', System.env.KEY_ALIAS ?: 'smart-tasks')
+            keyPassword props.getProperty('key_password', System.env.KEY_PASSWORD ?: '')
         }
     }
     buildTypes {
