@@ -118,18 +118,18 @@ export default function ListView({ onEdit }: Props) {
       <div className="px-4 pt-3 pb-2 sticky top-0 z-20 glass">
         <div className="flex items-center gap-2">
           <div className="flex-1 relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none z-10">🔍</span>
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="搜索任务…"
-              className="ios-input pl-9"
-              style={{ paddingTop: 8, paddingBottom: 8 }}
+              className="ios-input"
+              style={{ paddingTop: 8, paddingBottom: 8, paddingLeft: 36, paddingRight: query ? 36 : 14 }}
             />
             {query && (
               <button
                 onClick={() => setQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-300 dark:bg-slate-700 text-white text-xs flex items-center justify-center"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-300 dark:bg-slate-700 text-white text-xs flex items-center justify-center z-10"
               >×</button>
             )}
           </div>

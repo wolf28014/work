@@ -1,7 +1,11 @@
 import { useState, useMemo } from 'react';
 import type { Task } from '../lib/db';
 import { useTaskStore } from '../lib/store';
-import { STATUS_LABELS, STATUS_ORDER, STATUS_COLORS, PRIORITY_COLORS, TAG_COLORS, formatDate, isOverdue } from '../lib/task-utils';
+import {
+  STATUS_LABELS, STATUS_ORDER, STATUS_COLORS,
+  PRIORITY_COLORS, PRIORITY_LABELS, TAG_COLORS,
+  formatDate, isOverdue,
+} from '../lib/task-utils';
 import { showToast } from '../components/Toast';
 
 interface Props {
@@ -9,18 +13,25 @@ interface Props {
   onNew: () => void;
 }
 
+const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
+
 export default function KanbanView({ onEdit }: Props) {
   const { tasks, updateTask } = useTaskStore();
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string>('todo');
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
 
+  // 按状态分组
   const columns = useMemo(() => {
     const map: Record<string, Task[]> = { todo: [], in_progress: [], done: [], cancelled: [] };
-    tasks.filter(t => !t.deletedAt).forEach(t => { if (map[t.status]) map[t.status].push(t); });
+    tasks.filter(t => !t.deletedAt).forEach(t => {
+      if (map[t.status]) map[t.status].push(t);
+    });
+    // 每列内按优先级排序
     Object.keys(map).forEach(k => {
       map[k].sort((a, b) => {
-        const order = { high: 0, medium: 1, low: 2 };
-        if (order[a.priority] !== order[b.priority]) return order[a.priority] - order[b.priority];
+        const po = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+        if (po !== 0) return po;
         if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
         return b.createdAt - a.createdAt;
       });
@@ -28,76 +39,239 @@ export default function KanbanView({ onEdit }: Props) {
     return map;
   }, [tasks]);
 
-  function handleDrop(newStatus: string) {
-    if (!draggingId) return;
-    const task = tasks.find(t => t.id === draggingId);
+  // 当前选中状态的任务列表
+  const currentTasks = columns[selectedStatus] || [];
+
+  // 拖拽到目标列
+  function handleDropToColumn(newStatus: string) {
+    if (!draggedTaskId) return;
+    const task = tasks.find(t => t.id === draggedTaskId);
     if (!task || task.status === newStatus) {
-      setDraggingId(null);
-      setDragOverCol(null);
+      setDraggedTaskId(null);
+      setDragOverStatus(null);
       return;
     }
-    updateTask(task.id, { status: newStatus, completedAt: newStatus === 'done' ? Date.now() : null });
+    updateTask(task.id, {
+      status: newStatus,
+      completedAt: newStatus === 'done' ? Date.now() : null,
+    });
     showToast(`已移至「${STATUS_LABELS[newStatus]}」`, 'success');
-    setDraggingId(null);
-    setDragOverCol(null);
+    setDraggedTaskId(null);
+    setDragOverStatus(null);
   }
 
-  return (
-    <div className="h-full overflow-x-auto no-scrollbar pb-4">
-      <div className="flex gap-3 px-3 min-w-max h-full">
-        {STATUS_ORDER.map(col => (
-          <div
-            key={col}
-            className="w-72 flex flex-col"
-            onDragOver={e => { e.preventDefault(); setDragOverCol(col); }}
-            onDragLeave={() => setDragOverCol(null)}
-            onDrop={() => handleDrop(col)}
-          >
-            <div className={`px-3 py-2 rounded-t-xl flex items-center justify-between ${
-              dragOverCol === col ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-slate-100 dark:bg-slate-800/50'
-            }`}>
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${STATUS_COLORS[col].bar}`} />
-                <span className="text-sm font-semibold">{STATUS_LABELS[col]}</span>
-              </div>
-              <span className="text-xs text-slate-400 bg-white dark:bg-slate-700 px-2 py-0.5 rounded-full">
-                {columns[col].length}
-              </span>
-            </div>
+  // 通过长按弹出的状态切换菜单
+  const [statusChangeTaskId, setStatusChangeTaskId] = useState<string | null>(null);
 
-            <div className={`flex-1 overflow-y-auto no-scrollbar p-2 space-y-2 rounded-b-xl min-h-[200px] ${
-              dragOverCol === col ? 'bg-emerald-50/50 dark:bg-emerald-900/20' : 'bg-slate-50 dark:bg-black/20'
-            }`}>
-              {columns[col].length === 0 && (
-                <div className="text-center text-xs text-slate-300 dark:text-slate-600 py-8">拖拽任务到这里</div>
-              )}
-              {columns[col].map(task => (
+  async function handleStatusChange(newStatus: string) {
+    if (!statusChangeTaskId) return;
+    const task = tasks.find(t => t.id === statusChangeTaskId);
+    if (!task || task.status === newStatus) {
+      setStatusChangeTaskId(null);
+      return;
+    }
+    await updateTask(task.id, {
+      status: newStatus,
+      completedAt: newStatus === 'done' ? Date.now() : null,
+    });
+    showToast(`已移至「${STATUS_LABELS[newStatus]}」`, 'success');
+    setStatusChangeTaskId(null);
+  }
+
+  const totalActive = tasks.filter(t => !t.deletedAt).length;
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* 顶部统计栏 */}
+      <div className="px-4 py-2.5 glass border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between">
+          <span className="text-[12px] text-slate-500 dark:text-slate-400">
+            共 {totalActive} 个任务 · 4 个分类
+          </span>
+          <span className="text-[12px] text-emerald-500 font-medium">
+            点击分类查看 →
+          </span>
+        </div>
+      </div>
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* 左侧：分类列表 */}
+        <aside
+          className="w-24 flex-shrink-0 bg-slate-50 dark:bg-black/30 overflow-y-auto no-scrollbar border-r border-slate-100 dark:border-slate-800"
+        >
+          {STATUS_ORDER.map(status => {
+            const sc = STATUS_COLORS[status];
+            const count = columns[status].length;
+            const isActive = selectedStatus === status;
+            const isDragOver = dragOverStatus === status;
+            return (
+              <button
+                key={status}
+                onClick={() => setSelectedStatus(status)}
+                onDragOver={e => { e.preventDefault(); setDragOverStatus(status); }}
+                onDragLeave={() => setDragOverStatus(null)}
+                onDrop={() => handleDropToColumn(status)}
+                className={`relative w-full flex flex-col items-center justify-center py-4 px-1 transition-all active:scale-95 ${
+                  isActive
+                    ? 'bg-white dark:bg-slate-800'
+                    : isDragOver
+                    ? 'bg-emerald-50 dark:bg-emerald-900/30'
+                    : ''
+                }`}
+              >
+                {/* 左侧高亮条 */}
+                {isActive && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-emerald-500 rounded-r-full" />
+                )}
+                {/* 状态色圆点 */}
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${sc.bg} mb-1.5`}>
+                  <div className={`w-3 h-3 rounded-full ${sc.bar}`} />
+                </div>
+                {/* 状态名 */}
+                <div className={`text-[11px] font-medium leading-tight ${
+                  isActive ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-600 dark:text-slate-400'
+                }`}>
+                  {STATUS_LABELS[status]}
+                </div>
+                {/* 任务数 */}
+                <div className={`text-[10px] mt-0.5 ${count > 0 ? 'text-slate-500 dark:text-slate-400' : 'text-slate-300 dark:text-slate-600'}`}>
+                  {count}
+                </div>
+              </button>
+            );
+          })}
+        </aside>
+
+        {/* 右侧：任务列表 */}
+        <main className="flex-1 overflow-y-auto no-scrollbar">
+          {/* 当前列头部 */}
+          <div className={`px-4 py-3 sticky top-0 z-10 glass border-b border-slate-100 dark:border-slate-800`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[selectedStatus].bar}`} />
+                <span className="text-[15px] font-semibold">
+                  {STATUS_LABELS[selectedStatus]}
+                </span>
+                <span className="text-[12px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                  {currentTasks.length}
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-400">
+                长按任务可切换状态
+              </div>
+            </div>
+          </div>
+
+          {/* 任务卡片列表 */}
+          <div
+            className="p-3 space-y-2 min-h-[200px]"
+            onDragOver={e => e.preventDefault()}
+          >
+            {currentTasks.length === 0 ? (
+              <div className="text-center py-16 text-slate-400">
+                <div className="text-4xl mb-2">📂</div>
+                <div className="text-sm">「{STATUS_LABELS[selectedStatus]}」分类下暂无任务</div>
+                <div className="text-[11px] mt-1 text-slate-300 dark:text-slate-600">
+                  可从其他分类拖拽任务过来
+                </div>
+              </div>
+            ) : (
+              currentTasks.map(task => (
                 <KanbanCard
                   key={task.id}
                   task={task}
                   onClick={() => onEdit(task)}
-                  onDragStart={() => setDraggingId(task.id)}
-                  onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
-                  isDragging={draggingId === task.id}
+                  onDragStart={() => setDraggedTaskId(task.id)}
+                  onDragEnd={() => { setDraggedTaskId(null); setDragOverStatus(null); }}
+                  onLongPress={() => setStatusChangeTaskId(task.id)}
+                  isDragging={draggedTaskId === task.id}
                 />
-              ))}
+              ))
+            )}
+          </div>
+        </main>
+      </div>
+
+      {/* 状态切换 ActionSheet（长按任务触发） */}
+      {statusChangeTaskId && (
+        <div
+          className="fixed inset-0 z-[80] modal-mask flex items-end"
+          onClick={() => setStatusChangeTaskId(null)}
+        >
+          <div
+            className="w-full bg-white dark:bg-black slide-up rounded-t-3xl"
+            onClick={e => e.stopPropagation()}
+            style={{ paddingBottom: 'calc(20px + var(--safe-bottom))' }}
+          >
+            <div className="flex justify-center pt-2 pb-1">
+              <div className="w-10 h-1 bg-slate-300 dark:bg-slate-700 rounded-full" />
+            </div>
+            <div className="text-center text-[15px] font-semibold py-2 border-b border-slate-100 dark:border-slate-800">
+              移动到分类
+            </div>
+            <div className="p-3 space-y-2">
+              {STATUS_ORDER.map(s => {
+                const sc = STATUS_COLORS[s];
+                const isCurrent = s === (tasks.find(t => t.id === statusChangeTaskId)?.status);
+                return (
+                  <button
+                    key={s}
+                    onClick={() => handleStatusChange(s)}
+                    className={`w-full flex items-center gap-3 p-3.5 rounded-xl transition-all active:scale-[0.98] ${
+                      isCurrent
+                        ? 'bg-emerald-50 dark:bg-emerald-900/30 ring-2 ring-emerald-400'
+                        : 'bg-slate-50 dark:bg-slate-800/50'
+                    }`}
+                  >
+                    <div className={`w-3 h-3 rounded-full ${sc.bar}`} />
+                    <span className={`flex-1 text-left text-[15px] font-medium ${isCurrent ? 'text-emerald-600 dark:text-emerald-300' : ''}`}>
+                      {STATUS_LABELS[s]}
+                    </span>
+                    {isCurrent && <span className="text-emerald-500 text-lg">✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="px-3 pb-2">
+              <button
+                onClick={() => setStatusChangeTaskId(null)}
+                className="w-full py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-[15px] font-medium"
+              >取消</button>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function KanbanCard({ task, onClick, onDragStart, onDragEnd, isDragging }: {
+interface KanbanCardProps {
   task: Task;
   onClick: () => void;
   onDragStart: () => void;
   onDragEnd: () => void;
+  onLongPress: () => void;
   isDragging: boolean;
-}) {
+}
+
+function KanbanCard({ task, onClick, onDragStart, onDragEnd, onLongPress, isDragging }: KanbanCardProps) {
   const priorityColor = PRIORITY_COLORS[task.priority];
   const overdue = isOverdue(task);
+  const [pressTimer, setPressTimer] = useState<number | null>(null);
+
+  function handleTouchStart() {
+    const timer = window.setTimeout(() => {
+      onLongPress();
+    }, 500);
+    setPressTimer(timer);
+  }
+
+  function handleTouchEnd() {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      setPressTimer(null);
+    }
+  }
 
   return (
     <div
@@ -105,30 +279,65 @@ function KanbanCard({ task, onClick, onDragStart, onDragEnd, isDragging }: {
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`ios-card p-3 cursor-pointer active:scale-95 transition-transform ${isDragging ? 'opacity-50' : ''}`}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchMove={handleTouchEnd}
+      className={`ios-card p-3 cursor-pointer active:scale-[0.98] transition-transform ${
+        isDragging ? 'opacity-50' : ''
+      }`}
     >
+      {/* 优先级色条 */}
       <div className={`h-1 rounded-full mb-2 ${priorityColor.dot}`} />
+
+      {/* 标题 */}
       <div className={`text-[14px] font-medium leading-snug ${task.status === 'done' ? 'line-through text-slate-400' : ''}`}>
         {task.title}
       </div>
+
+      {/* 描述 */}
       {task.description && (
-        <div className="text-[12px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{task.description}</div>
+        <div className="text-[12px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+          {task.description}
+        </div>
       )}
+
+      {/* 标签 */}
       {task.tags.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-2">
           {task.tags.slice(0, 3).map(t => (
-            <span key={t} className={`text-[10px] px-1.5 py-0.5 rounded ${TAG_COLORS.emerald}`}>#{t}</span>
+            <span key={t} className={`text-[10px] px-1.5 py-0.5 rounded ${TAG_COLORS.emerald}`}>
+              #{t}
+            </span>
           ))}
         </div>
       )}
+
+      {/* 底部信息 */}
       <div className="flex items-center justify-between mt-2 text-[11px] text-slate-400">
         <div className="flex items-center gap-2">
           {task.dueDate && (
-            <span className={overdue ? 'text-rose-500 font-medium' : ''}>📅 {formatDate(task.dueDate)}</span>
+            <span className={overdue ? 'text-rose-500 font-medium' : ''}>
+              📅 {formatDate(task.dueDate)}
+            </span>
           )}
-          {task.subtasks.length > 0 && (<span>✓ {task.subtasks.filter(s => s.done).length}/{task.subtasks.length}</span>)}
+          {task.subtasks.length > 0 && (
+            <span>✓ {task.subtasks.filter(s => s.done).length}/{task.subtasks.length}</span>
+          )}
+          {task.recurrence && (
+            <span>🔁 {task.recurrence === 'daily' ? '日' : task.recurrence === 'weekly' ? '周' : '月'}</span>
+          )}
         </div>
-        {task.pomodoros > 0 && <span>🍅 {task.pomodoros}</span>}
+        <div className="flex items-center gap-2">
+          {task.pomodoros > 0 && <span>🍅 {task.pomodoros}</span>}
+          <span className={`px-1.5 py-0.5 rounded ${priorityColor.bg} ${priorityColor.text} font-medium`}>
+            {PRIORITY_LABELS[task.priority]}
+          </span>
+        </div>
+      </div>
+
+      {/* 拖拽提示 */}
+      <div className="text-[10px] text-slate-300 dark:text-slate-600 mt-1.5 text-center">
+        ⋮⋮ 长按拖拽切换分类
       </div>
     </div>
   );
