@@ -219,6 +219,34 @@ export default function TaskEditor({ task, onClose }: Props) {
             </div>
           </div>
 
+          {/* AI 任务总结（仅编辑模式可用，移到子任务前面，避免被底部遮挡） */}
+          {task && getAISettings() && (
+            <div>
+              <div className="flex items-center justify-between mb-2 px-1">
+                <div className="text-[13px] font-medium text-slate-500">✨ AI 任务总结</div>
+                <button
+                  onClick={handleAISummary}
+                  disabled={loadingSummary}
+                  className="text-[11px] px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-full font-medium disabled:opacity-50 active:scale-95 transition-transform"
+                >
+                  {loadingSummary ? '生成中…' : summary ? '重新生成' : '生成总结'}
+                </button>
+              </div>
+              {summary && (
+                <div className="ios-card p-3.5 bg-emerald-50/50 dark:bg-emerald-900/20 fade-in">
+                  <div className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
+                    {summary}
+                  </div>
+                </div>
+              )}
+              {!summary && !loadingSummary && (
+                <div className="text-[11px] text-slate-400 px-1">
+                  AI 会分析任务现状、风险点，给出下一步建议
+                </div>
+              )}
+            </div>
+          )}
+
           {tags.length > 0 && (
             <div>
               <div className="text-[13px] font-medium text-slate-500 mb-2 px-1">标签</div>
@@ -279,33 +307,8 @@ export default function TaskEditor({ task, onClose }: Props) {
             </div>
           </div>
 
-          {/* AI 任务总结（仅编辑模式可用） */}
-          {task && getAISettings() && (
-            <div>
-              <div className="flex items-center justify-between mb-2 px-1">
-                <div className="text-[13px] font-medium text-slate-500">✨ AI 任务总结</div>
-                <button
-                  onClick={handleAISummary}
-                  disabled={loadingSummary}
-                  className="text-[11px] px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-full font-medium disabled:opacity-50 active:scale-95 transition-transform"
-                >
-                  {loadingSummary ? '生成中…' : summary ? '重新生成' : '生成总结'}
-                </button>
-              </div>
-              {summary && (
-                <div className="ios-card p-3.5 bg-emerald-50/50 dark:bg-emerald-900/20 fade-in">
-                  <div className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
-                    {summary}
-                  </div>
-                </div>
-              )}
-              {!summary && !loadingSummary && (
-                <div className="text-[11px] text-slate-400 px-1">
-                  AI 会分析任务现状、风险点，给出下一步建议
-                </div>
-              )}
-            </div>
-          )}
+          {/* 底部留白，避免被遮挡 */}
+          <div className="h-6" />
         </div>
     </SwipeableSheet>
   );

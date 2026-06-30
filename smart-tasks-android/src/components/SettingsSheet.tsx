@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTaskStore } from '../lib/store';
 import { getAISettings, saveAISettings, clearAISettings } from '../lib/ai-client';
 import { exportAllData, importAllData } from '../lib/db';
-import { tasksToCSV } from '../lib/task-utils';
+import { tasksToCSV, TAG_COLORS, TAG_COLOR_NAMES } from '../lib/task-utils';
 import { showToast } from './Toast';
 import {
   PRESET_BACKGROUNDS,
@@ -24,9 +24,9 @@ interface Props {
 }
 
 export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Props) {
-  const { theme, toggleTheme, tasks, purgeTask, restoreTask } = useTaskStore();
+  const { theme, toggleTheme, tasks, purgeTask, restoreTask, tags, ensureTag, updateTagColor, deleteTag } = useTaskStore();
   const { user, pro, isConfigured } = useAuth();
-  const [tab, setTab] = useState<'general' | 'background' | 'ai' | 'data' | 'trash'>('general');
+  const [tab, setTab] = useState<'general' | 'background' | 'tags' | 'ai' | 'data' | 'trash'>('general');
   const existingAI = getAISettings();
   const [baseURL, setBaseURL] = useState(existingAI?.baseURL || 'https://open.bigmodel.cn/api/paas/v4');
   const [apiKey, setApiKey] = useState(existingAI?.apiKey || '');
@@ -34,6 +34,9 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
   const [redeemInput, setRedeemInput] = useState('');
   const [updateInfo, setUpdateInfo] = useState(getCachedUpdateInfo());
   const [checking, setChecking] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState('emerald');
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
 
   // 背景设置
   const [bgSettings, setBgSettings] = useState<BackgroundSettings>(getBackgroundSettings);
@@ -146,6 +149,7 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
           {([
             { id: 'general', label: '通用' },
             { id: 'background', label: '背景' },
+            { id: 'tags', label: '标签' },
             { id: 'ai', label: 'AI' },
             { id: 'data', label: '数据' },
             { id: 'trash', label: '回收站' },
@@ -480,6 +484,121 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
               <div className="ios-card p-3 bg-amber-50 dark:bg-amber-900/20">
                 <div className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">
                   💡 提示：浅色背景适合白天使用，深色背景护眼适合夜间。自定义图片会自动压缩存储在本地，不会上传到任何服务器。
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === 'tags' && (
+            <div className="space-y-4">
+              {/* 添加新标签 */}
+              <div>
+                <div className="text-[13px] font-medium text-slate-500 mb-2 px-1">添加新标签</div>
+                <div className="ios-list-group">
+                  <div className="ios-list-item flex-col items-stretch !block p-3">
+                    <input
+                      value={newTagName}
+                      onChange={e => setNewTagName(e.target.value)}
+                      placeholder="标签名（如：工作、学习）"
+                      className="ios-input mb-2"
+                      maxLength={20}
+                    />
+                    <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                      {TAG_COLOR_NAMES.map(c => (
+                        <button
+                          key={c}
+                          onClick={() => setNewTagColor(c)}
+                          className={`w-7 h-7 rounded-full ${TAG_COLORS[c]} ${newTagColor === c ? 'ring-2 ring-offset-2 ring-slate-400' : ''}`}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!newTagName.trim()) { showToast('请输入标签名', 'error'); return; }
+                        try {
+                          await ensureTag(newTagName.trim(), newTagColor);
+                          showToast('标签已添加', 'success');
+                          setNewTagName('');
+                        } catch (e: any) { showToast(e.message || '添加失败', 'error'); }
+                      }}
+                      className="btn-primary w-full"
+                    >+ 添加标签</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 已有标签列表 */}
+              <div>
+                <div className="text-[13px] font-medium text-slate-500 mb-2 px-1">
+                  已有标签（{tags.length}）
+                </div>
+                {tags.length === 0 ? (
+                  <div className="text-center py-8 text-sm text-slate-400">
+                    <div className="text-3xl mb-2">🏷️</div>
+                    还没有标签，在上方添加一个吧
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {tags.map(tag => {
+                      const isEditing = editingTagId === tag.id;
+                      // 统计使用此标签的任务数
+                      const usageCount = tasks.filter(t => !t.deletedAt && t.tags.includes(tag.name)).length;
+                      return (
+                        <div key={tag.id} className="ios-card p-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full ${TAG_COLORS[tag.color] || TAG_COLORS.emerald} flex items-center justify-center flex-shrink-0`}>
+                              <span className="text-xs font-bold">#</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium truncate">#{tag.name}</div>
+                              <div className="text-[11px] text-slate-400 mt-0.5">
+                                {usageCount > 0 ? `${usageCount} 个任务使用` : '未被使用'}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setEditingTagId(isEditing ? null : tag.id)}
+                              className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-xs font-medium rounded-lg active:scale-95 transition-transform"
+                            >{isEditing ? '收起' : '编辑'}</button>
+                            <button
+                              onClick={async () => {
+                                if (usageCount > 0) {
+                                  if (!confirm(`标签 #${tag.name} 被 ${usageCount} 个任务使用，删除会从这些任务中移除该标签，确定？`)) return;
+                                } else {
+                                  if (!confirm(`确定删除标签 #${tag.name}？`)) return;
+                                }
+                                await deleteTag(tag.id);
+                                showToast('标签已删除', 'info');
+                              }}
+                              className="px-2.5 py-1 bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300 text-xs font-medium rounded-lg active:scale-95 transition-transform"
+                            >删除</button>
+                          </div>
+                          {isEditing && (
+                            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 fade-in">
+                              <div className="text-[11px] text-slate-500 mb-2">选择颜色</div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {TAG_COLOR_NAMES.map(c => (
+                                  <button
+                                    key={c}
+                                    onClick={async () => {
+                                      await updateTagColor(tag.id, c);
+                                      showToast('颜色已更新', 'success');
+                                    }}
+                                    className={`w-8 h-8 rounded-full ${TAG_COLORS[c]} ${tag.color === c ? 'ring-2 ring-offset-2 ring-emerald-500' : ''}`}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="ios-card p-3 bg-amber-50 dark:bg-amber-900/20">
+                <div className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">
+                  💡 标签用于分类任务，可在新建/编辑任务时选择。删除标签会从所有使用它的任务中移除，但不会删除任务本身。
                 </div>
               </div>
             </div>

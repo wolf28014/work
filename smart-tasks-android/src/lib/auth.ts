@@ -282,6 +282,14 @@ export async function syncTagToCloud(tag: Tag) {
   }, { onConflict: 'id' });
 }
 
+// 删除云端标签
+export async function deleteTagFromCloud(tagId: string) {
+  if (!currentUser) return;
+  const sb = getSupabase();
+  if (!sb) return;
+  await sb.from('tags').delete().eq('id', tagId);
+}
+
 // 首次登录：合并本地数据到云端（去重）
 export async function mergeLocalToCloud() {
   if (!currentUser) return;
