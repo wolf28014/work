@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { App as CapacitorApp } from '@capacitor/app';
 import { TaskProvider, useTaskStore } from './lib/store';
 import ListView from './views/ListView';
 import KanbanView from './views/KanbanView';
@@ -99,6 +100,26 @@ function Shell() {
       });
     }
   }, [privacyAgreed]);
+
+  // 监听系统返回键（含 MIUI/系统手势的边缘滑动返回）
+  // 子页面（SwipeableSheet）会自己监听并优先处理，这里只处理"没有子页面"的情况
+  useEffect(() => {
+    const handleBackButton = ({ canGoBack }: { canGoBack: boolean }) => {
+      // 如果有任何子页面打开，让 SwipeableSheet 自己处理（它也监听了 backButton）
+      // 这里只在没有子页面时退出 App
+      const hasOpenSheet = legalOpen || authOpen || aiOpen || settingsOpen || editorOpen;
+      if (hasOpenSheet) {
+        // 子页面会自己关闭，这里不做任何事
+        return;
+      }
+      // 没有子页面打开时，退出 App
+      if (canGoBack) {
+        CapacitorApp.exitApp();
+      }
+    };
+    const listener = CapacitorApp.addListener('backButton', handleBackButton);
+    return () => { listener.then(l => l.remove()); };
+  }, [legalOpen, authOpen, aiOpen, settingsOpen, editorOpen]);
 
   // 登录成功后合并本地数据到云端
   async function handleAuthSuccess() {
