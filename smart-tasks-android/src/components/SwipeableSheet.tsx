@@ -7,6 +7,10 @@ interface Props {
   fullScreen?: boolean;
   /** 自定义内容容器类名 */
   bodyClassName?: string;
+  /** z-index 层级，默认 50 */
+  zIndex?: number;
+  /** 是否显示左边缘返回指示器，默认 true。ActionSheet 可设为 false */
+  showEdgeIndicator?: boolean;
 }
 
 /**
@@ -15,7 +19,7 @@ interface Props {
  * - 支持点击遮罩关闭
  * - 阻止背景滚动
  */
-export default function SwipeableSheet({ onClose, children, fullScreen = false, bodyClassName }: Props) {
+export default function SwipeableSheet({ onClose, children, fullScreen = false, bodyClassName, zIndex = 50, showEdgeIndicator = true }: Props) {
   const [translateX, setTranslateX] = useState(0);
   const [isAnimating, setIsAnimating] = useState(true);
   const touchStartX = useRef<number | null>(null);
@@ -76,7 +80,8 @@ export default function SwipeableSheet({ onClose, children, fullScreen = false, 
 
   return (
     <div
-      className="fixed inset-0 z-50 modal-mask flex items-end"
+      className="fixed inset-0 modal-mask flex items-end"
+      style={{ zIndex }}
       onClick={onClose}
     >
       <div
@@ -92,7 +97,9 @@ export default function SwipeableSheet({ onClose, children, fullScreen = false, 
         }}
       >
         {/* 左边缘返回指示器 */}
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-16 bg-slate-300 dark:bg-slate-600 rounded-r-full opacity-60 pointer-events-none z-20" />
+        {showEdgeIndicator && (
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-16 bg-slate-300 dark:bg-slate-600 rounded-r-full opacity-60 pointer-events-none z-20" />
+        )}
 
         {/* 顶部把手 */}
         <div className="flex justify-center pt-2 pb-1 flex-shrink-0">
