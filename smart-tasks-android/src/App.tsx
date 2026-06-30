@@ -20,7 +20,7 @@ import {
   type BackgroundSettings,
 } from './lib/background';
 import { initAuth, useAuth, mergeLocalToCloud } from './lib/auth';
-import { checkUpdateOnLaunch } from './lib/updater';
+import { checkUpdateOnLaunch, getCachedUpdateInfo } from './lib/updater';
 
 // 启动时获取实际状态栏高度并设置到 CSS 变量
 async function setupStatusBar() {
@@ -51,6 +51,7 @@ function Shell() {
   const [tab, setTab] = useState<Tab>('list');
   const [tabDirection, setTabDirection] = useState<'left' | 'right'>('left');
   const [pomodoroTaskId, setPomodoroTaskId] = useState<string>('');
+  const [updateBanner, setUpdateBanner] = useState(getCachedUpdateInfo());
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorTask, setEditorTask] = useState<any>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -91,7 +92,10 @@ function Shell() {
   useEffect(() => {
     if (privacyAgreed) {
       initAuth().then(() => {
-        checkUpdateOnLaunch().catch(() => {});
+        checkUpdateOnLaunch().then(() => {
+          // 检查完成后更新 banner
+          setUpdateBanner(getCachedUpdateInfo());
+        }).catch(() => {});
       });
     }
   }, [privacyAgreed]);
@@ -179,6 +183,26 @@ function Shell() {
         </div>
       </header>
 
+      {/* 有新版本时显示更新提醒横幅 */}
+      {updateBanner && (
+        <div className="mx-3 mt-2 ios-card p-2.5 bg-emerald-50 dark:bg-emerald-900/40 fade-in flex items-center gap-2">
+          <span className="text-emerald-500 text-base">✨</span>
+          <div className="flex-1 min-w-0">
+            <div className="text-[12px] font-semibold text-emerald-700 dark:text-emerald-300">
+              发现新版本 v{updateBanner.version}
+            </div>
+          </div>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="px-3 py-1.5 bg-emerald-500 text-white rounded-full text-[11px] font-semibold active:scale-95 transition-transform whitespace-nowrap"
+          >立即更新</button>
+          <button
+            onClick={() => setUpdateBanner(null)}
+            className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 text-xs flex items-center justify-center"
+          >×</button>
+        </div>
+      )}
+
       <main
         className="flex-1 overflow-y-auto no-scrollbar"
         onTouchStart={handleTouchStart}
@@ -198,7 +222,11 @@ function Shell() {
               setTabDirection('left');
               setTab('pomodoro');
             }} />}
-            {tab === 'kanban' && <KanbanView onEdit={openEditTask} onNew={openNewTask} />}
+            {tab === 'kanban' && <KanbanView onEdit={openEditTask} onNew={openNewTask} onStartPomodoro={(t) => {
+              setPomodoroTaskId(t.id);
+              setTabDirection('left');
+              setTab('pomodoro');
+            }} />}
             {tab === 'calendar' && <CalendarView onEdit={openEditTask} onNew={openNewTask} />}
             {tab === 'pomodoro' && <PomodoroView onEdit={openEditTask} initialTaskId={pomodoroTaskId} />}
             {tab === 'dashboard' && <DashboardView />}
