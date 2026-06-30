@@ -66,6 +66,45 @@
   --shadow-pop: 0 20px 48px rgba(0, 0, 0, 0.5);
 }
 
+/* === Light mode overrides === */
+body:not(.dark) {
+  --bg: #F5F5F7;
+  --bg-elevated: rgba(0, 0, 0, 0.02);
+  --bg-sunken: rgba(0, 0, 0, 0.04);
+
+  --card: rgba(0, 0, 0, 0.04);
+  --card-hover: rgba(0, 0, 0, 0.06);
+  --card-active: rgba(0, 0, 0, 0.08);
+  --card-blur: 22px;
+
+  --primary: #1AB87C;
+  --primary-strong: #159C68;
+  --primary-soft: rgba(26, 184, 124, 0.12);
+  --primary-glow: rgba(26, 184, 124, 0.3);
+  --primary-border: rgba(26, 184, 124, 0.25);
+
+  --text-primary: rgba(0, 0, 0, 0.88);
+  --text-secondary: rgba(0, 0, 0, 0.55);
+  --text-tertiary: rgba(0, 0, 0, 0.35);
+  --text-quaternary: rgba(0, 0, 0, 0.20);
+
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.14);
+
+  --pri-high: #E53E5C;
+  --pri-medium: #D98E0C;
+  --pri-low: #2B8FD6;
+
+  --stat-todo: #2B8FD6;
+  --stat-progress: #D98E0C;
+  --stat-done: #1AB87C;
+  --stat-cancelled: rgba(0, 0, 0, 0.25);
+
+  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  --shadow-fab: 0 8px 24px rgba(26, 184, 124, 0.3), 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.15);
+}
+
 * {
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
