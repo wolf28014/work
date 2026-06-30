@@ -17,7 +17,7 @@ interface Props {
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 
 export default function KanbanView({ onEdit }: Props) {
-  const { tasks, updateTask } = useTaskStore();
+  const { tasks, updateTask, softDeleteTask } = useTaskStore();
   const [selectedStatus, setSelectedStatus] = useState<string>('todo');
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
@@ -82,23 +82,72 @@ export default function KanbanView({ onEdit }: Props) {
   const totalActive = tasks.filter(t => !t.deletedAt).length;
 
   const [showCategorySheet, setShowCategorySheet] = useState(false);
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   return (
     <div className="h-full flex flex-col">
-      {/* 顶部统计栏：可点击切换分类 */}
-      <button
-        onClick={() => setShowCategorySheet(true)}
-        className="px-4 py-2.5 glass border-b border-slate-100 dark:border-slate-800 flex items-center justify-between active:bg-slate-50 dark:active:bg-slate-800/50 transition-colors"
-      >
-        <span className="text-[12px] text-slate-500 dark:text-slate-400">
-          共 {totalActive} 个任务 · 4 个分类
-        </span>
-        <span className="flex items-center gap-1 text-[12px] text-emerald-500 font-medium">
-          <span className={`w-2 h-2 rounded-full ${STATUS_COLORS[selectedStatus].bar}`} />
-          <span>{STATUS_LABELS[selectedStatus]}（{currentTasks.length}）</span>
-          <span className="text-[10px]">▾</span>
-        </span>
-      </button>
+      {/* 顶部统计栏：可点击切换分类 + 批量按钮 */}
+      <div className="px-4 py-2.5 glass border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <button
+          onClick={() => !batchMode && setShowCategorySheet(true)}
+          className="flex items-center gap-2 flex-1"
+        >
+          <span className="text-[12px] text-slate-500 dark:text-slate-400">
+            共 {totalActive} 个任务 · 4 个分类
+          </span>
+          <span className="flex items-center gap-1 text-[12px] text-emerald-500 font-medium">
+            <span className={`w-2 h-2 rounded-full ${STATUS_COLORS[selectedStatus].bar}`} />
+            <span>{STATUS_LABELS[selectedStatus]}（{currentTasks.length}）</span>
+            <span className="text-[10px]">▾</span>
+          </span>
+        </button>
+        <button
+          onClick={() => {
+            if (batchMode) setSelectedIds(new Set());
+            setBatchMode(!batchMode);
+          }}
+          className={`px-3 py-1.5 rounded-full text-[11px] font-medium whitespace-nowrap ${
+            batchMode ? 'bg-rose-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+          } active:scale-95 transition-transform ml-2`}
+        >{batchMode ? '退出批量' : '🗑 批量'}</button>
+      </div>
+
+      {/* 批量操作工具栏 */}
+      {batchMode && (
+        <div className="px-4 py-2 bg-rose-50 dark:bg-rose-900/20 border-b border-rose-200 dark:border-rose-900/40 fade-in flex items-center justify-between">
+          <span className="text-[12px] text-rose-700 dark:text-rose-300 font-medium">
+            已选 {selectedIds.size} / {currentTasks.length} 项
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                const newSet = new Set(selectedIds);
+                currentTasks.forEach(t => newSet.add(t.id));
+                setSelectedIds(newSet);
+              }}
+              className="px-3 py-1.5 bg-white dark:bg-slate-800 text-[12px] font-medium rounded-lg text-slate-700 dark:text-slate-200 active:scale-95 transition-transform"
+            >全选</button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="px-3 py-1.5 bg-white dark:bg-slate-800 text-[12px] font-medium rounded-lg text-slate-700 dark:text-slate-200 active:scale-95 transition-transform"
+            >清空</button>
+            <button
+              onClick={async () => {
+                if (selectedIds.size === 0) return;
+                if (!confirm(`确定删除选中的 ${selectedIds.size} 个任务？\n（移入回收站，30 天内可恢复）`)) return;
+                for (const id of selectedIds) {
+                  await softDeleteTask(id);
+                }
+                setSelectedIds(new Set());
+                setBatchMode(false);
+              }}
+              disabled={selectedIds.size === 0}
+              className="px-3 py-1.5 bg-rose-500 text-white text-[12px] font-medium rounded-lg disabled:opacity-50 active:scale-95 transition-transform"
+            >删除</button>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧：分类列表（重新设计） */}
@@ -194,15 +243,39 @@ export default function KanbanView({ onEdit }: Props) {
               </div>
             ) : (
               currentTasks.map(task => (
-                <KanbanCard
-                  key={task.id}
-                  task={task}
-                  onClick={() => onEdit(task)}
-                  onDragStart={() => setDraggedTaskId(task.id)}
-                  onDragEnd={() => { setDraggedTaskId(null); setDragOverStatus(null); }}
-                  onLongPress={() => setStatusChangeTaskId(task.id)}
-                  isDragging={draggedTaskId === task.id}
-                />
+                <div key={task.id} className={batchMode ? 'flex items-center gap-2' : ''}>
+                  {batchMode && (
+                    <button
+                      onClick={() => {
+                        const newSet = new Set(selectedIds);
+                        if (newSet.has(task.id)) newSet.delete(task.id);
+                        else newSet.add(task.id);
+                        setSelectedIds(newSet);
+                      }}
+                      className={`ios-checkbox flex-shrink-0 ${selectedIds.has(task.id) ? 'checked' : ''}`}
+                      style={{ width: 24, height: 24 }}
+                    />
+                  )}
+                  <div className="flex-1">
+                    <KanbanCard
+                      task={task}
+                      onClick={() => {
+                        if (batchMode) {
+                          const newSet = new Set(selectedIds);
+                          if (newSet.has(task.id)) newSet.delete(task.id);
+                          else newSet.add(task.id);
+                          setSelectedIds(newSet);
+                        } else {
+                          onEdit(task);
+                        }
+                      }}
+                      onDragStart={() => !batchMode && setDraggedTaskId(task.id)}
+                      onDragEnd={() => { setDraggedTaskId(null); setDragOverStatus(null); }}
+                      onLongPress={() => !batchMode && setStatusChangeTaskId(task.id)}
+                      isDragging={draggedTaskId === task.id}
+                    />
+                  </div>
+                </div>
               ))
             )}
           </div>
