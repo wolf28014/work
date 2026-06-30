@@ -25,11 +25,11 @@ import { checkUpdateOnLaunch, getCachedUpdateInfo } from './lib/updater';
 import { todayStr, isOverdue } from './lib/task-utils';
 
 // 启动时配置状态栏，匹配深色玻璃设计
-async function setupStatusBar() {
+async function setupStatusBar(isDark: boolean) {
   try {
     await StatusBar.setOverlaysWebView({ overlay: false });
-    await StatusBar.setBackgroundColor({ color: '#0B0F0E' });
-    await StatusBar.setStyle({ style: Style.Dark });
+    await StatusBar.setBackgroundColor({ color: isDark ? '#0B0F0E' : '#F5F5F7' });
+    await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
     const info = await StatusBar.getInfo();
     if (info && typeof info.height === 'number') {
       document.documentElement.style.setProperty('--safe-top', `${Math.ceil(info.height)}px`);
@@ -85,7 +85,7 @@ function Shell() {
   const [proOpen, setProOpen] = useState(false);
   const [legalOpen, setLegalOpen] = useState<null | 'privacy' | 'agreement' | 'about' | 'permissions'>(null);
   const [privacyAgreed, setPrivacyAgreed] = useState(isPrivacyAgreed());
-  const { loading, tasks } = useTaskStore();
+  const { loading, tasks, theme } = useTaskStore();
   const { user, pro, isConfigured } = useAuth();
 
   // 背景设置（仅在用户自定义图片时作为底层叠加；v3 默认使用深色玻璃）
@@ -97,7 +97,7 @@ function Shell() {
   const touchStartTime = useRef<number>(0);
 
   useEffect(() => {
-    setupStatusBar();
+    setupStatusBar(theme === 'dark');
     getCustomImage().then(setCustomImage).catch(() => {});
     const handler = () => {
       setBgSettings(getBackgroundSettings());
@@ -106,14 +106,16 @@ function Shell() {
     window.addEventListener('background-changed', handler);
     const privacyHandler = () => setPrivacyAgreed(true);
     window.addEventListener('privacy-agreed', privacyHandler);
-    // v3 设计强制深色模式，确保 Tailwind 的 dark: 变体生效
-    document.body.classList.add('dark');
-    localStorage.setItem('theme', 'dark');
     return () => {
       window.removeEventListener('background-changed', handler);
       window.removeEventListener('privacy-agreed', privacyHandler);
     };
   }, []);
+
+  // theme 变化时重新设置状态栏
+  useEffect(() => {
+    setupStatusBar(theme === 'dark');
+  }, [theme]);
 
   useEffect(() => {
     if (privacyAgreed) {

@@ -103,6 +103,16 @@ body:not(.dark) {
   --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.5);
   --shadow-fab: 0 8px 24px rgba(26, 184, 124, 0.3), 0 2px 8px rgba(0, 0, 0, 0.1);
   --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.15);
+
+  /* 顶栏/底栏毛玻璃背景色 */
+  --bar-bg: rgba(245, 245, 247, 0.82);
+  --modal-mask: rgba(0, 0, 0, 0.3);
+}
+
+/* 暗色模式的顶栏/底栏背景 */
+body.dark {
+  --bar-bg: rgba(11, 15, 14, 0.82);
+  --modal-mask: rgba(0, 0, 0, 0.5);
 }
 
 * {
@@ -119,20 +129,31 @@ html, body, #root {
 }
 
 /* ============================================================
-   Base body — always dark glass with subtle ambient glows
+   Base body — glass with subtle ambient glows
    ============================================================ */
-body,
-body.dark,
-body:not(.dark) {
+body {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: var(--text-primary);
   user-select: none;
+  background: var(--bg);
+}
+
+/* 暗色模式的氛围渐变 */
+body.dark {
   background:
     radial-gradient(1200px 800px at 12% -10%, rgba(46, 230, 166, 0.10), transparent 60%),
     radial-gradient(900px 700px at 110% 20%, rgba(139, 124, 255, 0.10), transparent 60%),
     radial-gradient(800px 600px at 50% 120%, rgba(91, 200, 255, 0.06), transparent 60%),
+    var(--bg);
+}
+
+/* 浅色模式的氛围渐变（更淡） */
+body:not(.dark) {
+  background:
+    radial-gradient(1200px 800px at 12% -10%, rgba(26, 184, 124, 0.06), transparent 60%),
+    radial-gradient(900px 700px at 110% 20%, rgba(139, 124, 255, 0.04), transparent 60%),
     var(--bg);
   background-attachment: fixed;
 }
@@ -303,7 +324,7 @@ select option {
    Tab bar — floating glass pill
    ============================================================ */
 .tab-bar {
-  background: rgba(11, 15, 14, 0.72);
+  background: var(--bar-bg);
   backdrop-filter: saturate(160%) blur(24px);
   -webkit-backdrop-filter: saturate(160%) blur(24px);
   border-top: 1px solid var(--border);
@@ -311,12 +332,12 @@ select option {
 }
 
 .dark .tab-bar {
-  background: rgba(11, 15, 14, 0.72);
+  background: var(--bar-bg);
   border-top: 1px solid var(--border);
 }
 
 .app-header {
-  background: rgba(11, 15, 14, 0.62);
+  background: var(--bar-bg);
   backdrop-filter: saturate(160%) blur(22px);
   -webkit-backdrop-filter: saturate(160%) blur(22px);
   border-bottom: 1px solid var(--border);
@@ -405,7 +426,7 @@ select option {
    Modal mask
    ============================================================ */
 .modal-mask {
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--modal-mask);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
