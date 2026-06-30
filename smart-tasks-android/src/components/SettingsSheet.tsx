@@ -145,7 +145,47 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
           <span className="w-10" />
         </div>
 
-        <div className="flex border-b border-slate-100 dark:border-slate-800 px-4 overflow-x-auto no-scrollbar">
+        {/* 顶部更新提示横幅（有新版本时显示） */}
+        {updateInfo && (
+          <div className="mx-4 mt-2 ios-card p-3 bg-emerald-50 dark:bg-emerald-900/30 fade-in">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-emerald-500">✨</span>
+              <span className="text-[13px] font-semibold text-emerald-700 dark:text-emerald-300">
+                发现新版本 v{updateInfo.version}
+              </span>
+              <span className="ml-auto text-[10px] text-slate-400">当前 v{CURRENT_VERSION}</span>
+            </div>
+            <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2.5 whitespace-pre-wrap max-h-24 overflow-y-auto no-scrollbar">
+              {updateInfo.notes || '暂无更新说明'}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  window.open(updateInfo.url, '_blank');
+                  showToast('正在跳转 GitHub 下载…', 'info');
+                }}
+                className="py-2 bg-emerald-500 text-white rounded-lg text-[12px] font-semibold active:scale-95 transition-transform"
+              >📥 GitHub 下载</button>
+              <button
+                onClick={() => {
+                  // 备用：通过 ghproxy 加速
+                  const mirror = updateInfo.url.replace(
+                    'https://github.com/',
+                    'https://ghproxy.com/https://github.com/'
+                  );
+                  window.open(mirror, '_blank');
+                  showToast('正在跳转加速镜像下载…', 'info');
+                }}
+                className="py-2 bg-sky-500 text-white rounded-lg text-[12px] font-semibold active:scale-95 transition-transform"
+              >⚡ 加速镜像</button>
+            </div>
+            <div className="text-[10px] text-slate-500 text-center mt-1.5">
+              GitHub 慢请用加速镜像 · 下载后点击安装覆盖
+            </div>
+          </div>
+        )}
+
+        <div className="flex border-b border-slate-100 dark:border-slate-800 px-4 overflow-x-auto no-scrollbar mt-2">
           {([
             { id: 'general', label: '通用' },
             { id: 'background', label: '背景' },
@@ -340,33 +380,6 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                       <span className="text-xs text-slate-400">v{CURRENT_VERSION} ›</span>
                     )}
                   </button>
-                  {/* 有新版本时显示下载按钮和说明 */}
-                  {updateInfo && (
-                    <div className="ios-card p-4 mt-2 bg-emerald-50 dark:bg-emerald-900/20 fade-in">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-emerald-500 text-lg">✨</span>
-                        <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-                          发现新版本 v{updateInfo.version}
-                        </span>
-                      </div>
-                      <div className="text-[12px] text-slate-700 dark:text-slate-200 leading-relaxed mb-3 whitespace-pre-wrap max-h-32 overflow-y-auto no-scrollbar">
-                        {updateInfo.notes || '暂无更新说明'}
-                      </div>
-                      <button
-                        onClick={() => {
-                          // 用浏览器打开下载链接
-                          window.open(updateInfo.url, '_blank');
-                          showToast('正在跳转浏览器下载…', 'info');
-                        }}
-                        className="w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-semibold active:scale-95 transition-transform"
-                      >
-                        📥 下载新版本 APK
-                      </button>
-                      <div className="text-[10px] text-slate-500 text-center mt-2">
-                        下载完成后点击安装即可覆盖更新
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
 

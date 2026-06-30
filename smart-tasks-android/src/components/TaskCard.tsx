@@ -8,10 +8,11 @@ import SwipeableSheet from './SwipeableSheet';
 interface Props {
   task: Task;
   onEdit: (t: Task) => void;
+  onStartPomodoro?: (t: Task) => void;
   compact?: boolean;
 }
 
-export default function TaskCard({ task, onEdit, compact = false }: Props) {
+export default function TaskCard({ task, onEdit, onStartPomodoro, compact = false }: Props) {
   const { completeTask, updateTask, softDeleteTask, tags } = useTaskStore();
   const [showActions, setShowActions] = useState(false);
   const [showStatusSheet, setShowStatusSheet] = useState(false);
@@ -112,7 +113,20 @@ export default function TaskCard({ task, onEdit, compact = false }: Props) {
                   {subtaskDone === subtaskTotal ? '✓' : '◐'} {subtaskDone}/{subtaskTotal} {showSubtasks ? '▴' : '▾'}
                 </button>
               )}
-              {task.pomodoros > 0 && (<span>🍅 {task.pomodoros}</span>)}
+              {task.pomodoros > 0 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onStartPomodoro) {
+                      onStartPomodoro(task);
+                    } else {
+                      showToast('请到番茄钟页面开始专注', 'info');
+                    }
+                  }}
+                  className="px-1.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300 font-medium active:scale-95 transition-transform"
+                  title="点击开始番茄钟"
+                >🍅 {task.pomodoros}</button>
+              )}
             </div>
 
             {/* 子任务展开列表 */}
