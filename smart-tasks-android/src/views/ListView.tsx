@@ -30,13 +30,15 @@ const SORT_OPTIONS: { id: SortMode; label: string; icon: string }[] = [
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 
 export default function ListView({ onEdit }: Props) {
-  const { tasks, tags } = useTaskStore();
+  const { tasks, tags, softDeleteTask } = useTaskStore();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterTab>('all');
   const [groupByTag, setGroupByTag] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>('priority');
   const [sortAsc, setSortAsc] = useState(false); // false = 降序（高优先级在前 / 早日期在前）
   const [showSortSheet, setShowSortSheet] = useState(false);
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const activeTasks = useMemo(() => tasks.filter(t => !t.deletedAt), [tasks]);
 
@@ -149,8 +151,56 @@ export default function ListView({ onEdit }: Props) {
               groupByTag ? 'bg-emerald-500 text-white' : 'ios-card text-slate-600 dark:text-slate-300'
             }`}
           >按标签</button>
+          <button
+            onClick={() => {
+              if (batchMode) {
+                setSelectedIds(new Set());
+              }
+              setBatchMode(!batchMode);
+            }}
+            className={`px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap ${
+              batchMode ? 'bg-rose-500 text-white' : 'ios-card text-slate-600 dark:text-slate-300'
+            }`}
+          >{batchMode ? '退出' : '批量'}</button>
         </div>
       </div>
+
+      {/* 批量操作工具栏 */}
+      {batchMode && (
+        <div className="px-4 py-2 bg-rose-50 dark:bg-rose-900/20 border-y border-rose-200 dark:border-rose-900/40 fade-in flex items-center justify-between">
+          <span className="text-[12px] text-rose-700 dark:text-rose-300 font-medium">
+            已选 {selectedIds.size} 项
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                // 全选当前列表
+                const newSet = new Set(selectedIds);
+                sorted.forEach(t => newSet.add(t.id));
+                setSelectedIds(newSet);
+              }}
+              className="px-3 py-1.5 bg-white dark:bg-slate-800 text-[12px] font-medium rounded-lg text-slate-700 dark:text-slate-200 active:scale-95 transition-transform"
+            >全选</button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="px-3 py-1.5 bg-white dark:bg-slate-800 text-[12px] font-medium rounded-lg text-slate-700 dark:text-slate-200 active:scale-95 transition-transform"
+            >清空</button>
+            <button
+              onClick={async () => {
+                if (selectedIds.size === 0) return;
+                if (!confirm(`确定删除选中的 ${selectedIds.size} 个任务？\n（移入回收站，30 天内可恢复）`)) return;
+                for (const id of selectedIds) {
+                  await softDeleteTask(id);
+                }
+                setSelectedIds(new Set());
+                setBatchMode(false);
+              }}
+              disabled={selectedIds.size === 0}
+              className="px-3 py-1.5 bg-rose-500 text-white text-[12px] font-medium rounded-lg disabled:opacity-50 active:scale-95 transition-transform"
+            >🗑 删除</button>
+          </div>
+        </div>
+      )}
 
       <div className="px-4 py-2 overflow-x-auto no-scrollbar">
         <div className="flex gap-2 w-max">
@@ -225,7 +275,32 @@ export default function ListView({ onEdit }: Props) {
                 ) : null}
                 <div className="space-y-2">
                   {group.tasks.map(task => (
-                    <TaskCard key={task.id} task={task} onEdit={onEdit} />
+                    <div key={task.id} className={batchMode ? 'flex items-center gap-2' : ''}>
+                      {batchMode && (
+                        <button
+                          onClick={() => {
+                            const newSet = new Set(selectedIds);
+                            if (newSet.has(task.id)) newSet.delete(task.id);
+                            else newSet.add(task.id);
+                            setSelectedIds(newSet);
+                          }}
+                          className={`ios-checkbox flex-shrink-0 ${selectedIds.has(task.id) ? 'checked' : ''}`}
+                          style={{ width: 24, height: 24 }}
+                        />
+                      )}
+                      <div className="flex-1">
+                        <TaskCard
+                          task={task}
+                          onEdit={batchMode ? () => {
+                            // 批量模式下点击切换选中
+                            const newSet = new Set(selectedIds);
+                            if (newSet.has(task.id)) newSet.delete(task.id);
+                            else newSet.add(task.id);
+                            setSelectedIds(newSet);
+                          } : onEdit}
+                        />
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>

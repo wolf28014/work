@@ -74,8 +74,7 @@ const PRIVACY_POLICY = `
 ## 九、联系我们
 
 如有任何隐私相关问题，请联系：
-- 邮箱：smart-tasks@example.com
-- GitHub：https://github.com/wolf28014/work
+- 邮箱：124462327@qq.com
 `;
 
 const USER_AGREEMENT = `
@@ -121,7 +120,7 @@ const USER_AGREEMENT = `
 
 - 本应用的代码、UI 设计、图标等知识产权归开发者所有
 - 您创建的任务内容归您所有
-- 开源部分遵循 MIT 协议
+- 应用的所有权益归开发者所有
 
 ## 六、免责声明
 
@@ -139,8 +138,7 @@ const USER_AGREEMENT = `
 
 ## 九、联系方式
 
-- 邮箱：smart-tasks@example.com
-- GitHub：https://github.com/wolf28014/work
+- 邮箱：124462327@qq.com
 `;
 
 const PERMISSIONS_INFO = `
@@ -196,7 +194,7 @@ const ABOUT_INFO = `
 
 ## 项目介绍
 
-智能待办是一款专为 Android 设计的任务管理工具，参考 wolf28014/Smart-Tasks 项目重新设计实现。
+智能待办是一款专为 Android 设计的任务管理工具，集任务管理、番茄钟、AI 助手于一体。
 
 ### 核心功能
 - 5 个视图：任务列表、看板、日历、番茄钟、统计仪表盘
@@ -212,16 +210,13 @@ const ABOUT_INFO = `
 - 打包：Capacitor → Android APK
 - AI：用户自配 API Key，直连第三方 AI 服务
 
-## 开源
-本项目基于 MIT 协议开源：
-https://github.com/wolf28014/work
+## 项目声明
+本项目为开发者独立开发的原创应用，所有权益归开发者所有。
 
 ## 联系方式
-- 邮箱：smart-tasks@example.com
-- GitHub Issues：https://github.com/wolf28014/work/issues
+- 邮箱：124462327@qq.com
 
 ## 致谢
-- 参考项目：wolf28014/Smart-Tasks
 - 图标字体：Apple SF Pro、Noto Sans SC
 - 后端服务：Supabase
 `;

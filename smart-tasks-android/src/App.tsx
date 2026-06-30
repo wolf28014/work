@@ -154,7 +154,14 @@ function Shell() {
 
       <header className="app-header glass sticky top-0 z-30" style={{ paddingTop: 'var(--safe-top)' }}>
         <div className="flex items-center justify-between px-4 h-14">
-          <button onClick={() => setAIOpen(true)} className="w-9 h-9 rounded-full flex items-center justify-center text-lg active:opacity-60" aria-label="AI 助手">✨</button>
+          <button
+            onClick={() => setAIOpen(true)}
+            className="flex items-center gap-1.5 px-3 h-9 rounded-full bg-emerald-500/10 active:bg-emerald-500/20 transition-colors"
+            aria-label="AI 助手"
+          >
+            <span className="text-base">✨</span>
+            <span className="text-emerald-600 dark:text-emerald-300 text-[13px] font-semibold">AI</span>
+          </button>
           <h1 className="text-base font-semibold tracking-tight">{TABS.find(t => t.id === tab)?.label}</h1>
           <button onClick={() => setSettingsOpen(true)} className="w-9 h-9 rounded-full flex items-center justify-center text-lg active:opacity-60" aria-label="设置">⚙️</button>
         </div>
