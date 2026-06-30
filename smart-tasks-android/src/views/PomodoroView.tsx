@@ -1,0 +1,142 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import type { Task } from '../lib/db';
+import { useTaskStore } from '../lib/store';
+import { STATUS_LABELS, PRIORITY_COLORS, formatDate } from '../lib/task-utils';
+import { showToast } from '../components/Toast';
+
+interface Props {
+  onEdit: (t: Task) => void;
+}
+
+const WORK_MINUTES = 25;
+const BREAK_MINUTES = 5;
+
+export default function PomodoroView({ onEdit }: Props) {
+  const { tasks, recordPomodoro } = useTaskStore();
+  const [selectedTaskId, setSelectedTaskId] = useState<string>('');
+  const [mode, setMode] = useState<'work' | 'break'>('work');
+  const [secondsLeft, setSecondsLeft] = useState(WORK_MINUTES * 60);
+  const [running, setRunning] = useState(false);
+  const [completedCount, setCompletedCount] = useState(0);
+  const intervalRef = useRef<number | null>(null);
+
+  const totalSeconds = mode === 'work' ? WORK_MINUTES * 60 : BREAK_MINUTES * 60;
+  const progress = 1 - secondsLeft / totalSeconds;
+
+  const availableTasks = tasks.filter(t => !t.deletedAt && t.status !== 'done' && t.status !== 'cancelled');
+
+  const handleComplete = useCallback(async () => {
+    setRunning(false);
+    if (mode === 'work') {
+      if (selectedTaskId) await recordPomodoro(selectedTaskId, WORK_MINUTES * 60);
+      setCompletedCount(c => c + 1);
+      showToast('🍅 专注完成！休息一下吧', 'success');
+      setMode('break');
+      setSecondsLeft(BREAK_MINUTES * 60);
+    } else {
+      showToast('休息结束，继续加油 💪', 'info');
+      setMode('work');
+      setSecondsLeft(WORK_MINUTES * 60);
+    }
+  }, [mode, selectedTaskId, recordPomodoro]);
+
+  useEffect(() => {
+    if (!running) return;
+    intervalRef.current = window.setInterval(() => {
+      setSecondsLeft(s => {
+        if (s <= 1) { handleComplete(); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [running, mode, handleComplete]);
+
+  function toggle() {
+    if (secondsLeft === 0) setSecondsLeft(totalSeconds);
+    setRunning(r => !r);
+  }
+  function reset() { setRunning(false); setSecondsLeft(totalSeconds); }
+  function skip() { setRunning(false); setSecondsLeft(0); handleComplete(); }
+
+  const mm = String(Math.floor(secondsLeft / 60)).padStart(2, '0');
+  const ss = String(secondsLeft % 60).padStart(2, '0');
+  const selectedTask = tasks.find(t => t.id === selectedTaskId);
+  const radius = 130;
+  const circumference = 2 * Math.PI * radius;
+
+  return (
+    <div className="px-4 py-4 h-full flex flex-col">
+      <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1 mb-6">
+        <button
+          onClick={() => { if (mode !== 'work') { setMode('work'); setSecondsLeft(WORK_MINUTES * 60); setRunning(false); } }}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'work' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}
+        >专注 {WORK_MINUTES} 分钟</button>
+        <button
+          onClick={() => { if (mode !== 'break') { setMode('break'); setSecondsLeft(BREAK_MINUTES * 60); setRunning(false); } }}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'break' ? 'bg-sky-500 text-white' : 'text-slate-500'}`}
+        >休息 {BREAK_MINUTES} 分钟</button>
+      </div>
+
+      <div className="flex justify-center mb-6">
+        <div className="relative">
+          <svg width="280" height="280" className="-rotate-90">
+            <circle cx="140" cy="140" r={radius} fill="none" stroke="currentColor" strokeWidth="8" className="text-slate-200 dark:text-slate-800" />
+            <circle
+              cx="140" cy="140" r={radius}
+              fill="none"
+              stroke={mode === 'work' ? '#10b981' : '#0ea5e9'}
+              strokeWidth="8"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference * (1 - progress)}
+              style={{ transition: 'stroke-dashoffset 1s linear' }}
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className={`text-5xl font-bold tabular-nums ${running ? 'pulse' : ''} ${mode === 'work' ? 'text-emerald-500' : 'text-sky-500'}`}>
+              {mm}:{ss}
+            </div>
+            <div className="text-xs text-slate-400 mt-2">{mode === 'work' ? '保持专注' : '放松一下'}</div>
+            {completedCount > 0 && (<div className="text-[11px] text-slate-500 mt-1">今日完成 🍅 × {completedCount}</div>)}
+          </div>
+        </div>
+      </div>
+
+      {mode === 'work' && (
+        <div className="mb-4">
+          <div className="text-[13px] font-medium text-slate-500 mb-2 px-1">关联任务（可选）</div>
+          {selectedTask ? (
+            <div onClick={() => onEdit(selectedTask)} className="ios-card p-3 flex items-center gap-3">
+              <div className={`priority-bar ${PRIORITY_COLORS[selectedTask.priority].dot}`} />
+              <div className="flex-1 min-w-0">
+                <div className="text-[14px] font-medium truncate">{selectedTask.title}</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">
+                  {STATUS_LABELS[selectedTask.status]}
+                  {selectedTask.dueDate && ` · ${formatDate(selectedTask.dueDate)}`}
+                  {selectedTask.pomodoros > 0 && ` · 🍅 ${selectedTask.pomodoros}`}
+                </div>
+              </div>
+              <button onClick={(e) => { e.stopPropagation(); setSelectedTaskId(''); }} className="text-slate-400 text-lg px-2">×</button>
+            </div>
+          ) : (
+            <select value={selectedTaskId} onChange={e => setSelectedTaskId(e.target.value)} className="ios-input">
+              <option value="">不关联任务</option>
+              {availableTasks.map(t => (<option key={t.id} value={t.id}>{t.title}</option>))}
+            </select>
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-3 mt-auto">
+        <button onClick={reset} className="w-14 h-14 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl active:scale-90 transition-transform">↻</button>
+        <button
+          onClick={toggle}
+          className={`flex-1 h-14 rounded-full text-white text-base font-semibold active:scale-95 transition-transform ${mode === 'work' ? 'bg-emerald-500' : 'bg-sky-500'}`}
+        >
+          {running ? '暂停' : (secondsLeft === totalSeconds ? '开始' : '继续')}
+        </button>
+        <button onClick={skip} className="w-14 h-14 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl active:scale-90 transition-transform">⏭</button>
+      </div>
+    </div>
+  );
+}
