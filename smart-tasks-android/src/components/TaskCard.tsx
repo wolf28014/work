@@ -15,6 +15,7 @@ export default function TaskCard({ task, onEdit, compact = false }: Props) {
   const { completeTask, updateTask, softDeleteTask, tags } = useTaskStore();
   const [showActions, setShowActions] = useState(false);
   const [showStatusSheet, setShowStatusSheet] = useState(false);
+  const [showSubtasks, setShowSubtasks] = useState(false);
 
   const priorityColor = PRIORITY_COLORS[task.priority];
   const statusColor = STATUS_COLORS[task.status];
@@ -99,9 +100,44 @@ export default function TaskCard({ task, onEdit, compact = false }: Props) {
               {task.recurrence && (
                 <span>🔁 {task.recurrence === 'daily' ? '每日' : task.recurrence === 'weekly' ? '每周' : '每月'}</span>
               )}
-              {subtaskTotal > 0 && (<span>✓ {subtaskDone}/{subtaskTotal}</span>)}
+              {subtaskTotal > 0 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowSubtasks(!showSubtasks); }}
+                  className={`px-2 py-0.5 rounded-full font-medium active:scale-95 transition-transform ${
+                    subtaskDone === subtaskTotal
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                      : 'bg-slate-100 text-slate-600 dark:bg-slate-700/50 dark:text-slate-300'
+                  }`}
+                >
+                  {subtaskDone === subtaskTotal ? '✓' : '◐'} {subtaskDone}/{subtaskTotal} {showSubtasks ? '▴' : '▾'}
+                </button>
+              )}
               {task.pomodoros > 0 && (<span>🍅 {task.pomodoros}</span>)}
             </div>
+
+            {/* 子任务展开列表 */}
+            {showSubtasks && subtaskTotal > 0 && (
+              <div className="mt-2 ml-8 space-y-1 fade-in">
+                {task.subtasks.map(s => (
+                  <div key={s.id} className="flex items-center gap-2 py-1">
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const newSubs = task.subtasks.map(x =>
+                          x.id === s.id ? { ...x, done: !x.done } : x
+                        );
+                        await updateTask(task.id, { subtasks: newSubs });
+                      }}
+                      className={`ios-checkbox ${s.done ? 'checked' : ''}`}
+                      style={{ width: 18, height: 18 }}
+                    />
+                    <span className={`flex-1 text-[12px] ${s.done ? 'line-through text-slate-400' : 'text-slate-700 dark:text-slate-200'}`}>
+                      {s.title}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <button
