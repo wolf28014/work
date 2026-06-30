@@ -118,14 +118,14 @@ function Shell() {
   }, [tab]);
 
   // 主页面：边缘滑动切换 Tab（全面屏手势）
-  // 从左边缘 24px 内右滑 → 上一个 Tab
-  // 从右边缘 24px 内左滑 → 下一个 Tab
+  // 从左边缘 35px 内右滑 → 上一个 Tab
+  // 从右边缘 35px 内左滑 → 下一个 Tab
   function handleTouchStart(e: React.TouchEvent) {
     if (editorOpen || settingsOpen || aiOpen || authOpen || legalOpen) return;
     const touch = e.touches[0];
     const screenWidth = window.innerWidth;
     // 只有从屏幕边缘开始才记录，避免误触
-    if (touch.clientX < 24 || touch.clientX > screenWidth - 24) {
+    if (touch.clientX < 35 || touch.clientX > screenWidth - 35) {
       touchStartX.current = touch.clientX;
       touchStartY.current = touch.clientY;
       touchStartTime.current = Date.now();
@@ -144,7 +144,7 @@ function Shell() {
     touchStartX.current = null;
     touchStartY.current = null;
     // 必须横向滑动且距离够
-    if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) || dt > 500) return;
+    if (Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx) || dt > 600) return;
     if (dx < 0) switchTab('left');  // 右边缘左滑 → 下一个
     else switchTab('right');        // 左边缘右滑 → 上一个
   }
