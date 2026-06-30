@@ -3,6 +3,7 @@ import type { Task } from '../lib/db';
 import { useTaskStore } from '../lib/store';
 import { PRIORITY_COLORS, PRIORITY_LABELS, STATUS_COLORS, STATUS_LABELS, STATUS_ORDER, TAG_COLORS, formatDate, isOverdue } from '../lib/task-utils';
 import { showToast } from './Toast';
+import SwipeableSheet from './SwipeableSheet';
 
 interface Props {
   task: Task;
@@ -131,18 +132,7 @@ export default function TaskCard({ task, onEdit, compact = false }: Props) {
 
       {/* 状态选择 ActionSheet */}
       {showStatusSheet && (
-        <div
-          className="fixed inset-0 z-[80] modal-mask flex items-end"
-          onClick={() => setShowStatusSheet(false)}
-        >
-          <div
-            className="w-full bg-white dark:bg-black slide-up rounded-t-3xl"
-            onClick={e => e.stopPropagation()}
-            style={{ paddingBottom: 'calc(20px + var(--safe-bottom))' }}
-          >
-            <div className="flex justify-center pt-2 pb-1">
-              <div className="w-10 h-1 bg-slate-300 dark:bg-slate-700 rounded-full" />
-            </div>
+        <SwipeableSheet onClose={() => setShowStatusSheet(false)} zIndex={80} showEdgeIndicator={false}>
             <div className="text-center text-[15px] font-semibold py-2 border-b border-slate-100 dark:border-slate-800">
               选择状态
             </div>
@@ -175,8 +165,7 @@ export default function TaskCard({ task, onEdit, compact = false }: Props) {
                 className="w-full py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-[15px] font-medium"
               >取消</button>
             </div>
-          </div>
-        </div>
+        </SwipeableSheet>
       )}
     </>
   );

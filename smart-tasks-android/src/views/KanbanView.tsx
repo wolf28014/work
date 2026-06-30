@@ -7,6 +7,7 @@ import {
   formatDate, isOverdue,
 } from '../lib/task-utils';
 import { showToast } from '../components/Toast';
+import SwipeableSheet from '../components/SwipeableSheet';
 
 interface Props {
   onEdit: (t: Task) => void;
@@ -210,18 +211,7 @@ export default function KanbanView({ onEdit }: Props) {
 
       {/* 状态切换 ActionSheet（长按任务触发） */}
       {statusChangeTaskId && (
-        <div
-          className="fixed inset-0 z-[80] modal-mask flex items-end"
-          onClick={() => setStatusChangeTaskId(null)}
-        >
-          <div
-            className="w-full bg-white dark:bg-black slide-up rounded-t-3xl"
-            onClick={e => e.stopPropagation()}
-            style={{ paddingBottom: 'calc(20px + var(--safe-bottom))' }}
-          >
-            <div className="flex justify-center pt-2 pb-1">
-              <div className="w-10 h-1 bg-slate-300 dark:bg-slate-700 rounded-full" />
-            </div>
+        <SwipeableSheet onClose={() => setStatusChangeTaskId(null)} zIndex={80} showEdgeIndicator={false}>
             <div className="text-center text-[15px] font-semibold py-2 border-b border-slate-100 dark:border-slate-800">
               移动到分类
             </div>
@@ -254,24 +244,12 @@ export default function KanbanView({ onEdit }: Props) {
                 className="w-full py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-[15px] font-medium"
               >取消</button>
             </div>
-          </div>
-        </div>
+        </SwipeableSheet>
       )}
 
       {/* 顶部分类切换 ActionSheet */}
       {showCategorySheet && (
-        <div
-          className="fixed inset-0 z-[80] modal-mask flex items-end"
-          onClick={() => setShowCategorySheet(false)}
-        >
-          <div
-            className="w-full bg-white dark:bg-black slide-up rounded-t-3xl"
-            onClick={e => e.stopPropagation()}
-            style={{ paddingBottom: 'calc(20px + var(--safe-bottom))' }}
-          >
-            <div className="flex justify-center pt-2 pb-1">
-              <div className="w-10 h-1 bg-slate-300 dark:bg-slate-700 rounded-full" />
-            </div>
+        <SwipeableSheet onClose={() => setShowCategorySheet(false)} zIndex={80} showEdgeIndicator={false}>
             <div className="text-center text-[15px] font-semibold py-2 border-b border-slate-100 dark:border-slate-800">
               选择分类
             </div>
@@ -308,8 +286,7 @@ export default function KanbanView({ onEdit }: Props) {
                 className="w-full py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-[15px] font-medium"
               >取消</button>
             </div>
-          </div>
-        </div>
+        </SwipeableSheet>
       )}
     </div>
   );
