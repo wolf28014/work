@@ -3,7 +3,7 @@ import type { Task } from '../lib/db';
 import { useTaskStore } from '../lib/store';
 import TaskCard from '../components/TaskCard';
 import SwipeableSheet from '../components/SwipeableSheet';
-import { tfidfSearch, todayStr, isOverdue } from '../lib/task-utils';
+import { tfidfSearch, todayStr, isOverdue, TAG_COLORS } from '../lib/task-utils';
 
 interface Props {
   onEdit: (t: Task) => void;
@@ -30,7 +30,7 @@ const SORT_OPTIONS: { id: SortMode; label: string; icon: string }[] = [
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 
 export default function ListView({ onEdit }: Props) {
-  const { tasks } = useTaskStore();
+  const { tasks, tags } = useTaskStore();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterTab>('all');
   const [groupByTag, setGroupByTag] = useState(false);
@@ -182,20 +182,55 @@ export default function ListView({ onEdit }: Props) {
             </div>
           </div>
         ) : (
-          grouped.map(group => (
-            <div key={group.key}>
-              {groupByTag && (
-                <div className="text-[12px] font-semibold text-slate-500 dark:text-slate-400 mt-3 mb-1.5 px-1 uppercase tracking-wide">
-                  #{group.key} · {group.tasks.length}
+          grouped.map(group => {
+            // 查找标签对应的颜色
+            const tagInfo = tags.find(t => t.name === group.key);
+            const tagColor = tagInfo?.color || 'emerald';
+            const tagColorClass = TAG_COLORS[tagColor] || TAG_COLORS.emerald;
+            const tagBarClass = {
+              emerald: 'bg-emerald-500', amber: 'bg-amber-500', rose: 'bg-rose-500',
+              violet: 'bg-violet-500', sky: 'bg-sky-500', teal: 'bg-teal-500',
+              orange: 'bg-orange-500', slate: 'bg-slate-400',
+            }[tagColor] || 'bg-emerald-500';
+
+            return (
+              <div key={group.key}>
+                {groupByTag ? (
+                  // 按标签分组的标题（重新设计）
+                  <div className="flex items-center gap-2.5 mt-4 mb-2.5 px-1">
+                    {/* 左侧色条 */}
+                    <div className={`w-1 h-5 rounded-full ${tagBarClass}`} />
+                    {/* 标签名 */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-400 text-sm">#</span>
+                      <span className={`text-[15px] font-bold ${tagColorClass.includes('emerald') ? 'text-emerald-600 dark:text-emerald-300' :
+                        tagColorClass.includes('amber') ? 'text-amber-600 dark:text-amber-300' :
+                        tagColorClass.includes('rose') ? 'text-rose-600 dark:text-rose-300' :
+                        tagColorClass.includes('violet') ? 'text-violet-600 dark:text-violet-300' :
+                        tagColorClass.includes('sky') ? 'text-sky-600 dark:text-sky-300' :
+                        tagColorClass.includes('teal') ? 'text-teal-600 dark:text-teal-300' :
+                        tagColorClass.includes('orange') ? 'text-orange-600 dark:text-orange-300' :
+                        'text-slate-600 dark:text-slate-300'
+                      }`}>
+                        {group.key}
+                      </span>
+                    </div>
+                    {/* 任务数徽章 */}
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${tagColorClass}`}>
+                      {group.tasks.length}
+                    </span>
+                    {/* 右侧分割线 */}
+                    <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700 ml-1" />
+                  </div>
+                ) : null}
+                <div className="space-y-2">
+                  {group.tasks.map(task => (
+                    <TaskCard key={task.id} task={task} onEdit={onEdit} />
+                  ))}
                 </div>
-              )}
-              <div className="space-y-2">
-                {group.tasks.map(task => (
-                  <TaskCard key={task.id} task={task} onEdit={onEdit} />
-                ))}
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
