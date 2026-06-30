@@ -80,19 +80,24 @@ export default function KanbanView({ onEdit }: Props) {
 
   const totalActive = tasks.filter(t => !t.deletedAt).length;
 
+  const [showCategorySheet, setShowCategorySheet] = useState(false);
+
   return (
     <div className="h-full flex flex-col">
-      {/* 顶部统计栏 */}
-      <div className="px-4 py-2.5 glass border-b border-slate-100 dark:border-slate-800">
-        <div className="flex items-center justify-between">
-          <span className="text-[12px] text-slate-500 dark:text-slate-400">
-            共 {totalActive} 个任务 · 4 个分类
-          </span>
-          <span className="text-[12px] text-emerald-500 font-medium">
-            点击分类查看 →
-          </span>
-        </div>
-      </div>
+      {/* 顶部统计栏：可点击切换分类 */}
+      <button
+        onClick={() => setShowCategorySheet(true)}
+        className="px-4 py-2.5 glass border-b border-slate-100 dark:border-slate-800 flex items-center justify-between active:bg-slate-50 dark:active:bg-slate-800/50 transition-colors"
+      >
+        <span className="text-[12px] text-slate-500 dark:text-slate-400">
+          共 {totalActive} 个任务 · 4 个分类
+        </span>
+        <span className="flex items-center gap-1 text-[12px] text-emerald-500 font-medium">
+          <span className={`w-2 h-2 rounded-full ${STATUS_COLORS[selectedStatus].bar}`} />
+          <span>{STATUS_LABELS[selectedStatus]}（{currentTasks.length}）</span>
+          <span className="text-[10px]">▾</span>
+        </span>
+      </button>
 
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧：分类列表 */}
@@ -235,6 +240,60 @@ export default function KanbanView({ onEdit }: Props) {
             <div className="px-3 pb-2">
               <button
                 onClick={() => setStatusChangeTaskId(null)}
+                className="w-full py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-[15px] font-medium"
+              >取消</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 顶部分类切换 ActionSheet */}
+      {showCategorySheet && (
+        <div
+          className="fixed inset-0 z-[80] modal-mask flex items-end"
+          onClick={() => setShowCategorySheet(false)}
+        >
+          <div
+            className="w-full bg-white dark:bg-black slide-up rounded-t-3xl"
+            onClick={e => e.stopPropagation()}
+            style={{ paddingBottom: 'calc(20px + var(--safe-bottom))' }}
+          >
+            <div className="flex justify-center pt-2 pb-1">
+              <div className="w-10 h-1 bg-slate-300 dark:bg-slate-700 rounded-full" />
+            </div>
+            <div className="text-center text-[15px] font-semibold py-2 border-b border-slate-100 dark:border-slate-800">
+              选择分类
+            </div>
+            <div className="p-3 space-y-2">
+              {STATUS_ORDER.map(s => {
+                const sc = STATUS_COLORS[s];
+                const isCurrent = s === selectedStatus;
+                const count = columns[s].length;
+                return (
+                  <button
+                    key={s}
+                    onClick={() => { setSelectedStatus(s); setShowCategorySheet(false); }}
+                    className={`w-full flex items-center gap-3 p-3.5 rounded-xl transition-all active:scale-[0.98] ${
+                      isCurrent
+                        ? 'bg-emerald-50 dark:bg-emerald-900/30 ring-2 ring-emerald-400'
+                        : 'bg-slate-50 dark:bg-slate-800/50'
+                    }`}
+                  >
+                    <div className={`w-3 h-3 rounded-full ${sc.bar}`} />
+                    <span className={`flex-1 text-left text-[15px] font-medium ${isCurrent ? 'text-emerald-600 dark:text-emerald-300' : ''}`}>
+                      {STATUS_LABELS[s]}
+                    </span>
+                    <span className={`text-[12px] px-2 py-0.5 rounded-full ${sc.bg} ${sc.text}`}>
+                      {count}
+                    </span>
+                    {isCurrent && <span className="text-emerald-500 text-lg">✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="px-3 pb-2">
+              <button
+                onClick={() => setShowCategorySheet(false)}
                 className="w-full py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-[15px] font-medium"
               >取消</button>
             </div>
