@@ -17,12 +17,10 @@ export interface BackgroundSettings {
   dim?: number;          // 暗化 0-1（让任务卡片更突出）
 }
 
-// 5 个高级纯色背景（从浅到深）
+// 8 个高级纯色背景 - 灵感来自 Apple Vision Pro / Things 3 / Notion
 export interface PresetBackground {
   id: string;
   name: string;
-  // 渐变背景：linear-gradient 角度 + 起止颜色
-  gradient: string;
   // 用于 CSS 变量
   cssBackground: string;
   // 缩略图颜色（用于选择器小方块）
@@ -33,43 +31,59 @@ export interface PresetBackground {
 
 export const PRESET_BACKGROUNDS: PresetBackground[] = [
   {
-    id: 'pearl',
-    name: '珠光白',
-    gradient: 'linear-gradient(135deg, #fafafa 0%, #f0f0f3 50%, #e8e8ed 100%)',
-    cssBackground: 'linear-gradient(135deg, #fafafa 0%, #f0f0f3 50%, #e8e8ed 100%)',
-    thumb: 'linear-gradient(135deg, #fafafa, #e8e8ed)',
+    id: 'linen',
+    name: '亚麻',
+    cssBackground: 'linear-gradient(135deg, #f5f5f0 0%, #ede9d8 100%)',
+    thumb: 'linear-gradient(135deg, #f5f5f0, #ede9d8)',
+    textMode: 'dark',
+  },
+  {
+    id: 'peach',
+    name: '蜜桃',
+    cssBackground: 'linear-gradient(135deg, #ffe4d6 0%, #ffcab5 100%)',
+    thumb: 'linear-gradient(135deg, #ffe4d6, #ffcab5)',
+    textMode: 'dark',
+  },
+  {
+    id: 'sage',
+    name: '鼠尾草',
+    cssBackground: 'linear-gradient(135deg, #d4e4d4 0%, #a8c5a8 100%)',
+    thumb: 'linear-gradient(135deg, #d4e4d4, #a8c5a8)',
     textMode: 'dark',
   },
   {
     id: 'mist',
-    name: '雾霭灰',
-    gradient: 'linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 50%, #94a3b8 100%)',
-    cssBackground: 'linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 50%, #94a3b8 100%)',
-    thumb: 'linear-gradient(135deg, #e2e8f0, #94a3b8)',
+    name: '晨雾',
+    cssBackground: 'linear-gradient(135deg, #e0e7eb 0%, #b8c5cc 100%)',
+    thumb: 'linear-gradient(135deg, #e0e7eb, #b8c5cc)',
     textMode: 'dark',
   },
   {
-    id: 'aurora',
-    name: '极光绿',
-    gradient: 'linear-gradient(135deg, #d1fae5 0%, #6ee7b7 50%, #10b981 100%)',
-    cssBackground: 'linear-gradient(135deg, #d1fae5 0%, #6ee7b7 50%, #10b981 100%)',
-    thumb: 'linear-gradient(135deg, #d1fae5, #10b981)',
-    textMode: 'dark',
-  },
-  {
-    id: 'twilight',
-    name: '暮光紫',
-    gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)',
-    cssBackground: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)',
-    thumb: 'linear-gradient(135deg, #6366f1, #a855f7)',
+    id: 'ocean',
+    name: '深海',
+    cssBackground: 'linear-gradient(135deg, #134e5e 0%, #1e6091 100%)',
+    thumb: 'linear-gradient(135deg, #134e5e, #1e6091)',
     textMode: 'light',
   },
   {
-    id: 'midnight',
-    name: '子夜黑',
-    gradient: 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #020617 100%)',
-    cssBackground: 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #020617 100%)',
-    thumb: 'linear-gradient(135deg, #1e293b, #020617)',
+    id: 'sunset',
+    name: '日落',
+    cssBackground: 'linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%)',
+    thumb: 'linear-gradient(135deg, #ff6e7f, #bfe9ff)',
+    textMode: 'light',
+  },
+  {
+    id: 'aurora',
+    name: '极光',
+    cssBackground: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
+    thumb: 'linear-gradient(135deg, #a18cd1, #fbc2eb)',
+    textMode: 'light',
+  },
+  {
+    id: 'noir',
+    name: '墨黑',
+    cssBackground: 'linear-gradient(135deg, #232526 0%, #1a1a1a 100%)',
+    thumb: 'linear-gradient(135deg, #232526, #1a1a1a)',
     textMode: 'light',
   },
 ];
@@ -126,10 +140,10 @@ export async function clearCustomImage(): Promise<void> {
 export function getBackgroundSettings(): BackgroundSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { type: 'preset', presetId: 'pearl' }; // 默认珠光白
+    if (!raw) return { type: 'preset', presetId: 'linen' }; // 默认亚麻
     return JSON.parse(raw);
   } catch {
-    return { type: 'preset', presetId: 'pearl' };
+    return { type: 'preset', presetId: 'linen' };
   }
 }
 

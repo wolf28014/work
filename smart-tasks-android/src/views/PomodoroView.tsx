@@ -3,6 +3,7 @@ import type { Task } from '../lib/db';
 import { useTaskStore } from '../lib/store';
 import { STATUS_LABELS, PRIORITY_COLORS, formatDate } from '../lib/task-utils';
 import { showToast } from '../components/Toast';
+import { aiFocusSuggestion, getAISettings } from '../lib/ai-client';
 
 interface Props {
   onEdit: (t: Task) => void;
@@ -12,7 +13,9 @@ const WORK_MINUTES = 25;
 const BREAK_MINUTES = 5;
 
 export default function PomodoroView({ onEdit }: Props) {
-  const { tasks, recordPomodoro } = useTaskStore();
+  const { tasks, recordPomodoro, pomodoros } = useTaskStore();
+  const [focusSuggestion, setFocusSuggestion] = useState<string>('');
+  const [loadingSuggestion, setLoadingSuggestion] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
   const [mode, setMode] = useState<'work' | 'break'>('work');
   const [secondsLeft, setSecondsLeft] = useState(WORK_MINUTES * 60);
@@ -123,6 +126,45 @@ export default function PomodoroView({ onEdit }: Props) {
               <option value="">不关联任务</option>
               {availableTasks.map(t => (<option key={t.id} value={t.id}>{t.title}</option>))}
             </select>
+          )}
+        </div>
+      )}
+
+      {/* AI 专注建议 */}
+      {getAISettings() && (
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <div className="text-[13px] font-medium text-slate-500">✨ AI 专注建议</div>
+            <button
+              onClick={async () => {
+                setLoadingSuggestion(true);
+                setFocusSuggestion('');
+                try {
+                  const r = await aiFocusSuggestion(tasks, pomodoros);
+                  setFocusSuggestion(r);
+                } catch (e: any) {
+                  showToast(e.message || '获取建议失败', 'error');
+                } finally {
+                  setLoadingSuggestion(false);
+                }
+              }}
+              disabled={loadingSuggestion}
+              className="text-[11px] px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-full font-medium disabled:opacity-50 active:scale-95 transition-transform"
+            >
+              {loadingSuggestion ? '思考中…' : focusSuggestion ? '重新建议' : '获取建议'}
+            </button>
+          </div>
+          {focusSuggestion && (
+            <div className="ios-card p-3.5 bg-emerald-50/50 dark:bg-emerald-900/20 fade-in">
+              <div className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
+                {focusSuggestion}
+              </div>
+            </div>
+          )}
+          {!focusSuggestion && !loadingSuggestion && (
+            <div className="text-[11px] text-slate-400 px-1">
+              AI 会根据你的任务列表和今日番茄钟数，给出最该专注的事情
+            </div>
           )}
         </div>
       )}

@@ -70,7 +70,7 @@ export default function SettingsSheet({ onClose }: Props) {
     await clearCustomImage();
     setCustomImage(null);
     if (bgSettings.type === 'custom') {
-      applyBackground({ type: 'preset', presetId: 'pearl' });
+      applyBackground({ type: 'preset', presetId: 'linen' });
     }
     showToast('已清除自定义背景', 'info');
   }
