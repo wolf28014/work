@@ -11,7 +11,7 @@ import SettingsSheet from './components/SettingsSheet';
 import AIChatSheet from './components/AIChatSheet';
 import AuthSheet from './components/AuthSheet';
 import LegalSheet from './components/LegalSheet';
-import Toast from './components/Toast';
+import Toast, { showToast } from './components/Toast';
 import PrivacyConsentSheet, { isPrivacyAgreed } from './components/PrivacyConsentSheet';
 import {
   getBackgroundSettings,
@@ -193,12 +193,15 @@ function Shell() {
             </div>
           </div>
           <button
-            onClick={() => setSettingsOpen(true)}
+            onClick={() => {
+              window.open(updateBanner.url, '_blank');
+              showToast('正在跳转浏览器下载…', 'info');
+            }}
             className="px-3 py-1.5 bg-emerald-500 text-white rounded-full text-[11px] font-semibold active:scale-95 transition-transform whitespace-nowrap"
-          >立即更新</button>
+          >📥 下载新版本</button>
           <button
             onClick={() => setUpdateBanner(null)}
-            className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 text-xs flex items-center justify-center"
+            className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 text-xs flex items-center justify-center flex-shrink-0"
           >×</button>
         </div>
       )}
