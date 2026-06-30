@@ -13,6 +13,7 @@ import AIChatSheet from './components/AIChatSheet';
 import AuthSheet from './components/AuthSheet';
 import LegalSheet from './components/LegalSheet';
 import Toast, { showToast } from './components/Toast';
+import SwipeableSheet, { hasActiveSheet } from './components/SwipeableSheet';
 import PrivacyConsentSheet, { isPrivacyAgreed } from './components/PrivacyConsentSheet';
 import {
   getBackgroundSettings,
@@ -105,11 +106,8 @@ function Shell() {
   // 子页面（SwipeableSheet）会自己监听并优先处理，这里只处理"没有子页面"的情况
   useEffect(() => {
     const handleBackButton = ({ canGoBack }: { canGoBack: boolean }) => {
-      // 如果有任何子页面打开，让 SwipeableSheet 自己处理（它也监听了 backButton）
-      // 这里只在没有子页面时退出 App
-      const hasOpenSheet = legalOpen || authOpen || aiOpen || settingsOpen || editorOpen;
-      if (hasOpenSheet) {
-        // 子页面会自己关闭，这里不做任何事
+      // 如果有任何 SwipeableSheet 挂载（包括 ActionSheet），让它自己处理
+      if (hasActiveSheet()) {
         return;
       }
       // 没有子页面打开时，退出 App
@@ -119,7 +117,7 @@ function Shell() {
     };
     const listener = CapacitorApp.addListener('backButton', handleBackButton);
     return () => { listener.then(l => l.remove()); };
-  }, [legalOpen, authOpen, aiOpen, settingsOpen, editorOpen]);
+  }, []);
 
   // 登录成功后合并本地数据到云端
   async function handleAuthSuccess() {

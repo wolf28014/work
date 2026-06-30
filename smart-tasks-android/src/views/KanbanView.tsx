@@ -54,7 +54,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
       return;
     }
     updateTask(task.id, {
-      status: newStatus,
+      status: newStatus as 'todo' | 'in_progress' | 'done' | 'cancelled',
       completedAt: newStatus === 'done' ? Date.now() : null,
     });
     showToast(`已移至「${STATUS_LABELS[newStatus]}」`, 'success');
@@ -73,7 +73,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
       return;
     }
     await updateTask(task.id, {
-      status: newStatus,
+      status: newStatus as 'todo' | 'in_progress' | 'done' | 'cancelled',
       completedAt: newStatus === 'done' ? Date.now() : null,
     });
     showToast(`已移至「${STATUS_LABELS[newStatus]}」`, 'success');

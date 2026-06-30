@@ -146,7 +146,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       await saveTask(task);
       dispatch({ type: 'ADD_TASK', task });
       syncTaskToCloud(task).catch(e => console.log('Sync failed:', e));
-      for (const tagName of task.tags) await ensureTag(tagName);
+      for (const tagName of task.tags) await value.ensureTag(tagName);
       return task;
     },
     async updateTask(id, patch) {
