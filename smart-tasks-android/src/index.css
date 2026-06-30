@@ -3,7 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --safe-top: env(safe-area-inset-top, 0px);
+  /* Android 状态栏典型高度 24-28dp，给个安全兜底值 */
+  --safe-top: max(env(safe-area-inset-top), 24px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
