@@ -3,6 +3,7 @@ import type { Task, PomodoroSession, Tag } from './db';
 import { getAllTasks, saveTask, deleteTaskPermanent, getAllPomodoros, addPomodoroSession, getAllTags, saveTag } from './db';
 import { genId } from './db';
 import { generateNextRecurrence } from './task-utils';
+import { syncTaskToCloud, syncPomodoroToCloud, syncTagToCloud } from './auth';
 
 interface State {
   tasks: Task[];
@@ -142,6 +143,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       };
       await saveTask(task);
       dispatch({ type: 'ADD_TASK', task });
+      syncTaskToCloud(task).catch(e => console.log('Sync failed:', e));
       for (const tagName of task.tags) await ensureTag(tagName);
       return task;
     },
@@ -151,6 +153,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       const updated = { ...existing, ...patch, updatedAt: Date.now() };
       await saveTask(updated);
       dispatch({ type: 'UPDATE_TASK', task: updated });
+      syncTaskToCloud(updated).catch(e => console.log('Sync failed:', e));
     },
     async completeTask(id) {
       const existing = state.tasks.find(t => t.id === id);
@@ -165,10 +168,12 @@ export function TaskProvider({ children }: { children: ReactNode }) {
           };
           await saveTask(newInstance);
           dispatch({ type: 'ADD_TASK', task: newInstance });
+          syncTaskToCloud(newInstance).catch(e => console.log('Sync failed:', e));
         }
       }
       await saveTask(updated);
       dispatch({ type: 'UPDATE_TASK', task: updated });
+      syncTaskToCloud(updated).catch(e => console.log('Sync failed:', e));
     },
     async softDeleteTask(id) {
       const existing = state.tasks.find(t => t.id === id);
@@ -177,6 +182,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       await saveTask(updated);
       dispatch({ type: 'UPDATE_TASK', task: updated });
       dispatch({ type: 'DELETE_TASK', id });
+      syncTaskToCloud(updated).catch(e => console.log('Sync failed:', e));
     },
     async restoreTask(id) {
       const existing = state.tasks.find(t => t.id === id);
@@ -185,6 +191,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       await saveTask(updated);
       dispatch({ type: 'UPDATE_TASK', task: updated });
       dispatch({ type: 'RESTORE_TASK', id });
+      syncTaskToCloud(updated).catch(e => console.log('Sync failed:', e));
     },
     async purgeTask(id) {
       await deleteTaskPermanent(id);
@@ -196,6 +203,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       };
       await addPomodoroSession(session);
       dispatch({ type: 'ADD_POMODORO', session, taskId });
+      syncPomodoroToCloud(session).catch(e => console.log('Sync failed:', e));
     },
     async ensureTag(name, color = 'emerald') {
       const cleaned = name.replace(/^#/, '').trim();
@@ -205,6 +213,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       const tag: Tag = { id: genId(), name: cleaned, color, createdAt: Date.now(), updatedAt: Date.now() };
       await saveTag(tag);
       dispatch({ type: 'ADD_TAG', tag });
+      syncTagToCloud(tag).catch(e => console.log('Sync failed:', e));
       return tag;
     },
     toggleTheme() {

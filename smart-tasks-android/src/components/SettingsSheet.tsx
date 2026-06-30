@@ -13,17 +13,27 @@ import {
   clearCustomImage,
   type BackgroundSettings,
 } from '../lib/background';
+import { useAuth, logout, mergeLocalToCloud, pullCloudToLocal, redeemCode } from '../lib/auth';
+import { checkUpdateManual, getCachedUpdateInfo, CURRENT_VERSION } from '../lib/updater';
 import SwipeableSheet from './SwipeableSheet';
 
-interface Props { onClose: () => void; }
+interface Props {
+  onClose: () => void;
+  onOpenAuth?: () => void;
+  onOpenLegal?: (type: 'privacy' | 'agreement' | 'about' | 'permissions') => void;
+}
 
-export default function SettingsSheet({ onClose }: Props) {
+export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Props) {
   const { theme, toggleTheme, tasks, purgeTask, restoreTask } = useTaskStore();
+  const { user, pro, isConfigured } = useAuth();
   const [tab, setTab] = useState<'general' | 'background' | 'ai' | 'data' | 'trash'>('general');
   const existingAI = getAISettings();
   const [baseURL, setBaseURL] = useState(existingAI?.baseURL || 'https://open.bigmodel.cn/api/paas/v4');
   const [apiKey, setApiKey] = useState(existingAI?.apiKey || '');
   const [model, setModel] = useState(existingAI?.model || 'glm-4-flash');
+  const [redeemInput, setRedeemInput] = useState('');
+  const [updateInfo, setUpdateInfo] = useState(getCachedUpdateInfo());
+  const [checking, setChecking] = useState(false);
 
   // 背景设置
   const [bgSettings, setBgSettings] = useState<BackgroundSettings>(getBackgroundSettings);
@@ -153,23 +163,202 @@ export default function SettingsSheet({ onClose }: Props) {
 
         <div className="p-4">
           {tab === 'general' && (
-            <div className="ios-list-group">
-              <div className="ios-list-item">
-                <span className="text-sm flex-1">深色模式</span>
-                <button
-                  onClick={toggleTheme}
-                  className={`w-12 h-7 rounded-full p-0.5 transition-colors ${theme === 'dark' ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                >
-                  <div className={`w-6 h-6 bg-white rounded-full shadow transition-transform ${theme === 'dark' ? 'translate-x-5' : ''}`} />
-                </button>
+            <div className="space-y-4">
+              {/* 账号区 */}
+              <div>
+                <div className="text-[13px] font-medium text-slate-500 mb-2 px-1">账号</div>
+                {isConfigured ? (
+                  user ? (
+                    <div className="ios-list-group">
+                      <div className="ios-list-item">
+                        <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold flex-shrink-0">
+                          {(user.email || user.phone || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{user.email || user.phone}</div>
+                          <div className="text-[11px] mt-0.5">
+                            {pro.isPro ? (
+                              <span className="text-emerald-500 font-medium">⭐ Pro 会员{pro.expiresAt && pro.expiresAt < 9999999999999 ? ` · ${new Date(pro.expiresAt).toLocaleDateString('zh-CN')} 到期` : ' · 永久'}</span>
+                            ) : (
+                              <span className="text-slate-400">免费版</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (confirm('退出登录？本地数据保留，云端数据不变')) {
+                            await logout();
+                            showToast('已退出登录', 'info');
+                          }
+                        }}
+                        className="ios-list-item w-full text-left active:bg-slate-50 dark:active:bg-slate-800"
+                      >
+                        <span className="text-sm flex-1 text-rose-500">退出登录</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="ios-list-group">
+                      <button onClick={onOpenAuth} className="ios-list-item w-full text-left active:bg-slate-50 dark:active:bg-slate-800">
+                        <span className="text-2xl">👤</span>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium">登录 / 注册</div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">登录后可云同步、多设备共享</div>
+                        </div>
+                        <span className="text-slate-400">›</span>
+                      </button>
+                    </div>
+                  )
+                ) : (
+                  <div className="ios-card p-3 bg-amber-50 dark:bg-amber-900/20">
+                    <div className="text-[11px] text-amber-700 dark:text-amber-300">
+                      ⚠️ 云服务未配置，账号功能不可用。本地数据仍可正常使用。
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="ios-list-item">
-                <span className="text-sm flex-1">版本</span>
-                <span className="text-xs text-slate-400">v1.0.0</span>
+
+              {/* Pro 会员区 */}
+              {isConfigured && (
+                <div>
+                  <div className="text-[13px] font-medium text-slate-500 mb-2 px-1">Pro 会员</div>
+                  <div className="ios-list-group">
+                    <div className="ios-list-item">
+                      <span className="text-sm flex-1">当前状态</span>
+                      <span className={`text-xs font-medium ${pro.isPro ? 'text-emerald-500' : 'text-slate-400'}`}>
+                        {pro.isPro ? '⭐ Pro 已激活' : '免费版'}
+                      </span>
+                    </div>
+                    <div className="ios-list-item flex-col items-stretch !block">
+                      <div className="text-[11px] text-slate-500 mb-1.5">兑换码</div>
+                      <div className="flex gap-2">
+                        <input
+                          value={redeemInput}
+                          onChange={e => setRedeemInput(e.target.value.toUpperCase())}
+                          placeholder="SMART-XXXX-XXXX-XXXX"
+                          className="ios-input flex-1 text-[12px] font-mono"
+                          maxLength={19}
+                        />
+                        <button
+                          onClick={async () => {
+                            if (!redeemInput.trim()) { showToast('请输入兑换码', 'error'); return; }
+                            try {
+                              const result = await redeemCode(redeemInput.trim());
+                              showToast(`激活成功！类型：${result.type}`, 'success');
+                              setRedeemInput('');
+                            } catch (e: any) {
+                              showToast(e.message || '兑换失败', 'error');
+                            }
+                          }}
+                          className="px-3 py-2 bg-emerald-500 text-white rounded-xl text-xs font-medium"
+                        >兑换</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 同步区（已登录才显示） */}
+              {isConfigured && user && (
+                <div>
+                  <div className="text-[13px] font-medium text-slate-500 mb-2 px-1">数据同步</div>
+                  <div className="ios-list-group">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await mergeLocalToCloud();
+                          showToast('本地数据已合并到云端', 'success');
+                        } catch (e: any) { showToast(e.message || '同步失败', 'error'); }
+                      }}
+                      className="ios-list-item w-full text-left active:bg-slate-50 dark:active:bg-slate-800"
+                    >
+                      <span className="text-2xl">☁️</span>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">上传本地到云端</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">合并本地数据到云端（不覆盖）</div>
+                      </div>
+                      <span className="text-slate-400">›</span>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm('从云端拉取数据会覆盖本地，确定？')) return;
+                        try {
+                          await pullCloudToLocal();
+                          showToast('已从云端拉取', 'success');
+                          setTimeout(() => window.location.reload(), 800);
+                        } catch (e: any) { showToast(e.message || '拉取失败', 'error'); }
+                      }}
+                      className="ios-list-item w-full text-left active:bg-slate-50 dark:active:bg-slate-800"
+                    >
+                      <span className="text-2xl">⬇️</span>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">从云端拉取</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">覆盖本地数据（慎用）</div>
+                      </div>
+                      <span className="text-slate-400">›</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 通用设置 */}
+              <div>
+                <div className="text-[13px] font-medium text-slate-500 mb-2 px-1">通用</div>
+                <div className="ios-list-group">
+                  <div className="ios-list-item">
+                    <span className="text-sm flex-1">深色模式</span>
+                    <button
+                      onClick={toggleTheme}
+                      className={`w-12 h-7 rounded-full p-0.5 transition-colors ${theme === 'dark' ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                    >
+                      <div className={`w-6 h-6 bg-white rounded-full shadow transition-transform ${theme === 'dark' ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setChecking(true);
+                      try {
+                        const result = await checkUpdateManual();
+                        if (result.hasUpdate) {
+                          setUpdateInfo({ version: result.version!, url: result.url!, notes: result.notes! });
+                        }
+                      } finally { setChecking(false); }
+                    }}
+                    className="ios-list-item w-full text-left active:bg-slate-50 dark:active:bg-slate-800"
+                  >
+                    <span className="text-sm flex-1">检查更新</span>
+                    {updateInfo ? (
+                      <span className="text-xs text-emerald-500 font-medium">新版本 v{updateInfo.version} ›</span>
+                    ) : checking ? (
+                      <span className="text-xs text-slate-400">检查中…</span>
+                    ) : (
+                      <span className="text-xs text-slate-400">v{CURRENT_VERSION} ›</span>
+                    )}
+                  </button>
+                </div>
               </div>
-              <div className="ios-list-item">
-                <span className="text-sm flex-1">项目</span>
-                <span className="text-xs text-slate-400">Smart-Tasks Android</span>
+
+              {/* 关于区 */}
+              <div>
+                <div className="text-[13px] font-medium text-slate-500 mb-2 px-1">关于</div>
+                <div className="ios-list-group">
+                  <button onClick={() => onOpenLegal?.('about')} className="ios-list-item w-full text-left active:bg-slate-50 dark:active:bg-slate-800">
+                    <span className="text-sm flex-1">关于智能待办</span>
+                    <span className="text-slate-400">›</span>
+                  </button>
+                  <button onClick={() => onOpenLegal?.('privacy')} className="ios-list-item w-full text-left active:bg-slate-50 dark:active:bg-slate-800">
+                    <span className="text-sm flex-1">隐私政策</span>
+                    <span className="text-slate-400">›</span>
+                  </button>
+                  <button onClick={() => onOpenLegal?.('agreement')} className="ios-list-item w-full text-left active:bg-slate-50 dark:active:bg-slate-800">
+                    <span className="text-sm flex-1">用户协议</span>
+                    <span className="text-slate-400">›</span>
+                  </button>
+                  <button onClick={() => onOpenLegal?.('permissions')} className="ios-list-item w-full text-left active:bg-slate-50 dark:active:bg-slate-800">
+                    <span className="text-sm flex-1">权限说明</span>
+                    <span className="text-slate-400">›</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}

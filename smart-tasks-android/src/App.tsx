@@ -9,30 +9,30 @@ import DashboardView from './views/DashboardView';
 import TaskEditor from './components/TaskEditor';
 import SettingsSheet from './components/SettingsSheet';
 import AIChatSheet from './components/AIChatSheet';
+import AuthSheet from './components/AuthSheet';
+import LegalSheet from './components/LegalSheet';
 import Toast from './components/Toast';
+import PrivacyConsentSheet, { isPrivacyAgreed } from './components/PrivacyConsentSheet';
 import {
   getBackgroundSettings,
   getCustomImage,
   resolveBackgroundCss,
   type BackgroundSettings,
 } from './lib/background';
+import { initAuth, useAuth, mergeLocalToCloud } from './lib/auth';
+import { checkUpdateOnLaunch } from './lib/updater';
 
 // 启动时获取实际状态栏高度并设置到 CSS 变量
 async function setupStatusBar() {
   try {
-    // 让 webview 内容延伸到状态栏下方
     await StatusBar.setOverlaysWebView({ overlay: false });
-    // 设置状态栏背景为翡翠绿
     await StatusBar.setBackgroundColor({ color: '#10b981' });
     await StatusBar.setStyle({ style: Style.Light });
-    // 获取状态栏高度
     const info = await StatusBar.getInfo();
     if (info && typeof info.height === 'number') {
-      // Capacitor 返回的 height 单位是 dp，转成 px（通常 1:1 在 Android 上）
       document.documentElement.style.setProperty('--safe-top', `${Math.ceil(info.height)}px`);
     }
   } catch (e) {
-    // web 环境下会失败，忽略即可
     console.log('StatusBar not available:', e);
   }
 }
@@ -53,7 +53,11 @@ function Shell() {
   const [editorTask, setEditorTask] = useState<any>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aiOpen, setAIOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [legalOpen, setLegalOpen] = useState<null | 'privacy' | 'agreement' | 'about' | 'permissions'>(null);
+  const [privacyAgreed, setPrivacyAgreed] = useState(isPrivacyAgreed());
   const { loading } = useTaskStore();
+  const { user, isConfigured } = useAuth();
 
   // 背景设置
   const [bgSettings, setBgSettings] = useState<BackgroundSettings>(getBackgroundSettings);
@@ -63,7 +67,6 @@ function Shell() {
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const touchStartTime = useRef<number>(0);
-  const isHorizontalSwipe = useRef<boolean | null>(null);
 
   useEffect(() => {
     setupStatusBar();
@@ -73,38 +76,53 @@ function Shell() {
       getCustomImage().then(setCustomImage).catch(() => {});
     };
     window.addEventListener('background-changed', handler);
-    return () => window.removeEventListener('background-changed', handler);
+    // 监听隐私政策同意
+    const privacyHandler = () => setPrivacyAgreed(true);
+    window.addEventListener('privacy-agreed', privacyHandler);
+    return () => {
+      window.removeEventListener('background-changed', handler);
+      window.removeEventListener('privacy-agreed', privacyHandler);
+    };
   }, []);
+
+  // 初始化授权 + 检查更新
+  useEffect(() => {
+    if (privacyAgreed) {
+      initAuth().then(() => {
+        checkUpdateOnLaunch().catch(() => {});
+      });
+    }
+  }, [privacyAgreed]);
+
+  // 登录成功后合并本地数据到云端
+  async function handleAuthSuccess() {
+    try {
+      await mergeLocalToCloud();
+    } catch (e) {
+      console.log('Merge failed:', e);
+    }
+  }
 
   const bgResolved = resolveBackgroundCss(bgSettings, customImage);
 
   function openNewTask() { setEditorTask(null); setEditorOpen(true); }
   function openEditTask(task: any) { setEditorTask(task); setEditorOpen(true); }
 
-  // 切换到指定 Tab（带边界检查）
   const switchTab = useCallback((direction: 'left' | 'right') => {
     const currentIndex = TABS.findIndex(t => t.id === tab);
     if (direction === 'left') {
-      // 向左滑 = 看下一个 Tab
-      if (currentIndex < TABS.length - 1) {
-        setTab(TABS[currentIndex + 1].id);
-      }
+      if (currentIndex < TABS.length - 1) setTab(TABS[currentIndex + 1].id);
     } else {
-      // 向右滑 = 看上一个 Tab
-      if (currentIndex > 0) {
-        setTab(TABS[currentIndex - 1].id);
-      }
+      if (currentIndex > 0) setTab(TABS[currentIndex - 1].id);
     }
   }, [tab]);
 
-  // 主页面 touch 事件
   function handleTouchStart(e: React.TouchEvent) {
-    if (editorOpen || settingsOpen || aiOpen) return; // 子页面打开时不处理
+    if (editorOpen || settingsOpen || aiOpen || authOpen || legalOpen) return;
     const touch = e.touches[0];
     touchStartX.current = touch.clientX;
     touchStartY.current = touch.clientY;
     touchStartTime.current = Date.now();
-    isHorizontalSwipe.current = null;
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
@@ -115,16 +133,14 @@ function Shell() {
     const dt = Date.now() - touchStartTime.current;
     touchStartX.current = null;
     touchStartY.current = null;
-
-    // 必须是水平方向滑动且距离够
     if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) || dt > 500) return;
-    if (isHorizontalSwipe.current === false) return;
+    if (dx < 0) switchTab('left');
+    else switchTab('right');
+  }
 
-    if (dx < 0) {
-      switchTab('left'); // 向左滑 = 下一个
-    } else {
-      switchTab('right'); // 向右滑 = 上一个
-    }
+  // 首次启动未同意隐私政策
+  if (!privacyAgreed) {
+    return <PrivacyConsentSheet />;
   }
 
   return (
@@ -132,7 +148,6 @@ function Shell() {
       className="flex flex-col h-screen overflow-hidden relative"
       style={bgResolved ? { background: bgResolved.css } : {}}
     >
-      {/* 自定义图片背景时，加一层半透明遮罩，让卡片更突出 */}
       {bgSettings.type === 'custom' && (
         <div className="absolute inset-0 bg-black/30 pointer-events-none z-0" />
       )}
@@ -194,9 +209,28 @@ function Shell() {
         </button>
       )}
 
+      {/* 登录状态指示（顶部右侧角标，已登录显示头像，未登录显示提示） */}
+      {!user && isConfigured && (
+        <button
+          onClick={() => setAuthOpen(true)}
+          className="absolute top-12 right-4 z-30 px-3 py-1.5 bg-emerald-500/90 text-white text-[11px] font-medium rounded-full shadow active:scale-95 transition-transform"
+          style={{ marginTop: 'var(--safe-top)' }}
+        >
+          登录同步
+        </button>
+      )}
+
       {editorOpen && (<TaskEditor task={editorTask} onClose={() => setEditorOpen(false)} />)}
-      {settingsOpen && <SettingsSheet onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsSheet
+          onClose={() => setSettingsOpen(false)}
+          onOpenAuth={() => setAuthOpen(true)}
+          onOpenLegal={(t) => setLegalOpen(t)}
+        />
+      )}
       {aiOpen && <AIChatSheet onClose={() => setAIOpen(false)} />}
+      {authOpen && <AuthSheet onClose={() => setAuthOpen(false)} onSuccess={handleAuthSuccess} />}
+      {legalOpen && <LegalSheet type={legalOpen} onClose={() => setLegalOpen(null)} />}
       <Toast />
     </div>
   );
