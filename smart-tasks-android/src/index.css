@@ -2,15 +2,74 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   Smart-Tasks v3.0 — Dark Glassmorphism Design System
+   ============================================================ */
+
 :root {
-  /* Android 状态栏典型高度 24-28dp，给个安全兜底值 */
+  /* Safe-area insets */
   --safe-top: max(env(safe-area-inset-top), 24px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* === Color palette (v3.0) === */
+  --bg: #0B0F0E;
+  --bg-elevated: rgba(255, 255, 255, 0.03);
+  --bg-sunken: rgba(0, 0, 0, 0.25);
+
+  --card: rgba(255, 255, 255, 0.06);
+  --card-hover: rgba(255, 255, 255, 0.10);
+  --card-active: rgba(255, 255, 255, 0.14);
+  --card-blur: 22px;
+
+  --primary: #2EE6A6;
+  --primary-strong: #25C98F;
+  --primary-soft: rgba(46, 230, 166, 0.16);
+  --primary-glow: rgba(46, 230, 166, 0.45);
+  --primary-border: rgba(46, 230, 166, 0.35);
+
+  --accent-violet: #8B7CFF;
+  --accent-amber: #F5B544;
+  --accent-rose: #FF6E7F;
+  --accent-sky: #5BC8FF;
+
+  --text-primary: rgba(255, 255, 255, 0.95);
+  --text-secondary: rgba(255, 255, 255, 0.62);
+  --text-tertiary: rgba(255, 255, 255, 0.38);
+  --text-quaternary: rgba(255, 255, 255, 0.22);
+
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  /* Priority */
+  --pri-high: #FF6E7F;
+  --pri-high-soft: rgba(255, 110, 127, 0.16);
+  --pri-medium: #F5B544;
+  --pri-medium-soft: rgba(245, 181, 68, 0.16);
+  --pri-low: #5BC8FF;
+  --pri-low-soft: rgba(91, 200, 255, 0.16);
+
+  /* Status */
+  --stat-todo: #5BC8FF;
+  --stat-progress: #F5B544;
+  --stat-done: #2EE6A6;
+  --stat-cancelled: rgba(255, 255, 255, 0.32);
+
+  /* Radii */
+  --r-card: 20px;
+  --r-md: 14px;
+  --r-sm: 10px;
+  --r-pill: 999px;
+
+  /* Shadows */
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-fab: 0 12px 32px rgba(46, 230, 166, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 20px 48px rgba(0, 0, 0, 0.5);
 }
 
 * {
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
+  box-sizing: border-box;
 }
 
 html, body, #root {
@@ -20,190 +79,389 @@ html, body, #root {
   overscroll-behavior: none;
 }
 
-body {
+/* ============================================================
+   Base body — always dark glass with subtle ambient glows
+   ============================================================ */
+body,
+body.dark,
+body:not(.dark) {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f5f5f7;
-  color: #1d1d1f;
+  color: var(--text-primary);
   user-select: none;
+  background:
+    radial-gradient(1200px 800px at 12% -10%, rgba(46, 230, 166, 0.10), transparent 60%),
+    radial-gradient(900px 700px at 110% 20%, rgba(139, 124, 255, 0.10), transparent 60%),
+    radial-gradient(800px 600px at 50% 120%, rgba(91, 200, 255, 0.06), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
 }
 
-body.dark {
-  background: #000;
-  color: #f5f5f7;
-}
-
+/* ============================================================
+   Glass surfaces
+   ============================================================ */
 .glass {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: rgba(18, 22, 22, 0.55);
+  backdrop-filter: saturate(160%) blur(20px);
+  -webkit-backdrop-filter: saturate(160%) blur(20px);
 }
 
-.dark .glass {
-  background: rgba(20, 20, 22, 0.72);
+.glass-strong {
+  background: rgba(15, 19, 18, 0.78);
+  backdrop-filter: saturate(160%) blur(28px);
+  -webkit-backdrop-filter: saturate(160%) blur(28px);
 }
 
+.glass-card {
+  background: var(--card);
+  backdrop-filter: blur(var(--card-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--card-blur)) saturate(140%);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+}
+
+.glass-tile {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+/* Legacy alias kept for compatibility with unmodified sub-sheets */
 .ios-card {
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  border-radius: var(--r-card);
+  background: var(--card);
+  backdrop-filter: blur(var(--card-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--card-blur)) saturate(140%);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
 }
 
 .dark .ios-card {
-  background: #1c1c1e;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
 }
 
 .ios-list-group {
-  border-radius: 12px;
+  border-radius: var(--r-card);
   overflow: hidden;
-  background: #fff;
+  background: var(--card);
+  border: 1px solid var(--border);
 }
 
 .dark .ios-list-group {
-  background: #1c1c1e;
+  background: var(--card);
 }
 
 .ios-list-item {
   padding: 14px 16px;
-  border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: 12px;
   min-height: 44px;
+  color: var(--text-primary);
 }
 
 .dark .ios-list-item {
-  border-bottom: 0.5px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border);
 }
 
-.ios-list-item:last-child {
-  border-bottom: none;
-}
+.ios-list-item:last-child { border-bottom: none; }
 
+/* ============================================================
+   Buttons & pills
+   ============================================================ */
 .btn-primary {
-  background: #10b981;
-  color: white;
-  border-radius: 12px;
-  padding: 12px 20px;
-  font-weight: 600;
-  font-size: 16px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
+  color: #06140F;
+  border-radius: var(--r-pill);
+  padding: 14px 22px;
+  font-weight: 700;
+  font-size: 15px;
   border: none;
-  transition: opacity 0.15s;
+  box-shadow: 0 8px 20px var(--primary-glow);
+  transition: transform 0.15s, box-shadow 0.2s, opacity 0.15s;
 }
 
-.btn-primary:active { opacity: 0.7; }
-.btn-primary:disabled { opacity: 0.5; }
+.btn-primary:active { transform: scale(0.96); box-shadow: 0 4px 12px var(--primary-glow); }
+.btn-primary:disabled { opacity: 0.4; box-shadow: none; }
 
-.ios-input {
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 12px 18px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+.btn-ghost:active { background: rgba(255, 255, 255, 0.12); transform: scale(0.97); }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+.chip.active {
+  background: var(--primary-soft);
+  border-color: var(--primary-border);
+  color: var(--primary);
+}
+.chip:active { transform: scale(0.95); }
+
+/* ============================================================
+   Inputs
+   ============================================================ */
+.ios-input,
+input,
+textarea,
+select {
   width: 100%;
   padding: 12px 14px;
-  border-radius: 10px;
-  border: 0.5px solid rgba(0, 0, 0, 0.1);
-  background: rgba(118, 118, 128, 0.08);
-  font-size: 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 15px;
   outline: none;
-  color: inherit;
+  color: var(--text-primary);
+  transition: border-color 0.15s, background 0.15s;
 }
 
 .dark .ios-input {
-  border-color: rgba(255, 255, 255, 0.1);
-  background: rgba(118, 118, 128, 0.24);
-  color: #f5f5f7;
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
 }
 
-.ios-input:focus {
-  border-color: #10b981;
-  background: rgba(16, 185, 129, 0.05);
+.ios-input:focus,
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
 }
 
+input::placeholder,
+textarea::placeholder { color: var(--text-tertiary); }
+
+select option {
+  background: #11181A;
+  color: var(--text-primary);
+}
+
+/* ============================================================
+   Tab bar — floating glass pill
+   ============================================================ */
 .tab-bar {
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+  background: rgba(11, 15, 14, 0.72);
+  backdrop-filter: saturate(160%) blur(24px);
+  -webkit-backdrop-filter: saturate(160%) blur(24px);
+  border-top: 1px solid var(--border);
   padding-bottom: var(--safe-bottom);
 }
 
 .dark .tab-bar {
-  background: rgba(20, 20, 22, 0.92);
-  border-top: 0.5px solid rgba(255, 255, 255, 0.08);
+  background: rgba(11, 15, 14, 0.72);
+  border-top: 1px solid var(--border);
 }
 
+.app-header {
+  background: rgba(11, 15, 14, 0.62);
+  backdrop-filter: saturate(160%) blur(22px);
+  -webkit-backdrop-filter: saturate(160%) blur(22px);
+  border-bottom: 1px solid var(--border);
+}
+
+/* ============================================================
+   Scrollbar / utilities
+   ============================================================ */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* ============================================================
+   Animations
+   ============================================================ */
 @keyframes slideUp {
   from { transform: translateY(100%); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
-
-.slide-up { animation: slideUp 0.3s cubic-bezier(0.32, 0.72, 0, 1); }
+.slide-up { animation: slideUp 0.32s cubic-bezier(0.32, 0.72, 0, 1); }
 
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+.fade-in { animation: fadeIn 0.25s ease-out; }
 
-.fade-in { animation: fadeIn 0.2s ease-out; }
-
-/* Tab 切换动画：从右侧滑入（向左切换） */
 @keyframes tabSlideInLeft {
   from { transform: translateX(40px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
-.tab-slide-in-left { animation: tabSlideInLeft 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
+.tab-slide-in-left { animation: tabSlideInLeft 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
 
-/* Tab 切换动画：从左侧滑入（向右切换） */
 @keyframes tabSlideInRight {
   from { transform: translateX(-40px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
-.tab-slide-in-right { animation: tabSlideInRight 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
-
-.modal-mask {
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-}
-
-.priority-bar {
-  width: 4px;
-  border-radius: 2px;
-  align-self: stretch;
-}
+.tab-slide-in-right { animation: tabSlideInRight 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50% { opacity: 0.55; }
+}
+.pulse { animation: pulse 2s ease-in-out infinite; }
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 24px var(--primary-glow), 0 0 0 1px var(--primary-border) inset; }
+  50%      { box-shadow: 0 0 48px var(--primary-glow), 0 0 0 1px var(--primary-border) inset; }
+}
+.glow-pulse { animation: glowPulse 2.6s ease-in-out infinite; }
+
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spin-slow { animation: spinSlow 16s linear infinite; }
+
+@keyframes barGrow {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+.bar-grow { animation: barGrow 0.7s cubic-bezier(0.32, 0.72, 0, 1); transform-origin: bottom; }
+
+@keyframes floatY {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.float-y { animation: floatY 4s ease-in-out infinite; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, transparent, rgba(46, 230, 166, 0.18), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
 }
 
-.pulse { animation: pulse 2s ease-in-out infinite; }
+@keyframes countUp {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.count-up { animation: countUp 0.5s ease-out both; }
+
+/* ============================================================
+   Modal mask
+   ============================================================ */
+.modal-mask {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* ============================================================
+   Priority / status bars
+   ============================================================ */
+.priority-bar {
+  width: 4px;
+  border-radius: 4px;
+  align-self: stretch;
+}
 
 .ios-checkbox {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  border: 2px solid #c7c7cc;
+  border: 2px solid var(--text-quaternary);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   transition: all 0.2s;
+  background: transparent;
 }
 
 .ios-checkbox.checked {
-  background: #10b981;
-  border-color: #10b981;
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 0 12px var(--primary-glow);
 }
 
 .ios-checkbox.checked::after {
   content: '';
   width: 7px;
   height: 12px;
-  border: 2px solid white;
+  border: 2px solid #06140F;
   border-top: 0;
   border-left: 0;
   transform: rotate(45deg) translate(-1px, -1px);
 }
+
+/* ============================================================
+   Glass card surface used across v3 views
+   ============================================================ */
+.v3-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  backdrop-filter: blur(var(--card-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--card-blur)) saturate(140%);
+  box-shadow: var(--shadow-card);
+}
+
+.v3-tile {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+/* KPI gradient borders */
+.kpi-card {
+  position: relative;
+  border-radius: var(--r-card);
+  background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--primary-border), transparent 40%, transparent 60%, rgba(139,124,255,0.3));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* Glow ring used by PomodoroView */
+.glow-ring {
+  filter: drop-shadow(0 0 14px var(--primary-glow));
+}
+
+/* Swipe-action reveal backgrounds */
+.swipe-reveal-left {
+  background: linear-gradient(135deg, rgba(255, 110, 127, 0.32), rgba(255, 110, 127, 0.18));
+}
+.swipe-reveal-right {
+  background: linear-gradient(135deg, rgba(46, 230, 166, 0.32), rgba(46, 230, 166, 0.18));
+}
+
+/* Subtle scrollbar for vertical content (optional) */
+.soft-scroll::-webkit-scrollbar { width: 4px; }
+.soft-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }

@@ -12,24 +12,24 @@ import SettingsSheet from './components/SettingsSheet';
 import AIChatSheet from './components/AIChatSheet';
 import AuthSheet from './components/AuthSheet';
 import LegalSheet from './components/LegalSheet';
+import ProSheet from './components/ProSheet';
 import Toast, { showToast } from './components/Toast';
 import SwipeableSheet, { hasActiveSheet } from './components/SwipeableSheet';
 import PrivacyConsentSheet, { isPrivacyAgreed } from './components/PrivacyConsentSheet';
 import {
   getBackgroundSettings,
   getCustomImage,
-  resolveBackgroundCss,
-  type BackgroundSettings,
 } from './lib/background';
 import { initAuth, useAuth, mergeLocalToCloud } from './lib/auth';
 import { checkUpdateOnLaunch, getCachedUpdateInfo } from './lib/updater';
+import { todayStr, isOverdue } from './lib/task-utils';
 
-// 启动时获取实际状态栏高度并设置到 CSS 变量
+// 启动时配置状态栏，匹配深色玻璃设计
 async function setupStatusBar() {
   try {
     await StatusBar.setOverlaysWebView({ overlay: false });
-    await StatusBar.setBackgroundColor({ color: '#10b981' });
-    await StatusBar.setStyle({ style: Style.Light });
+    await StatusBar.setBackgroundColor({ color: '#0B0F0E' });
+    await StatusBar.setStyle({ style: Style.Dark });
     const info = await StatusBar.getInfo();
     if (info && typeof info.height === 'number') {
       document.documentElement.style.setProperty('--safe-top', `${Math.ceil(info.height)}px`);
@@ -41,13 +41,36 @@ async function setupStatusBar() {
 
 type Tab = 'list' | 'kanban' | 'calendar' | 'pomodoro' | 'dashboard';
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'list', label: '任务', icon: '📋' },
-  { id: 'kanban', label: '看板', icon: '📊' },
-  { id: 'calendar', label: '日历', icon: '📅' },
-  { id: 'pomodoro', label: '番茄钟', icon: '🍅' },
-  { id: 'dashboard', label: '统计', icon: '📈' },
+const TABS: { id: Tab; label: string; icon: string; glyph: string }[] = [
+  { id: 'list',      label: '任务',  icon: '✦',  glyph: 'M4 6h16M4 12h10M4 18h7' },
+  { id: 'kanban',    label: '看板',  icon: '▦',  glyph: 'M4 5h6v14H4zM14 5h6v8h-6zM14 15h6v4h-6z' },
+  { id: 'calendar',  label: '日历',  icon: '◔',  glyph: 'M4 6h16v14H4zM4 10h16M8 4v4M16 4v4' },
+  { id: 'pomodoro',  label: '专注',  icon: '◉',  glyph: 'M12 4a8 8 0 1 0 8 8M12 12l5-3' },
+  { id: 'dashboard', label: '统计',  icon: '◢',  glyph: 'M4 19V9M10 19V5M16 19v-7M22 19H2' },
 ];
+
+function getGreeting(d = new Date()): { title: string; sub: string } {
+  const h = d.getHours();
+  let title = '晚上好';
+  if (h < 5)        title = '夜深了';
+  else if (h < 11)  title = '早上好';
+  else if (h < 14)  title = '中午好';
+  else if (h < 18)  title = '下午好';
+  return { title, sub: '今天也要保持专注' };
+}
+
+function TabIcon({ tab, active }: { tab: { glyph: string }; active: boolean }) {
+  return (
+    <svg
+      width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke={active ? 'var(--primary)' : 'var(--text-secondary)'}
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      style={{ transition: 'stroke 0.2s, transform 0.2s', transform: active ? 'translateY(-1px) scale(1.05)' : 'none' }}
+    >
+      <path d={tab.glyph} />
+    </svg>
+  );
+}
 
 function Shell() {
   const [tab, setTab] = useState<Tab>('list');
@@ -59,16 +82,16 @@ function Shell() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aiOpen, setAIOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [proOpen, setProOpen] = useState(false);
   const [legalOpen, setLegalOpen] = useState<null | 'privacy' | 'agreement' | 'about' | 'permissions'>(null);
   const [privacyAgreed, setPrivacyAgreed] = useState(isPrivacyAgreed());
-  const { loading } = useTaskStore();
-  const { user, isConfigured } = useAuth();
+  const { loading, tasks } = useTaskStore();
+  const { user, pro, isConfigured } = useAuth();
 
-  // 背景设置
-  const [bgSettings, setBgSettings] = useState<BackgroundSettings>(getBackgroundSettings);
+  // 背景设置（仅在用户自定义图片时作为底层叠加；v3 默认使用深色玻璃）
+  const [bgSettings, setBgSettings] = useState(getBackgroundSettings);
   const [customImage, setCustomImage] = useState<string | null>(null);
 
-  // 左右滑动切换 Tab 的手势状态
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const touchStartTime = useRef<number>(0);
@@ -81,54 +104,40 @@ function Shell() {
       getCustomImage().then(setCustomImage).catch(() => {});
     };
     window.addEventListener('background-changed', handler);
-    // 监听隐私政策同意
     const privacyHandler = () => setPrivacyAgreed(true);
     window.addEventListener('privacy-agreed', privacyHandler);
+    // v3 设计强制深色模式，确保 Tailwind 的 dark: 变体生效
+    document.body.classList.add('dark');
+    localStorage.setItem('theme', 'dark');
     return () => {
       window.removeEventListener('background-changed', handler);
       window.removeEventListener('privacy-agreed', privacyHandler);
     };
   }, []);
 
-  // 初始化授权 + 检查更新
   useEffect(() => {
     if (privacyAgreed) {
       initAuth().then(() => {
         checkUpdateOnLaunch().then(() => {
-          // 检查完成后更新 banner
           setUpdateBanner(getCachedUpdateInfo());
         }).catch(() => {});
       });
     }
   }, [privacyAgreed]);
 
-  // 监听系统返回键（含 MIUI/系统手势的边缘滑动返回）
-  // 子页面（SwipeableSheet）会自己监听并优先处理，这里只处理"没有子页面"的情况
   useEffect(() => {
     const handleBackButton = ({ canGoBack }: { canGoBack: boolean }) => {
-      // 如果有任何 SwipeableSheet 挂载（包括 ActionSheet），让它自己处理
-      if (hasActiveSheet()) {
-        return;
-      }
-      // 没有子页面打开时，退出 App
-      if (canGoBack) {
-        CapacitorApp.exitApp();
-      }
+      if (hasActiveSheet()) return;
+      if (canGoBack) CapacitorApp.exitApp();
     };
     const listener = CapacitorApp.addListener('backButton', handleBackButton);
     return () => { listener.then(l => l.remove()); };
   }, []);
 
-  // 登录成功后合并本地数据到云端
   async function handleAuthSuccess() {
-    try {
-      await mergeLocalToCloud();
-    } catch (e) {
-      console.log('Merge failed:', e);
-    }
+    try { await mergeLocalToCloud(); }
+    catch (e) { console.log('Merge failed:', e); }
   }
-
-  const bgResolved = resolveBackgroundCss(bgSettings, customImage);
 
   function openNewTask() { setEditorTask(null); setEditorOpen(true); }
   function openEditTask(task: any) { setEditorTask(task); setEditorOpen(true); }
@@ -137,22 +146,19 @@ function Shell() {
     const currentIndex = TABS.findIndex(t => t.id === tab);
     if (direction === 'left') {
       if (currentIndex < TABS.length - 1) {
-        setTabDirection('left');  // 新 Tab 从右侧滑入
+        setTabDirection('left');
         setTab(TABS[currentIndex + 1].id);
       }
     } else {
       if (currentIndex > 0) {
-        setTabDirection('right');  // 新 Tab 从左侧滑入
+        setTabDirection('right');
         setTab(TABS[currentIndex - 1].id);
       }
     }
   }, [tab]);
 
-  // 主页面：任意位置左右滑动切换 Tab（不限边缘）
-  // 向左滑（手指向左）→ 下一个 Tab
-  // 向右滑（手指向右）→ 上一个 Tab
   function handleTouchStart(e: React.TouchEvent) {
-    if (editorOpen || settingsOpen || aiOpen || authOpen || legalOpen) return;
+    if (editorOpen || settingsOpen || aiOpen || authOpen || legalOpen || proOpen) return;
     const touch = e.touches[0];
     touchStartX.current = touch.clientX;
     touchStartY.current = touch.clientY;
@@ -167,48 +173,118 @@ function Shell() {
     const dt = Date.now() - touchStartTime.current;
     touchStartX.current = null;
     touchStartY.current = null;
-    // 必须横向滑动且距离够（80px），垂直距离不超过水平
     if (Math.abs(dx) < 80 || Math.abs(dy) > Math.abs(dx) * 0.8 || dt > 600) return;
-    if (dx < 0) switchTab('left');  // 向左滑 → 下一个
-    else switchTab('right');        // 向右滑 → 上一个
+    if (dx < 0) switchTab('left');
+    else switchTab('right');
   }
 
-  // 首次启动未同意隐私政策
   if (!privacyAgreed) {
     return <PrivacyConsentSheet />;
   }
 
-  return (
-    <div
-      className="flex flex-col h-screen overflow-hidden relative"
-      style={bgResolved ? { background: bgResolved.css } : {}}
-    >
-      {bgSettings.type === 'custom' && (
-        <div className="absolute inset-0 bg-black/30 pointer-events-none z-0" />
-      )}
+  // 顶部问候 + 今日任务摘要
+  const greeting = getGreeting();
+  const today = todayStr();
+  const todayTasks = tasks.filter(t => !t.deletedAt && t.dueDate === today && t.status !== 'done' && t.status !== 'cancelled');
+  const overdueCount = tasks.filter(t => !t.deletedAt && isOverdue(t)).length;
+  const completedToday = tasks.filter(t => !t.deletedAt && t.completedAt && new Date(t.completedAt).toDateString() === new Date().toDateString()).length;
 
-      <header className="app-header glass sticky top-0 z-30" style={{ paddingTop: 'var(--safe-top)' }}>
-        <div className="flex items-center justify-between px-4 h-14">
-          <button
-            onClick={() => setAIOpen(true)}
-            className="flex items-center gap-1.5 px-3 h-9 rounded-full bg-emerald-500/10 active:bg-emerald-500/20 transition-colors"
-            aria-label="AI 助手"
-          >
-            <span className="text-base">✨</span>
-            <span className="text-emerald-600 dark:text-emerald-300 text-[13px] font-semibold">AI</span>
-          </button>
-          <h1 className="text-base font-semibold tracking-tight">{TABS.find(t => t.id === tab)?.label}</h1>
-          <button onClick={() => setSettingsOpen(true)} className="w-9 h-9 rounded-full flex items-center justify-center text-lg active:opacity-60" aria-label="设置">⚙️</button>
+  // 用户的自定义背景作为微弱底层（v3 默认深色玻璃覆盖在上）
+  const showCustomBg = bgSettings.type === 'custom' && customImage;
+
+  return (
+    <div className="flex flex-col h-screen overflow-hidden relative">
+      {/* 底层：用户自定义图片（如有） */}
+      {showCustomBg && (
+        <div
+          className="absolute inset-0 pointer-events-none z-0"
+          style={{ background: `url(${customImage}) center/cover no-repeat fixed`, opacity: 0.18 }}
+        />
+      )}
+      {/* v3 深色玻璃基底 */}
+      <div className="absolute inset-0 pointer-events-none z-0" />
+
+      <header className="app-header sticky top-0 z-30" style={{ paddingTop: 'var(--safe-top)' }}>
+        <div className="px-5 pt-2 pb-3">
+          <div className="flex items-start justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="text-[12px] font-medium" style={{ color: 'var(--text-secondary)' }}>
+                {new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })}
+              </div>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <h1 className="text-[22px] font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                  {greeting.title}
+                </h1>
+                <span className="text-[13px]" style={{ color: 'var(--text-tertiary)' }}>· {greeting.sub}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {pro?.isPro ? (
+                <button
+                  onClick={() => setProOpen(true)}
+                  className="flex items-center gap-1 px-3 h-9 rounded-full active:scale-95 transition-transform"
+                  style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))', color: '#06140F', boxShadow: '0 4px 14px var(--primary-glow)' }}
+                >
+                  <span className="text-[12px] font-bold">PRO</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setProOpen(true)}
+                  className="flex items-center gap-1 px-3 h-9 rounded-full active:scale-95 transition-transform"
+                  style={{ background: 'var(--primary-soft)', border: '1px solid var(--primary-border)', color: 'var(--primary)' }}
+                >
+                  <span className="text-[12px]">✦</span>
+                  <span className="text-[12px] font-bold">升级</span>
+                </button>
+              )}
+              <button
+                onClick={() => setSettingsOpen(true)}
+                className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)' }}
+                aria-label="设置"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-secondary)' }}>
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* 今日摘要条 */}
+          <div className="flex items-center gap-2 mt-3 -mx-1 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-full mx-1" style={{ background: 'rgba(46,230,166,0.10)', border: '1px solid var(--primary-border)' }}>
+              <span className="text-[11px] font-semibold" style={{ color: 'var(--primary)' }}>今日</span>
+              <span className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>{todayTasks.length}</span>
+            </div>
+            {overdueCount > 0 && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-full mx-1" style={{ background: 'rgba(255,110,127,0.10)', border: '1px solid rgba(255,110,127,0.3)' }}>
+                <span className="text-[11px] font-semibold" style={{ color: 'var(--pri-high)' }}>逾期</span>
+                <span className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>{overdueCount}</span>
+              </div>
+            )}
+            {completedToday > 0 && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-full mx-1" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)' }}>
+                <span className="text-[11px] font-semibold" style={{ color: 'var(--text-secondary)' }}>已完成</span>
+                <span className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>{completedToday}</span>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* 有新版本时显示更新提醒横幅 */}
+      {/* 更新提醒横幅 */}
       {updateBanner && (
-        <div className="mx-3 mt-2 ios-card p-2.5 bg-emerald-50 dark:bg-emerald-900/40 fade-in flex items-center gap-2">
-          <span className="text-emerald-500 text-base">✨</span>
+        <div className="mx-4 mt-2 v3-card p-3 fade-in flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
+            <span style={{ color: 'var(--primary)' }}>✦</span>
+          </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[12px] font-semibold text-emerald-700 dark:text-emerald-300">
+            <div className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>
               发现新版本 v{updateBanner.version}
+            </div>
+            <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+              点击下载，体验更多新功能
             </div>
           </div>
           <button
@@ -216,11 +292,13 @@ function Shell() {
               window.open(updateBanner.url, '_blank');
               showToast('正在跳转浏览器下载…', 'info');
             }}
-            className="px-3 py-1.5 bg-emerald-500 text-white rounded-full text-[11px] font-semibold active:scale-95 transition-transform whitespace-nowrap"
-          >📥 下载新版本</button>
+            className="px-3 py-1.5 rounded-full text-[12px] font-bold active:scale-95 transition-transform"
+            style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))', color: '#06140F' }}
+          >下载</button>
           <button
             onClick={() => setUpdateBanner(null)}
-            className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 text-xs flex items-center justify-center flex-shrink-0"
+            className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}
           >×</button>
         </div>
       )}
@@ -231,8 +309,9 @@ function Shell() {
         onTouchEnd={handleTouchEnd}
       >
         {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-slate-400 animate-pulse">加载中…</div>
+          <div className="flex flex-col items-center justify-center h-full gap-3">
+            <div className="w-10 h-10 rounded-full border-2 border-transparent" style={{ borderTopColor: 'var(--primary)', animation: 'spinSlow 1s linear infinite' }} />
+            <div style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>加载中…</div>
           </div>
         ) : (
           <div
@@ -256,10 +335,48 @@ function Shell() {
         )}
       </main>
 
+      {/* 浮动 AI 按钮（左下角，与新建任务按钮分开） */}
+      <button
+        onClick={() => setAIOpen(true)}
+        className="absolute left-4 z-40 w-12 h-12 rounded-full flex items-center justify-center active:scale-90 transition-transform float-y"
+        style={{
+          bottom: `calc(76px + var(--safe-bottom))`,
+          background: 'rgba(139, 124, 255, 0.16)',
+          border: '1px solid rgba(139, 124, 255, 0.35)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          boxShadow: '0 8px 24px rgba(139, 124, 255, 0.25)',
+        }}
+        aria-label="AI 助手"
+      >
+        <span style={{ fontSize: 20, background: 'linear-gradient(135deg, var(--accent-violet), var(--primary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>✦</span>
+      </button>
+
+      {/* 新建任务浮动按钮（右下角） */}
+      {tab !== 'pomodoro' && tab !== 'dashboard' && (
+        <button
+          onClick={openNewTask}
+          className="absolute right-4 z-40 w-14 h-14 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+          style={{
+            bottom: `calc(72px + var(--safe-bottom))`,
+            background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))',
+            color: '#06140F',
+            boxShadow: 'var(--shadow-fab)',
+          }}
+          aria-label="新建任务"
+        >
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+      )}
+
+      {/* 新版浮动 Tab 栏 */}
       <nav className="tab-bar z-30">
-        <div className="flex items-center justify-around px-2 h-14">
+        <div className="flex items-center justify-around px-3 h-16">
           {TABS.map((t, idx) => {
             const currentIdx = TABS.findIndex(x => x.id === tab);
+            const isActive = tab === t.id;
             return (
               <button
                 key={t.id}
@@ -267,36 +384,43 @@ function Shell() {
                   setTabDirection(idx > currentIdx ? 'left' : 'right');
                   setTab(t.id);
                 }}
-                className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-all"
-                style={{ opacity: tab === t.id ? 1 : 0.55 }}
+                className="flex flex-col items-center justify-center gap-1 flex-1 h-full transition-all relative"
+                style={{ opacity: isActive ? 1 : 0.55 }}
               >
-                <span className="text-xl" style={{ transform: tab === t.id ? 'scale(1.1)' : 'scale(1)' }}>{t.icon}</span>
-                <span className={`text-[10px] ${tab === t.id ? 'text-emerald-500 font-semibold' : 'text-slate-500 dark:text-slate-400'}`}>{t.label}</span>
+                <div
+                  className="flex items-center justify-center rounded-full transition-all"
+                  style={{
+                    width: isActive ? 44 : 32,
+                    height: isActive ? 44 : 32,
+                    background: isActive ? 'var(--primary-soft)' : 'transparent',
+                    border: isActive ? '1px solid var(--primary-border)' : '1px solid transparent',
+                  }}
+                >
+                  <TabIcon tab={t} active={isActive} />
+                </div>
+                <span
+                  className="text-[10px] font-semibold transition-colors"
+                  style={{ color: isActive ? 'var(--primary)' : 'var(--text-secondary)' }}
+                >
+                  {t.label}
+                </span>
               </button>
             );
           })}
         </div>
       </nav>
 
-      {tab !== 'pomodoro' && tab !== 'dashboard' && (
-        <button
-          onClick={openNewTask}
-          className="absolute right-4 z-40 w-14 h-14 rounded-full bg-emerald-500 text-white shadow-lg flex items-center justify-center active:scale-90 transition-transform"
-          style={{ bottom: `calc(72px + var(--safe-bottom))` }}
-          aria-label="新建任务"
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
-      )}
-
-      {/* 登录状态指示（顶部右侧角标，已登录显示头像，未登录显示提示） */}
+      {/* 未登录提示 */}
       {!user && isConfigured && (
         <button
           onClick={() => setAuthOpen(true)}
-          className="absolute top-12 right-4 z-30 px-3 py-1.5 bg-emerald-500/90 text-white text-[11px] font-medium rounded-full shadow active:scale-95 transition-transform"
-          style={{ marginTop: 'var(--safe-top)' }}
+          className="absolute right-4 z-30 px-3 py-1.5 text-[11px] font-medium rounded-full active:scale-95 transition-transform"
+          style={{
+            top: `calc(var(--safe-top) + 56px)`,
+            background: 'var(--primary-soft)',
+            border: '1px solid var(--primary-border)',
+            color: 'var(--primary)',
+          }}
         >
           登录同步
         </button>
@@ -312,6 +436,7 @@ function Shell() {
       )}
       {aiOpen && <AIChatSheet onClose={() => setAIOpen(false)} />}
       {authOpen && <AuthSheet onClose={() => setAuthOpen(false)} onSuccess={handleAuthSuccess} />}
+      {proOpen && <ProSheet onClose={() => setProOpen(false)} />}
       {legalOpen && <LegalSheet type={legalOpen} onClose={() => setLegalOpen(null)} />}
       <Toast />
     </div>

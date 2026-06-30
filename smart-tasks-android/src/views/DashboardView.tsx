@@ -1,8 +1,44 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useTaskStore } from '../lib/store';
-import { STATUS_LABELS, STATUS_ORDER, STATUS_COLORS, PRIORITY_LABELS, PRIORITY_COLORS, TAG_COLORS, todayStr } from '../lib/task-utils';
+import {
+  STATUS_LABELS, STATUS_ORDER, PRIORITY_LABELS, todayStr,
+} from '../lib/task-utils';
 import { generateWeeklyReport, getAISettings } from '../lib/ai-client';
 import { showToast } from '../components/Toast';
+
+// 状态 → 设计 token
+const STATUS_TOKEN: Record<string, { dot: string; soft: string; text: string }> = {
+  todo:        { dot: 'var(--stat-todo)',       soft: 'rgba(91,200,255,0.16)',  text: 'var(--accent-sky)' },
+  in_progress: { dot: 'var(--stat-progress)',   soft: 'rgba(245,181,68,0.16)',  text: 'var(--accent-amber)' },
+  done:        { dot: 'var(--stat-done)',       soft: 'var(--primary-soft)',    text: 'var(--primary)' },
+  cancelled:   { dot: 'var(--stat-cancelled)',  soft: 'rgba(255,255,255,0.08)', text: 'var(--text-secondary)' },
+};
+
+const PRI_TOKEN: Record<string, { dot: string; soft: string; text: string }> = {
+  high:   { dot: 'var(--pri-high)',    soft: 'var(--pri-high-soft)',    text: 'var(--pri-high)' },
+  medium: { dot: 'var(--pri-medium)',  soft: 'var(--pri-medium-soft)',  text: 'var(--pri-medium)' },
+  low:    { dot: 'var(--pri-low)',     soft: 'var(--pri-low-soft)',     text: 'var(--pri-low)' },
+};
+
+// 数字 count-up 动画（简单实现）
+function AnimatedNumber({ value, duration = 700 }: { value: number; duration?: number }) {
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    const start = display;
+    const startTs = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - startTs) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(Math.round(start + (value - start) * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return <span className="count-up">{display}</span>;
+}
 
 export default function DashboardView() {
   const { tasks, pomodoros, tags } = useTaskStore();
@@ -23,12 +59,12 @@ export default function DashboardView() {
     const statusDist = STATUS_ORDER.map(s => ({
       status: s, label: STATUS_LABELS[s],
       count: active.filter(t => t.status === s).length,
-      color: STATUS_COLORS[s].bar,
+      token: STATUS_TOKEN[s],
     }));
     const priorityDist = (['high', 'medium', 'low'] as const).map(p => ({
       priority: p, label: PRIORITY_LABELS[p],
       count: active.filter(t => t.priority === p).length,
-      color: PRIORITY_COLORS[p].dot,
+      token: PRI_TOKEN[p],
     }));
     const dailyPomodoros = Array.from({ length: 7 }, (_, i) => {
       const day = new Date();
@@ -65,134 +101,238 @@ export default function DashboardView() {
   const maxDailyPomodoro = Math.max(...stats.dailyPomodoros.map(d => d.count), 1);
   const maxDailyCompleted = Math.max(...stats.dailyCompleted.map(d => d.count), 1);
 
+  // KPI 卡片定义
+  const kpis = [
+    { label: '总任务',   value: stats.counts.total,       icon: '✦', accent: 'var(--accent-violet)', soft: 'rgba(139,124,255,0.14)' },
+    { label: '已完成',   value: stats.counts.done,        icon: '✓', accent: 'var(--primary)',        soft: 'var(--primary-soft)' },
+    { label: '进行中',   value: stats.counts.inProgress,  icon: '◐', accent: 'var(--accent-amber)',   soft: 'rgba(245,181,68,0.14)' },
+    { label: '逾期',     value: stats.counts.overdue,     icon: '!', accent: 'var(--pri-high)',       soft: 'var(--pri-high-soft)' },
+  ];
+
   return (
-    <div className="px-4 py-3 space-y-4 pb-4">
+    <div className="px-4 py-4 space-y-4 pb-4">
+      {/* KPI 卡片网格 */}
       <div className="grid grid-cols-2 gap-3">
-        <StatCard label="总任务" value={stats.counts.total} icon="📋" color="bg-slate-100 dark:bg-slate-800" />
-        <StatCard label="已完成" value={stats.counts.done} icon="✅" color="bg-emerald-100 dark:bg-emerald-900/30" />
-        <StatCard label="进行中" value={stats.counts.inProgress} icon="🔄" color="bg-blue-100 dark:bg-blue-900/30" />
-        <StatCard label="逾期" value={stats.counts.overdue} icon="⚠️" color="bg-rose-100 dark:bg-rose-900/30" />
-      </div>
-
-      <div className="ios-card p-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium">完成率</span>
-          <span className="text-2xl font-bold text-emerald-500">{stats.counts.completionRate}%</span>
-        </div>
-        <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all" style={{ width: `${stats.counts.completionRate}%` }} />
-        </div>
-        <div className="text-[11px] text-slate-400 mt-1.5">已完成 {stats.counts.done} / 总 {stats.counts.total}</div>
-      </div>
-
-      <div className="ios-card p-4">
-        <div className="text-sm font-medium mb-3">近 7 天完成趋势</div>
-        <div className="flex items-end justify-between gap-2 h-24">
-          {stats.dailyCompleted.map((d, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <div className="flex-1 w-full flex items-end">
-                <div className="w-full bg-emerald-500 rounded-t-md transition-all" style={{ height: `${(d.count / maxDailyCompleted) * 100}%`, minHeight: d.count > 0 ? '4px' : '0' }} />
+        {kpis.map((k, i) => (
+          <div key={k.label} className="kpi-card p-4 fade-in" style={{ animationDelay: `${i * 60}ms` }}>
+            <div className="flex items-center justify-between mb-2">
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center font-bold"
+                style={{ background: k.soft, color: k.accent, border: `1px solid ${k.accent}40`, fontSize: 16 }}
+              >
+                {k.icon}
               </div>
-              <div className="text-[10px] text-slate-400">{d.date.getMonth() + 1}/{d.date.getDate()}</div>
-              <div className="text-[10px] font-medium text-slate-600 dark:text-slate-300">{d.count}</div>
+              <span className="text-[11px] font-semibold" style={{ color: 'var(--text-tertiary)' }}>{k.label}</span>
+            </div>
+            <div className="text-[32px] font-black leading-none" style={{ color: 'var(--text-primary)' }}>
+              <AnimatedNumber value={k.value} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 完成率环形进度 */}
+      <div className="v3-card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>完成率</div>
+            <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>已完成 {stats.counts.done} / 总 {stats.counts.total}</div>
+          </div>
+          <div className="relative">
+            <svg width="64" height="64" className="-rotate-90">
+              <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="6" />
+              <circle
+                cx="32" cy="32" r="26" fill="none" stroke="var(--primary)" strokeWidth="6"
+                strokeLinecap="round"
+                strokeDasharray={2 * Math.PI * 26}
+                strokeDashoffset={2 * Math.PI * 26 * (1 - stats.counts.completionRate / 100)}
+                style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.32,0.72,0,1)', filter: 'drop-shadow(0 0 6px var(--primary-glow))' }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-[13px] font-black" style={{ color: 'var(--primary)' }}>{stats.counts.completionRate}%</span>
+            </div>
+          </div>
+        </div>
+        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: `${stats.counts.completionRate}%`,
+              background: 'linear-gradient(90deg, var(--primary), var(--primary-strong))',
+              boxShadow: '0 0 8px var(--primary-glow)',
+              transition: 'width 1.2s cubic-bezier(0.32,0.72,0,1)',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* 近 7 天完成趋势柱状图 */}
+      <div className="v3-card p-4">
+        <div className="text-[13px] font-bold mb-3" style={{ color: 'var(--text-primary)' }}>近 7 天完成趋势</div>
+        <div className="flex items-end justify-between gap-2 h-28">
+          {stats.dailyCompleted.map((d, i) => (
+            <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
+              <div className="flex-1 w-full flex items-end justify-center">
+                <div
+                  className="w-6 rounded-lg bar-grow"
+                  style={{
+                    height: `${(d.count / maxDailyCompleted) * 100}%`,
+                    minHeight: d.count > 0 ? '6px' : '2px',
+                    background: d.count > 0 ? 'linear-gradient(180deg, var(--primary), var(--primary-strong))' : 'rgba(255,255,255,0.06)',
+                    boxShadow: d.count > 0 ? '0 0 12px var(--primary-glow)' : 'none',
+                    animationDelay: `${i * 80}ms`,
+                  }}
+                />
+              </div>
+              <div className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{d.date.getMonth() + 1}/{d.date.getDate()}</div>
+              <div className="text-[10px] font-bold" style={{ color: 'var(--text-secondary)' }}>{d.count}</div>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="ios-card p-4">
-        <div className="text-sm font-medium mb-3">状态分布</div>
-        <div className="space-y-2">
+      {/* 状态分布 */}
+      <div className="v3-card p-4">
+        <div className="text-[13px] font-bold mb-3" style={{ color: 'var(--text-primary)' }}>状态分布</div>
+        <div className="space-y-2.5">
           {stats.statusDist.map(s => (
             <div key={s.status} className="flex items-center gap-3">
-              <div className="text-xs text-slate-500 w-16">{s.label}</div>
-              <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                <div className={`h-full ${s.color} rounded-full`} style={{ width: `${stats.counts.total > 0 ? (s.count / stats.counts.total) * 100 : 0}%` }} />
+              <div className="text-[11px] w-12" style={{ color: 'var(--text-secondary)' }}>{s.label}</div>
+              <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${stats.counts.total > 0 ? (s.count / stats.counts.total) * 100 : 0}%`,
+                    background: s.token.dot,
+                    transition: 'width 1s cubic-bezier(0.32,0.72,0,1)',
+                  }}
+                />
               </div>
-              <div className="text-xs font-medium w-6 text-right">{s.count}</div>
+              <div className="text-[11px] font-bold w-6 text-right" style={{ color: 'var(--text-primary)' }}>{s.count}</div>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="ios-card p-4">
-        <div className="text-sm font-medium mb-3">优先级分布</div>
-        <div className="flex h-3 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800">
-          {stats.priorityDist.map(p => (p.count > 0 && (<div key={p.priority} className={p.color} style={{ width: `${(p.count / stats.counts.total) * 100}%` }} />)))}
+      {/* 优先级分布 */}
+      <div className="v3-card p-4">
+        <div className="text-[13px] font-bold mb-3" style={{ color: 'var(--text-primary)' }}>优先级分布</div>
+        <div className="flex h-3 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+          {stats.priorityDist.map(p => (p.count > 0 && (
+            <div
+              key={p.priority}
+              style={{
+                width: `${(p.count / stats.counts.total) * 100}%`,
+                background: p.token.dot,
+                transition: 'width 1s cubic-bezier(0.32,0.72,0,1)',
+              }}
+            />
+          )))}
         </div>
-        <div className="flex justify-between mt-2">
+        <div className="flex justify-between mt-3">
           {stats.priorityDist.map(p => (
-            <div key={p.priority} className="flex items-center gap-1">
-              <div className={`w-2 h-2 rounded-full ${p.color}`} />
-              <span className="text-[11px] text-slate-500">{p.label} {p.count}</span>
+            <div key={p.priority} className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full" style={{ background: p.token.dot }} />
+              <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>{p.label} {p.count}</span>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="ios-card p-4">
-        <div className="text-sm font-medium mb-3">番茄钟统计</div>
+      {/* 番茄钟统计 */}
+      <div className="v3-card p-4">
+        <div className="text-[13px] font-bold mb-3" style={{ color: 'var(--text-primary)' }}>番茄钟统计</div>
         <div className="grid grid-cols-2 gap-3 mb-3">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-emerald-500">{stats.totalPomodoros}</div>
-            <div className="text-[11px] text-slate-400">总番茄数</div>
+          <div className="text-center p-3 rounded-xl" style={{ background: 'var(--primary-soft)', border: '1px solid var(--primary-border)' }}>
+            <div className="text-[28px] font-black leading-none" style={{ color: 'var(--primary)' }}>
+              <AnimatedNumber value={stats.totalPomodoros} />
+            </div>
+            <div className="text-[11px] mt-1" style={{ color: 'var(--text-secondary)' }}>总番茄数</div>
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-emerald-500">{stats.totalFocusMinutes}</div>
-            <div className="text-[11px] text-slate-400">专注分钟数</div>
+          <div className="text-center p-3 rounded-xl" style={{ background: 'rgba(255,110,127,0.10)', border: '1px solid rgba(255,110,127,0.3)' }}>
+            <div className="text-[28px] font-black leading-none" style={{ color: 'var(--pri-high)' }}>
+              <AnimatedNumber value={stats.totalFocusMinutes} />
+            </div>
+            <div className="text-[11px] mt-1" style={{ color: 'var(--text-secondary)' }}>专注分钟数</div>
           </div>
         </div>
         <div className="flex items-end justify-between gap-2 h-20">
           {stats.dailyPomodoros.map((d, i) => (
             <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <div className="flex-1 w-full flex items-end">
-                <div className="w-full bg-rose-400 rounded-t-md" style={{ height: `${(d.count / maxDailyPomodoro) * 100}%`, minHeight: d.count > 0 ? '4px' : '0' }} />
+              <div className="flex-1 w-full flex items-end justify-center">
+                <div
+                  className="w-5 rounded-t-md bar-grow"
+                  style={{
+                    height: `${(d.count / maxDailyPomodoro) * 100}%`,
+                    minHeight: d.count > 0 ? '4px' : '2px',
+                    background: d.count > 0 ? 'linear-gradient(180deg, var(--pri-high), #D4525E)' : 'rgba(255,255,255,0.06)',
+                    animationDelay: `${i * 80}ms`,
+                  }}
+                />
               </div>
-              <div className="text-[10px] text-slate-400">{d.date.getMonth() + 1}/{d.date.getDate()}</div>
+              <div className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{d.date.getMonth() + 1}/{d.date.getDate()}</div>
             </div>
           ))}
         </div>
       </div>
 
+      {/* 热门标签 */}
       {stats.topTags.length > 0 && (
-        <div className="ios-card p-4">
-          <div className="text-sm font-medium mb-3">热门标签</div>
+        <div className="v3-card p-4">
+          <div className="text-[13px] font-bold mb-3" style={{ color: 'var(--text-primary)' }}>热门标签</div>
           <div className="flex flex-wrap gap-2">
-            {stats.topTags.map(t => (
-              <div key={t.name} className={`text-xs px-3 py-1.5 rounded-full ${TAG_COLORS[t.color] || TAG_COLORS.emerald}`}>
-                #{t.name} · {t.count}
-              </div>
-            ))}
+            {stats.topTags.map(t => {
+              const dotColor = {
+                emerald: 'var(--primary)', amber: 'var(--accent-amber)', rose: 'var(--pri-high)',
+                violet: 'var(--accent-violet)', sky: 'var(--accent-sky)', teal: 'var(--primary)',
+                orange: 'var(--accent-amber)', slate: 'var(--text-secondary)',
+              }[t.color] || 'var(--primary)';
+              return (
+                <div
+                  key={t.name}
+                  className="text-[12px] px-3 py-1.5 rounded-full font-medium"
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                >
+                  <span style={{ color: dotColor }}>#</span>{t.name} <span style={{ color: 'var(--text-tertiary)' }}>· {t.count}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
-      <div className="ios-card p-4">
+      {/* AI 周报 */}
+      <div className="v3-card p-4" style={{ background: 'linear-gradient(180deg, rgba(139,124,255,0.10), rgba(255,255,255,0.03))' }}>
         <div className="flex items-center justify-between mb-3">
-          <div className="text-sm font-medium">✨ AI 周报</div>
-          <button onClick={handleGenerateReport} disabled={generating} className="text-xs px-3 py-1.5 bg-emerald-500 text-white rounded-full disabled:opacity-50">
+          <div className="text-[13px] font-bold flex items-center gap-1.5" style={{ color: 'var(--accent-violet)' }}>
+            <span>✦</span>
+            <span>AI 智能周报</span>
+          </div>
+          <button
+            onClick={handleGenerateReport}
+            disabled={generating}
+            className="text-[12px] px-3 py-1.5 rounded-full font-bold active:scale-95 transition-transform disabled:opacity-50"
+            style={{ background: 'rgba(139,124,255,0.18)', border: '1px solid rgba(139,124,255,0.4)', color: 'var(--accent-violet)' }}
+          >
             {generating ? '生成中…' : '生成周报'}
           </button>
         </div>
         {report ? (
-          <div className="text-[13px] leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{report}</div>
+          <div className="text-[13px] leading-relaxed whitespace-pre-wrap fade-in" style={{ color: 'var(--text-primary)' }}>
+            {report}
+          </div>
+        ) : generating ? (
+          <div className="space-y-2">
+            <div className="h-3 rounded-full shimmer" style={{ width: '70%' }} />
+            <div className="h-3 rounded-full shimmer" style={{ width: '90%' }} />
+            <div className="h-3 rounded-full shimmer" style={{ width: '50%' }} />
+          </div>
         ) : (
-          <div className="text-[12px] text-slate-400">
+          <div className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>
             {getAISettings() ? '点击「生成周报」AI 会根据你本周的数据生成一份回顾' : '请先在设置中配置 AI API，然后即可生成智能周报'}
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ label, value, icon, color }: { label: string; value: number; icon: string; color: string }) {
-  return (
-    <div className="ios-card p-3 flex items-center gap-3">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${color}`}>{icon}</div>
-      <div>
-        <div className="text-2xl font-bold leading-none">{value}</div>
-        <div className="text-[11px] text-slate-400 mt-1">{label}</div>
       </div>
     </div>
   );

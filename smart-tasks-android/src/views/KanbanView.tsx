@@ -2,8 +2,7 @@ import { useState, useMemo } from 'react';
 import type { Task } from '../lib/db';
 import { useTaskStore } from '../lib/store';
 import {
-  STATUS_LABELS, STATUS_ORDER, STATUS_COLORS,
-  PRIORITY_COLORS, PRIORITY_LABELS, TAG_COLORS,
+  STATUS_LABELS, STATUS_ORDER, PRIORITY_LABELS,
   formatDate, isOverdue,
 } from '../lib/task-utils';
 import { showToast } from '../components/Toast';
@@ -17,19 +16,39 @@ interface Props {
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 
+// v3 design tokens
+const STATUS_TOKEN: Record<string, { dot: string; soft: string; text: string }> = {
+  todo:        { dot: 'var(--stat-todo)',      soft: 'rgba(91,200,255,0.14)',  text: 'var(--accent-sky)' },
+  in_progress: { dot: 'var(--stat-progress)',  soft: 'rgba(245,181,68,0.14)',  text: 'var(--accent-amber)' },
+  done:        { dot: 'var(--stat-done)',      soft: 'var(--primary-soft)',    text: 'var(--primary)' },
+  cancelled:   { dot: 'var(--stat-cancelled)', soft: 'rgba(255,255,255,0.08)', text: 'var(--text-secondary)' },
+};
+const PRI_TOKEN: Record<string, { bar: string; soft: string; text: string }> = {
+  high:   { bar: 'var(--pri-high)',    soft: 'var(--pri-high-soft)',    text: 'var(--pri-high)' },
+  medium: { bar: 'var(--pri-medium)',  soft: 'var(--pri-medium-soft)',  text: 'var(--pri-medium)' },
+  low:    { bar: 'var(--pri-low)',     soft: 'var(--pri-low-soft)',     text: 'var(--pri-low)' },
+};
+const TAG_DOT: Record<string, string> = {
+  emerald: 'var(--primary)', amber: 'var(--accent-amber)', rose: 'var(--pri-high)',
+  violet: 'var(--accent-violet)', sky: 'var(--accent-sky)', teal: 'var(--primary)',
+  orange: 'var(--accent-amber)', slate: 'var(--text-secondary)',
+};
+
 export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
-  const { tasks, updateTask, softDeleteTask } = useTaskStore();
+  const { tasks, updateTask, softDeleteTask, tags } = useTaskStore();
   const [selectedStatus, setSelectedStatus] = useState<string>('todo');
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
+  const [statusChangeTaskId, setStatusChangeTaskId] = useState<string | null>(null);
+  const [showCategorySheet, setShowCategorySheet] = useState(false);
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // 按状态分组
   const columns = useMemo(() => {
     const map: Record<string, Task[]> = { todo: [], in_progress: [], done: [], cancelled: [] };
     tasks.filter(t => !t.deletedAt).forEach(t => {
       if (map[t.status]) map[t.status].push(t);
     });
-    // 每列内按优先级排序
     Object.keys(map).forEach(k => {
       map[k].sort((a, b) => {
         const po = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
@@ -41,10 +60,9 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
     return map;
   }, [tasks]);
 
-  // 当前选中状态的任务列表
   const currentTasks = columns[selectedStatus] || [];
+  const totalActive = tasks.filter(t => !t.deletedAt).length;
 
-  // 拖拽到目标列
   function handleDropToColumn(newStatus: string) {
     if (!draggedTaskId) return;
     const task = tasks.find(t => t.id === draggedTaskId);
@@ -62,9 +80,6 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
     setDragOverStatus(null);
   }
 
-  // 通过长按弹出的状态切换菜单
-  const [statusChangeTaskId, setStatusChangeTaskId] = useState<string | null>(null);
-
   async function handleStatusChange(newStatus: string) {
     if (!statusChangeTaskId) return;
     const task = tasks.find(t => t.id === statusChangeTaskId);
@@ -80,27 +95,21 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
     setStatusChangeTaskId(null);
   }
 
-  const totalActive = tasks.filter(t => !t.deletedAt).length;
-
-  const [showCategorySheet, setShowCategorySheet] = useState(false);
-  const [batchMode, setBatchMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
   return (
     <div className="h-full flex flex-col">
-      {/* 顶部统计栏：可点击切换分类 + 批量按钮 */}
-      <div className="px-4 py-2.5 glass border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-        <button
-          onClick={() => !batchMode && setShowCategorySheet(true)}
-          className="flex items-center gap-2 flex-1"
-        >
-          <span className="text-[12px] text-slate-500 dark:text-slate-400">
+      {/* 顶部统计栏 */}
+      <div
+        className="px-4 py-2.5 flex items-center justify-between"
+        style={{ background: 'rgba(11,15,14,0.55)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border)' }}
+      >
+        <button onClick={() => !batchMode && setShowCategorySheet(true)} className="flex items-center gap-2 flex-1">
+          <span className="text-[12px]" style={{ color: 'var(--text-secondary)' }}>
             共 {totalActive} 个任务 · 4 个分类
           </span>
-          <span className="flex items-center gap-1 text-[12px] text-emerald-500 font-medium">
-            <span className={`w-2 h-2 rounded-full ${STATUS_COLORS[selectedStatus].bar}`} />
+          <span className="flex items-center gap-1.5 text-[12px] font-bold" style={{ color: 'var(--primary)' }}>
+            <span className="w-2 h-2 rounded-full" style={{ background: STATUS_TOKEN[selectedStatus].dot }} />
             <span>{STATUS_LABELS[selectedStatus]}（{currentTasks.length}）</span>
-            <span className="text-[10px]">▾</span>
+            <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>▾</span>
           </span>
         </button>
         <button
@@ -108,16 +117,22 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
             if (batchMode) setSelectedIds(new Set());
             setBatchMode(!batchMode);
           }}
-          className={`px-3 py-1.5 rounded-full text-[11px] font-medium whitespace-nowrap ${
-            batchMode ? 'bg-rose-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-          } active:scale-95 transition-transform ml-2`}
+          className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap active:scale-95 transition-transform ml-2"
+          style={{
+            background: batchMode ? 'var(--pri-high-soft)' : 'rgba(255,255,255,0.05)',
+            border: `1px solid ${batchMode ? 'rgba(255,110,127,0.35)' : 'var(--border)'}`,
+            color: batchMode ? 'var(--pri-high)' : 'var(--text-secondary)',
+          }}
         >{batchMode ? '退出批量' : '🗑 批量'}</button>
       </div>
 
       {/* 批量操作工具栏 */}
       {batchMode && (
-        <div className="px-4 py-2 bg-rose-50 dark:bg-rose-900/20 border-b border-rose-200 dark:border-rose-900/40 fade-in flex items-center justify-between">
-          <span className="text-[12px] text-rose-700 dark:text-rose-300 font-medium">
+        <div
+          className="px-4 py-2 fade-in flex items-center justify-between"
+          style={{ background: 'var(--pri-high-soft)', borderBottom: '1px solid rgba(255,110,127,0.25)' }}
+        >
+          <span className="text-[12px] font-bold" style={{ color: 'var(--pri-high)' }}>
             已选 {selectedIds.size} / {currentTasks.length} 项
           </span>
           <div className="flex gap-2">
@@ -127,11 +142,13 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
                 currentTasks.forEach(t => newSet.add(t.id));
                 setSelectedIds(newSet);
               }}
-              className="px-3 py-1.5 bg-white dark:bg-slate-800 text-[12px] font-medium rounded-lg text-slate-700 dark:text-slate-200 active:scale-95 transition-transform"
+              className="px-3 py-1.5 text-[12px] font-bold rounded-full active:scale-95 transition-transform"
+              style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
             >全选</button>
             <button
               onClick={() => setSelectedIds(new Set())}
-              className="px-3 py-1.5 bg-white dark:bg-slate-800 text-[12px] font-medium rounded-lg text-slate-700 dark:text-slate-200 active:scale-95 transition-transform"
+              className="px-3 py-1.5 text-[12px] font-bold rounded-full active:scale-95 transition-transform"
+              style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
             >清空</button>
             <button
               onClick={async () => {
@@ -144,19 +161,21 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
                 setBatchMode(false);
               }}
               disabled={selectedIds.size === 0}
-              className="px-3 py-1.5 bg-rose-500 text-white text-[12px] font-medium rounded-lg disabled:opacity-50 active:scale-95 transition-transform"
+              className="px-3 py-1.5 text-[12px] font-bold rounded-full active:scale-95 transition-transform disabled:opacity-50"
+              style={{ background: 'var(--pri-high)', color: '#1A0B0E' }}
             >删除</button>
           </div>
         </div>
       )}
 
       <div className="flex-1 flex overflow-hidden">
-        {/* 左侧：分类列表（重新设计） */}
+        {/* 左侧：分类列表 */}
         <aside
-          className="w-[88px] flex-shrink-0 bg-slate-100/60 dark:bg-black/40 overflow-y-auto no-scrollbar border-r border-slate-200/60 dark:border-slate-800/60 py-2.5 px-2 space-y-2"
+          className="w-[92px] flex-shrink-0 overflow-y-auto no-scrollbar py-2.5 px-2 space-y-2"
+          style={{ background: 'rgba(0,0,0,0.18)', borderRight: '1px solid var(--border)' }}
         >
           {STATUS_ORDER.map(status => {
-            const sc = STATUS_COLORS[status];
+            const sc = STATUS_TOKEN[status];
             const count = columns[status].length;
             const isActive = selectedStatus === status;
             const isDragOver = dragOverStatus === status;
@@ -167,43 +186,42 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
                 onDragOver={e => { e.preventDefault(); setDragOverStatus(status); }}
                 onDragLeave={() => setDragOverStatus(null)}
                 onDrop={() => handleDropToColumn(status)}
-                className={`relative w-full flex flex-col items-center justify-center py-3 px-1 rounded-2xl transition-all active:scale-95 ${
-                  isActive
-                    ? 'bg-white dark:bg-slate-800 shadow-md ring-2 ring-emerald-500/40'
-                    : isDragOver
-                    ? 'bg-emerald-50 dark:bg-emerald-900/40 ring-2 ring-emerald-400/60'
-                    : 'bg-white/50 dark:bg-slate-800/30'
-                }`}
-                style={isActive ? { boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)' } : {}}
+                className="relative w-full flex flex-col items-center justify-center py-3 px-1 rounded-2xl transition-all active:scale-95"
+                style={{
+                  background: isActive ? 'var(--primary-soft)' : isDragOver ? 'var(--primary-soft)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${isActive ? 'var(--primary-border)' : isDragOver ? 'var(--primary-border)' : 'var(--border)'}`,
+                  boxShadow: isActive ? '0 4px 14px var(--primary-glow)' : 'none',
+                }}
               >
-                {/* 状态色图标块 */}
                 <div
-                  className={`w-11 h-11 rounded-2xl flex items-center justify-center mb-1.5 ${sc.bg} relative`}
-                  style={isActive ? { boxShadow: `0 2px 8px ${sc.bar.replace('bg-', '')}` } : {}}
+                  className="w-11 h-11 rounded-2xl flex items-center justify-center mb-1.5 relative"
+                  style={{ background: sc.soft, border: `1px solid ${sc.dot}40` }}
                 >
-                  <div className={`w-4 h-4 rounded-full ${sc.bar} ${isActive ? 'scale-110' : ''} transition-transform`} />
-                  {/* 任务数徽章 */}
+                  <div
+                    className="rounded-full transition-transform"
+                    style={{ width: 14, height: 14, background: sc.dot, transform: isActive ? 'scale(1.15)' : 'none', boxShadow: `0 0 8px ${sc.dot}` }}
+                  />
                   {count > 0 && (
-                    <div className={`absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full ${
-                      isActive ? 'bg-emerald-500 text-white' : 'bg-slate-500 text-white'
-                    } flex items-center justify-center text-[10px] font-bold leading-none`}>
+                    <div
+                      className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-bold leading-none"
+                      style={{ background: isActive ? 'var(--primary)' : 'rgba(255,255,255,0.12)', color: isActive ? '#06140F' : 'var(--text-primary)', border: '1px solid var(--border)' }}
+                    >
                       {count > 99 ? '99+' : count}
                     </div>
                   )}
                 </div>
-                {/* 状态名 */}
-                <div className={`text-[12px] font-semibold leading-tight ${
-                  isActive ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-200'
-                }`}>
+                <div
+                  className="text-[12px] font-bold leading-tight"
+                  style={{ color: isActive ? 'var(--primary)' : 'var(--text-secondary)' }}
+                >
                   {STATUS_LABELS[status]}
                 </div>
               </button>
             );
           })}
 
-          {/* 底部提示 */}
           <div className="pt-2 px-1 text-center">
-            <div className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight">
+            <div className="text-[9px] leading-tight" style={{ color: 'var(--text-quaternary)' }}>
               拖拽任务<br/>到此切换
             </div>
           </div>
@@ -212,33 +230,41 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
         {/* 右侧：任务列表 */}
         <main className="flex-1 overflow-y-auto no-scrollbar">
           {/* 当前列头部 */}
-          <div className={`px-4 py-3 sticky top-0 z-10 glass border-b border-slate-100 dark:border-slate-800`}>
+          <div
+            className="px-4 py-3 sticky top-0 z-10"
+            style={{ background: 'rgba(11,15,14,0.7)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border)' }}
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className={`w-3 h-3 rounded-full ${STATUS_COLORS[selectedStatus].bar}`} />
-                <span className="text-[16px] font-bold">
+                <div className="w-3 h-3 rounded-full" style={{ background: STATUS_TOKEN[selectedStatus].dot, boxShadow: `0 0 8px ${STATUS_TOKEN[selectedStatus].dot}` }} />
+                <span className="text-[16px] font-bold" style={{ color: 'var(--text-primary)' }}>
                   {STATUS_LABELS[selectedStatus]}
                 </span>
-                <span className={`text-[12px] font-semibold px-2 py-0.5 rounded-full ${STATUS_COLORS[selectedStatus].bg} ${STATUS_COLORS[selectedStatus].text}`}>
+                <span
+                  className="text-[12px] font-bold px-2 py-0.5 rounded-full"
+                  style={{ background: STATUS_TOKEN[selectedStatus].soft, color: STATUS_TOKEN[selectedStatus].text, border: `1px solid ${STATUS_TOKEN[selectedStatus].dot}40` }}
+                >
                   {currentTasks.length}
                 </span>
               </div>
-              <div className="text-[11px] text-slate-400">
-                长按拖拽
-              </div>
+              <div className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>长按拖拽</div>
             </div>
           </div>
 
           {/* 任务卡片列表 */}
-          <div
-            className="p-3 space-y-2 min-h-[200px]"
-            onDragOver={e => e.preventDefault()}
-          >
+          <div className="p-3 space-y-2.5 min-h-[200px]" onDragOver={e => e.preventDefault()}>
             {currentTasks.length === 0 ? (
-              <div className="text-center py-16 text-slate-400">
-                <div className="text-4xl mb-2">📂</div>
-                <div className="text-sm">「{STATUS_LABELS[selectedStatus]}」分类下暂无任务</div>
-                <div className="text-[11px] mt-1 text-slate-300 dark:text-slate-600">
+              <div className="text-center py-16">
+                <div
+                  className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-3"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)' }}
+                >
+                  <span style={{ fontSize: 22, color: 'var(--text-tertiary)' }}>📂</span>
+                </div>
+                <div className="text-[14px] font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  「{STATUS_LABELS[selectedStatus]}」分类下暂无任务
+                </div>
+                <div className="text-[11px] mt-1" style={{ color: 'var(--text-tertiary)' }}>
                   可从其他分类拖拽任务过来
                 </div>
               </div>
@@ -260,6 +286,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
                   <div className="flex-1">
                     <KanbanCard
                       task={task}
+                      tagColorDot={(name: string) => TAG_DOT[tags.find(t => t.name === name)?.color || 'emerald'] || 'var(--primary)'}
                       onClick={() => {
                         if (batchMode) {
                           const newSet = new Set(selectedIds);
@@ -287,28 +314,28 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
       {/* 状态切换 ActionSheet（长按任务触发） */}
       {statusChangeTaskId && (
         <SwipeableSheet onClose={() => setStatusChangeTaskId(null)} zIndex={80} showEdgeIndicator={false}>
-            <div className="text-center text-[15px] font-semibold py-2 border-b border-slate-100 dark:border-slate-800">
+            <div className="text-center text-[15px] font-bold py-2 border-b" style={{ borderColor: 'var(--border)', color: 'var(--text-primary)' }}>
               移动到分类
             </div>
             <div className="p-3 space-y-2">
               {STATUS_ORDER.map(s => {
-                const sc = STATUS_COLORS[s];
+                const sc = STATUS_TOKEN[s];
                 const isCurrent = s === (tasks.find(t => t.id === statusChangeTaskId)?.status);
                 return (
                   <button
                     key={s}
                     onClick={() => handleStatusChange(s)}
-                    className={`w-full flex items-center gap-3 p-3.5 rounded-xl transition-all active:scale-[0.98] ${
-                      isCurrent
-                        ? 'bg-emerald-50 dark:bg-emerald-900/30 ring-2 ring-emerald-400'
-                        : 'bg-slate-50 dark:bg-slate-800/50'
-                    }`}
+                    className="w-full flex items-center gap-3 p-3.5 rounded-xl transition-all active:scale-[0.98]"
+                    style={{
+                      background: isCurrent ? 'var(--primary-soft)' : 'rgba(255,255,255,0.04)',
+                      border: `1px solid ${isCurrent ? 'var(--primary-border)' : 'var(--border)'}`,
+                    }}
                   >
-                    <div className={`w-3 h-3 rounded-full ${sc.bar}`} />
-                    <span className={`flex-1 text-left text-[15px] font-medium ${isCurrent ? 'text-emerald-600 dark:text-emerald-300' : ''}`}>
+                    <div className="w-3 h-3 rounded-full" style={{ background: sc.dot }} />
+                    <span className="flex-1 text-left text-[15px] font-medium" style={{ color: isCurrent ? 'var(--primary)' : 'var(--text-primary)' }}>
                       {STATUS_LABELS[s]}
                     </span>
-                    {isCurrent && <span className="text-emerald-500 text-lg">✓</span>}
+                    {isCurrent && <span style={{ color: 'var(--primary)', fontSize: 18 }}>✓</span>}
                   </button>
                 );
               })}
@@ -316,7 +343,8 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
             <div className="px-3 pb-2">
               <button
                 onClick={() => setStatusChangeTaskId(null)}
-                className="w-full py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-[15px] font-medium"
+                className="w-full py-3 rounded-xl text-[15px] font-medium"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
               >取消</button>
             </div>
         </SwipeableSheet>
@@ -325,32 +353,35 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
       {/* 顶部分类切换 ActionSheet */}
       {showCategorySheet && (
         <SwipeableSheet onClose={() => setShowCategorySheet(false)} zIndex={80} showEdgeIndicator={false}>
-            <div className="text-center text-[15px] font-semibold py-2 border-b border-slate-100 dark:border-slate-800">
+            <div className="text-center text-[15px] font-bold py-2 border-b" style={{ borderColor: 'var(--border)', color: 'var(--text-primary)' }}>
               选择分类
             </div>
             <div className="p-3 space-y-2">
               {STATUS_ORDER.map(s => {
-                const sc = STATUS_COLORS[s];
+                const sc = STATUS_TOKEN[s];
                 const isCurrent = s === selectedStatus;
                 const count = columns[s].length;
                 return (
                   <button
                     key={s}
                     onClick={() => { setSelectedStatus(s); setShowCategorySheet(false); }}
-                    className={`w-full flex items-center gap-3 p-3.5 rounded-xl transition-all active:scale-[0.98] ${
-                      isCurrent
-                        ? 'bg-emerald-50 dark:bg-emerald-900/30 ring-2 ring-emerald-400'
-                        : 'bg-slate-50 dark:bg-slate-800/50'
-                    }`}
+                    className="w-full flex items-center gap-3 p-3.5 rounded-xl transition-all active:scale-[0.98]"
+                    style={{
+                      background: isCurrent ? 'var(--primary-soft)' : 'rgba(255,255,255,0.04)',
+                      border: `1px solid ${isCurrent ? 'var(--primary-border)' : 'var(--border)'}`,
+                    }}
                   >
-                    <div className={`w-3 h-3 rounded-full ${sc.bar}`} />
-                    <span className={`flex-1 text-left text-[15px] font-medium ${isCurrent ? 'text-emerald-600 dark:text-emerald-300' : ''}`}>
+                    <div className="w-3 h-3 rounded-full" style={{ background: sc.dot }} />
+                    <span className="flex-1 text-left text-[15px] font-medium" style={{ color: isCurrent ? 'var(--primary)' : 'var(--text-primary)' }}>
                       {STATUS_LABELS[s]}
                     </span>
-                    <span className={`text-[12px] px-2 py-0.5 rounded-full ${sc.bg} ${sc.text}`}>
+                    <span
+                      className="text-[12px] px-2 py-0.5 rounded-full font-bold"
+                      style={{ background: sc.soft, color: sc.text, border: `1px solid ${sc.dot}40` }}
+                    >
                       {count}
                     </span>
-                    {isCurrent && <span className="text-emerald-500 text-lg">✓</span>}
+                    {isCurrent && <span style={{ color: 'var(--primary)', fontSize: 18 }}>✓</span>}
                   </button>
                 );
               })}
@@ -358,7 +389,8 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
             <div className="px-3 pb-2">
               <button
                 onClick={() => setShowCategorySheet(false)}
-                className="w-full py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-[15px] font-medium"
+                className="w-full py-3 rounded-xl text-[15px] font-medium"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
               >取消</button>
             </div>
         </SwipeableSheet>
@@ -369,6 +401,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
 
 interface KanbanCardProps {
   task: Task;
+  tagColorDot: (name: string) => string;
   onClick: () => void;
   onDragStart: () => void;
   onDragEnd: () => void;
@@ -377,8 +410,8 @@ interface KanbanCardProps {
   onStartPomodoro?: (t: Task) => void;
 }
 
-function KanbanCard({ task, onClick, onDragStart, onDragEnd, onLongPress, isDragging, onStartPomodoro }: KanbanCardProps) {
-  const priorityColor = PRIORITY_COLORS[task.priority];
+function KanbanCard({ task, tagColorDot, onClick, onDragStart, onDragEnd, onLongPress, isDragging, onStartPomodoro }: KanbanCardProps) {
+  const pri = PRI_TOKEN[task.priority];
   const overdue = isOverdue(task);
   const [pressTimer, setPressTimer] = useState<number | null>(null);
   const [showSubtasks, setShowSubtasks] = useState(false);
@@ -409,72 +442,83 @@ function KanbanCard({ task, onClick, onDragStart, onDragEnd, onLongPress, isDrag
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchEnd}
-      className={`ios-card p-3 cursor-pointer active:scale-[0.98] transition-transform ${
-        isDragging ? 'opacity-50' : ''
-      }`}
+      className="v3-card p-3 cursor-pointer active:scale-[0.98] transition-transform"
+      style={{ opacity: isDragging ? 0.5 : 1 }}
     >
       {/* 优先级色条 */}
-      <div className={`h-1 rounded-full mb-2 ${priorityColor.dot}`} />
+      <div className="h-1 rounded-full mb-2" style={{ background: pri.bar, boxShadow: `0 0 8px ${pri.bar}` }} />
 
       {/* 标题 */}
-      <div className={`text-[14px] font-medium leading-snug ${task.status === 'done' ? 'line-through text-slate-400' : ''}`}>
+      <div
+        className="text-[14px] font-semibold leading-snug"
+        style={{
+          color: task.status === 'done' ? 'var(--text-tertiary)' : 'var(--text-primary)',
+          textDecoration: task.status === 'done' ? 'line-through' : 'none',
+        }}
+      >
         {task.title}
       </div>
 
       {/* 描述 */}
       {task.description && (
-        <div className="text-[12px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+        <div className="text-[12px] mt-1 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>
           {task.description}
         </div>
       )}
 
       {/* 标签 */}
       {task.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-2">
+        <div className="flex flex-wrap gap-1.5 mt-2">
           {task.tags.slice(0, 3).map(t => (
-            <span key={t} className={`text-[10px] px-1.5 py-0.5 rounded ${TAG_COLORS.emerald}`}>
-              #{t}
+            <span
+              key={t}
+              className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+            >
+              <span style={{ color: tagColorDot(t) }}>#</span>{t}
             </span>
           ))}
         </div>
       )}
 
       {/* 底部信息 */}
-      <div className="flex items-center justify-between mt-2 text-[11px] text-slate-400">
+      <div className="flex items-center justify-between mt-2 text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
         <div className="flex items-center gap-2">
           {task.dueDate && (
-            <span className={overdue ? 'text-rose-500 font-medium' : ''}>
+            <span className="font-medium" style={{ color: overdue ? 'var(--pri-high)' : 'var(--text-secondary)' }}>
               📅 {formatDate(task.dueDate)}
             </span>
           )}
           {subtaskTotal > 0 && (
             <button
               onClick={(e) => { e.stopPropagation(); setShowSubtasks(!showSubtasks); }}
-              className={`px-1.5 py-0.5 rounded-full font-medium active:scale-95 transition-transform ${
-                subtaskDone === subtaskTotal
-                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                  : 'bg-slate-100 text-slate-600 dark:bg-slate-700/50 dark:text-slate-300'
-              }`}
+              className="px-1.5 py-0.5 rounded-full font-bold active:scale-95 transition-transform"
+              style={{
+                background: subtaskDone === subtaskTotal ? 'var(--primary-soft)' : 'rgba(255,255,255,0.05)',
+                color: subtaskDone === subtaskTotal ? 'var(--primary)' : 'var(--text-secondary)',
+                border: '1px solid var(--border)',
+              }}
             >
               {subtaskDone === subtaskTotal ? '✓' : '◐'} {subtaskDone}/{subtaskTotal} {showSubtasks ? '▴' : '▾'}
             </button>
           )}
           {task.recurrence && (
-            <span>🔁 {task.recurrence === 'daily' ? '日' : task.recurrence === 'weekly' ? '周' : '月'}</span>
+            <span>↻ {task.recurrence === 'daily' ? '日' : task.recurrence === 'weekly' ? '周' : '月'}</span>
           )}
         </div>
         <div className="flex items-center gap-2">
           {task.pomodoros > 0 && (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onStartPomodoro) onStartPomodoro(task);
-              }}
-              className="px-1.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300 font-medium active:scale-95 transition-transform"
+              onClick={(e) => { e.stopPropagation(); if (onStartPomodoro) onStartPomodoro(task); }}
+              className="px-1.5 py-0.5 rounded-full font-bold active:scale-95 transition-transform"
+              style={{ background: 'rgba(255,110,127,0.12)', color: 'var(--pri-high)', border: '1px solid rgba(255,110,127,0.3)' }}
               title="点击开始番茄钟"
             >🍅 {task.pomodoros}</button>
           )}
-          <span className={`px-1.5 py-0.5 rounded ${priorityColor.bg} ${priorityColor.text} font-medium`}>
+          <span
+            className="px-1.5 py-0.5 rounded font-bold"
+            style={{ background: pri.soft, color: pri.text, border: `1px solid ${pri.bar}40` }}
+          >
             {PRIORITY_LABELS[task.priority]}
           </span>
         </div>
@@ -482,13 +526,9 @@ function KanbanCard({ task, onClick, onDragStart, onDragEnd, onLongPress, isDrag
 
       {/* 子任务展开列表 */}
       {showSubtasks && subtaskTotal > 0 && (
-        <div className="mt-2 space-y-1 pt-2 border-t border-slate-100 dark:border-slate-800 fade-in">
+        <div className="mt-2 space-y-1 pt-2 border-t fade-in" style={{ borderColor: 'var(--border)' }}>
           {task.subtasks.map(s => (
-            <div
-              key={s.id}
-              className="flex items-center gap-2 py-1"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div key={s.id} className="flex items-center gap-2 py-1" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={async () => {
                   const newSubs = task.subtasks.map(x =>
@@ -499,7 +539,13 @@ function KanbanCard({ task, onClick, onDragStart, onDragEnd, onLongPress, isDrag
                 className={`ios-checkbox ${s.done ? 'checked' : ''}`}
                 style={{ width: 18, height: 18 }}
               />
-              <span className={`flex-1 text-[12px] ${s.done ? 'line-through text-slate-400' : 'text-slate-700 dark:text-slate-200'}`}>
+              <span
+                className="flex-1 text-[12px]"
+                style={{
+                  color: s.done ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                  textDecoration: s.done ? 'line-through' : 'none',
+                }}
+              >
                 {s.title}
               </span>
             </div>
@@ -507,8 +553,7 @@ function KanbanCard({ task, onClick, onDragStart, onDragEnd, onLongPress, isDrag
         </div>
       )}
 
-      {/* 拖拽提示 */}
-      <div className="text-[10px] text-slate-300 dark:text-slate-600 mt-1.5 text-center">
+      <div className="text-[10px] mt-1.5 text-center" style={{ color: 'var(--text-quaternary)' }}>
         ⋮⋮ 长按拖拽切换分类
       </div>
     </div>
