@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import { TaskProvider, useTaskStore } from './lib/store';
 import ListView from './views/ListView';
 import KanbanView from './views/KanbanView';
@@ -9,6 +10,26 @@ import TaskEditor from './components/TaskEditor';
 import SettingsSheet from './components/SettingsSheet';
 import AIChatSheet from './components/AIChatSheet';
 import Toast from './components/Toast';
+
+// 启动时获取实际状态栏高度并设置到 CSS 变量
+async function setupStatusBar() {
+  try {
+    // 让 webview 内容延伸到状态栏下方
+    await StatusBar.setOverlaysWebView({ overlay: false });
+    // 设置状态栏背景为翡翠绿
+    await StatusBar.setBackgroundColor({ color: '#10b981' });
+    await StatusBar.setStyle({ style: Style.Light });
+    // 获取状态栏高度
+    const info = await StatusBar.getInfo();
+    if (info && typeof info.height === 'number') {
+      // Capacitor 返回的 height 单位是 dp，转成 px（通常 1:1 在 Android 上）
+      document.documentElement.style.setProperty('--safe-top', `${Math.ceil(info.height)}px`);
+    }
+  } catch (e) {
+    // web 环境下会失败，忽略即可
+    console.log('StatusBar not available:', e);
+  }
+}
 
 type Tab = 'list' | 'kanban' | 'calendar' | 'pomodoro' | 'dashboard';
 
@@ -28,12 +49,16 @@ function Shell() {
   const [aiOpen, setAIOpen] = useState(false);
   const { loading } = useTaskStore();
 
+  useEffect(() => {
+    setupStatusBar();
+  }, []);
+
   function openNewTask() { setEditorTask(null); setEditorOpen(true); }
   function openEditTask(task: any) { setEditorTask(task); setEditorOpen(true); }
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      <header className="glass sticky top-0 z-30" style={{ paddingTop: 'var(--safe-top)' }}>
+      <header className="app-header glass sticky top-0 z-30" style={{ paddingTop: 'var(--safe-top)' }}>
         <div className="flex items-center justify-between px-4 h-14">
           <button onClick={() => setAIOpen(true)} className="w-9 h-9 rounded-full flex items-center justify-center text-lg active:opacity-60" aria-label="AI 助手">✨</button>
           <h1 className="text-base font-semibold tracking-tight">{TABS.find(t => t.id === tab)?.label}</h1>

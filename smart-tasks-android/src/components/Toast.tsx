@@ -31,7 +31,7 @@ export default function Toast() {
   };
 
   return (
-    <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[100] fade-in" style={{ paddingTop: 'var(--safe-top)' }}>
+    <div className="fixed left-1/2 -translate-x-1/2 z-[100] fade-in" style={{ top: 'calc(var(--safe-top) + 56px)' }}>
       <div className={`${colors[state.type]} px-4 py-2 rounded-full text-sm font-medium shadow-lg max-w-[80vw] text-center`}>
         {state.msg}
       </div>
