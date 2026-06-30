@@ -97,7 +97,8 @@ export default function TaskEditor({ task, onClose }: Props) {
     const data = {
       title: title.trim(), description: description.trim(),
       dueDate: dueDate || null, priority, status,
-      recurrence: recurrence || null, tags: selectedTags, subtasks,
+      recurrence: (recurrence || null) as 'daily' | 'weekly' | 'monthly' | null,
+      tags: selectedTags, subtasks,
     };
     if (task) { await updateTask(task.id, data); showToast('已保存', 'success'); }
     else { await createTask(data); showToast('已创建', 'success'); }

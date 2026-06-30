@@ -12,6 +12,13 @@ interface Props {
   enableEdgeSwipe?: boolean;
 }
 
+// 全局计数器：当前有多少个 SwipeableSheet 挂载
+// App.tsx 用这个判断是否应该退出 App
+let activeSheetCount = 0;
+export function hasActiveSheet(): boolean {
+  return activeSheetCount > 0;
+}
+
 /**
  * 子页面容器
  *
@@ -38,17 +45,28 @@ export default function SwipeableSheet({
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
+  // mount 时计数器 +1，unmount 时 -1
+  useEffect(() => {
+    activeSheetCount++;
+    return () => { activeSheetCount--; };
+  }, []);
+
   // 监听系统返回键（含 MIUI 全面屏左右边缘内滑）
-  // 每次 mount 时注册，unmount 时移除
+  // 只在 mount 时注册一次，unmount 时移除
+  const closingRef = useRef(false);
+  useEffect(() => {
+    closingRef.current = closing;
+  }, [closing]);
   useEffect(() => {
     const handleBackButton = () => {
-      if (closing) return;
+      if (closingRef.current) return;
       setClosing(true);
+      closingRef.current = true;
       setTimeout(() => onCloseRef.current(), 200);
     };
     const listener = CapacitorApp.addListener('backButton', handleBackButton);
     return () => { listener.then(l => l.remove()); };
-  }, [closing]);
+  }, []);
 
   // 包装 onClose，触发关闭动画
   function handleClose() {

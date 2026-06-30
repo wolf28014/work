@@ -1,6 +1,9 @@
 // 用户授权 + Pro 状态 + 云同步管理
 import { useEffect, useState } from 'react';
 import { getSupabase, isSupabaseConfigured, getCurrentUser, signOut } from './supabase';
+
+// re-export 供其他模块使用
+export { isSupabaseConfigured } from './supabase';
 import type { Task, PomodoroSession, Tag } from './db';
 import { getAllTasks, getAllPomodoros, getAllTags, saveTask, addPomodoroSession, saveTag } from './db';
 
@@ -50,7 +53,7 @@ export async function signUpWithEmail(email: string, password: string) {
   const { data, error } = await sb.auth.signUp({ email, password });
   if (error) throw error;
   if (data.user) {
-    currentUser = { id: data.user.id, email: data.user.email, phone: data.user.phone };
+    currentUser = { id: data.user.id, email: data.user.email || null, phone: data.user.phone || null };
     await refreshProStatus();
     notify();
   }
@@ -64,7 +67,7 @@ export async function signInWithEmail(email: string, password: string) {
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
   if (error) throw error;
   if (data.user) {
-    currentUser = { id: data.user.id, email: data.user.email, phone: data.user.phone };
+    currentUser = { id: data.user.id, email: data.user.email || null, phone: data.user.phone || null };
     await refreshProStatus();
     notify();
   }
@@ -75,7 +78,7 @@ export async function signInWithEmail(email: string, password: string) {
 export async function sendOtp(phone: string) {
   const sb = getSupabase();
   if (!sb) throw new Error('云服务未配置');
-  const { error } = await sb.auth.signInWithOtp({ phone, channel: 'sms' });
+  const { error } = await sb.auth.signInWithOtp({ phone, options: { channel: 'sms' } as any });
   if (error) throw error;
 }
 
@@ -86,7 +89,7 @@ export async function verifyOtp(phone: string, token: string) {
   const { data, error } = await sb.auth.verifyOtp({ phone, token, type: 'sms' });
   if (error) throw error;
   if (data.user) {
-    currentUser = { id: data.user.id, email: data.user.email, phone: data.user.phone };
+    currentUser = { id: data.user.id, email: data.user.email || null, phone: data.user.phone || null };
     await refreshProStatus();
     notify();
   }
@@ -109,7 +112,7 @@ export async function refreshProStatus() {
   const { data, error } = await sb
     .from('user_settings')
     .select('is_pro, pro_expires_at, license_key')
-    .eq('user_id', currentUser.id)
+    .eq('user_id', currentUser!.id)
     .maybeSingle();
   if (error || !data) {
     currentProStatus = { isPro: false, expiresAt: null, type: null };
@@ -131,7 +134,7 @@ export async function redeemCode(code: string) {
   if (!sb) throw new Error('云服务未配置');
   const { data, error } = await sb.rpc('redeem_license_code', {
     code_input: code,
-    user_id_input: currentUser.id,
+    user_id_input: currentUser!.id,
   });
   if (error) throw error;
   await refreshProStatus();
@@ -156,7 +159,7 @@ export async function uploadLocalToCloud() {
   // 上传任务（upsert）
   if (tasks.length > 0) {
     const rows = tasks.map(t => ({
-      id: t.id, user_id: currentUser.id,
+      id: t.id, user_id: currentUser!.id,
       title: t.title, description: t.description,
       due_date: t.dueDate, priority: t.priority, status: t.status,
       recurrence: t.recurrence, tags: t.tags, subtasks: t.subtasks,
@@ -172,7 +175,7 @@ export async function uploadLocalToCloud() {
   // 上传番茄钟
   if (pomodoros.length > 0) {
     const rows = pomodoros.map(p => ({
-      id: p.id, user_id: currentUser.id, task_id: p.taskId,
+      id: p.id, user_id: currentUser!.id, task_id: p.taskId,
       started_at: p.startedAt, ended_at: p.endedAt, duration: p.duration,
     }));
     const { error } = await sb.from('pomodoro_sessions').upsert(rows, { onConflict: 'id' });
@@ -182,7 +185,7 @@ export async function uploadLocalToCloud() {
   // 上传标签
   if (tags.length > 0) {
     const rows = tags.map(t => ({
-      id: t.id, user_id: currentUser.id,
+      id: t.id, user_id: currentUser!.id,
       name: t.name, color: t.color,
       created_at: t.createdAt, updated_at: t.updatedAt,
     }));
@@ -198,7 +201,7 @@ export async function pullCloudToLocal() {
   if (!sb) throw new Error('云服务未配置');
 
   // 拉取任务
-  const { data: remoteTasks, error: e1 } = await sb.from('tasks').select('*').eq('user_id', currentUser.id);
+  const { data: remoteTasks, error: e1 } = await sb.from('tasks').select('*').eq('user_id', currentUser!.id);
   if (e1) throw e1;
   if (remoteTasks) {
     for (const t of remoteTasks) {
@@ -216,7 +219,7 @@ export async function pullCloudToLocal() {
   }
 
   // 拉取番茄钟
-  const { data: remotePomodoros, error: e2 } = await sb.from('pomodoro_sessions').select('*').eq('user_id', currentUser.id);
+  const { data: remotePomodoros, error: e2 } = await sb.from('pomodoro_sessions').select('*').eq('user_id', currentUser!.id);
   if (e2) throw e2;
   if (remotePomodoros) {
     for (const p of remotePomodoros) {
@@ -229,7 +232,7 @@ export async function pullCloudToLocal() {
   }
 
   // 拉取标签
-  const { data: remoteTags, error: e3 } = await sb.from('tags').select('*').eq('user_id', currentUser.id);
+  const { data: remoteTags, error: e3 } = await sb.from('tags').select('*').eq('user_id', currentUser!.id);
   if (e3) throw e3;
   if (remoteTags) {
     for (const t of remoteTags) {
@@ -248,7 +251,7 @@ export async function syncTaskToCloud(task: Task) {
   const sb = getSupabase();
   if (!sb) return;
   await sb.from('tasks').upsert({
-    id: task.id, user_id: currentUser.id,
+    id: task.id, user_id: currentUser!.id,
     title: task.title, description: task.description,
     due_date: task.dueDate, priority: task.priority, status: task.status,
     recurrence: task.recurrence, tags: task.tags, subtasks: task.subtasks,
@@ -265,7 +268,7 @@ export async function syncPomodoroToCloud(session: PomodoroSession) {
   const sb = getSupabase();
   if (!sb) return;
   await sb.from('pomodoro_sessions').upsert({
-    id: session.id, user_id: currentUser.id, task_id: session.taskId,
+    id: session.id, user_id: currentUser!.id, task_id: session.taskId,
     started_at: session.startedAt, ended_at: session.endedAt, duration: session.duration,
   }, { onConflict: 'id' });
 }
@@ -276,7 +279,7 @@ export async function syncTagToCloud(tag: Tag) {
   const sb = getSupabase();
   if (!sb) return;
   await sb.from('tags').upsert({
-    id: tag.id, user_id: currentUser.id,
+    id: tag.id, user_id: currentUser!.id,
     name: tag.name, color: tag.color,
     created_at: tag.createdAt, updated_at: tag.updatedAt,
   }, { onConflict: 'id' });
@@ -297,7 +300,7 @@ export async function mergeLocalToCloud() {
   if (!sb) return;
 
   // 1. 拉取云端已有任务 ID
-  const { data: remote } = await sb.from('tasks').select('id, updated_at').eq('user_id', currentUser.id);
+  const { data: remote } = await sb.from('tasks').select('id, updated_at').eq('user_id', currentUser!.id);
   const remoteMap = new Map<string, number>();
   (remote || []).forEach((r: any) => remoteMap.set(r.id, r.updated_at));
 
