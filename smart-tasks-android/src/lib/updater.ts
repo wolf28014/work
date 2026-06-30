@@ -6,7 +6,7 @@ import { showToast } from '../components/Toast';
 const GITHUB_REPO = 'wolf28014/work';
 
 // 当前版本 - 务必与 GitHub Release tag 保持一致
-export const CURRENT_VERSION = '2.9.0';
+export const CURRENT_VERSION = '2.10.0';
 
 // 从 Supabase 查询最新版本
 async function checkFromSupabase(): Promise<{ version: string; url: string; notes: string } | null> {

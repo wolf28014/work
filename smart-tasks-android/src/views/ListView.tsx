@@ -8,6 +8,7 @@ import { tfidfSearch, todayStr, isOverdue, TAG_COLORS } from '../lib/task-utils'
 interface Props {
   onEdit: (t: Task) => void;
   onNew: () => void;
+  onStartPomodoro?: (t: Task) => void;
 }
 
 type FilterTab = 'all' | 'today' | 'overdue' | 'done';
@@ -29,7 +30,7 @@ const SORT_OPTIONS: { id: SortMode; label: string; icon: string }[] = [
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 
-export default function ListView({ onEdit }: Props) {
+export default function ListView({ onEdit, onStartPomodoro }: Props) {
   const { tasks, tags, softDeleteTask } = useTaskStore();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterTab>('all');
@@ -298,6 +299,7 @@ export default function ListView({ onEdit }: Props) {
                             else newSet.add(task.id);
                             setSelectedIds(newSet);
                           } : onEdit}
+                          onStartPomodoro={onStartPomodoro}
                         />
                       </div>
                     </div>

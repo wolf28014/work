@@ -4,19 +4,26 @@ import { useTaskStore } from '../lib/store';
 import { STATUS_LABELS, PRIORITY_COLORS, formatDate } from '../lib/task-utils';
 import { showToast } from '../components/Toast';
 import { aiFocusSuggestion, getAISettings } from '../lib/ai-client';
+import { Haptics } from '@capacitor/haptics';
 
 interface Props {
   onEdit: (t: Task) => void;
+  initialTaskId?: string;
 }
 
 const WORK_MINUTES = 25;
 const BREAK_MINUTES = 5;
 
-export default function PomodoroView({ onEdit }: Props) {
+export default function PomodoroView({ onEdit, initialTaskId }: Props) {
   const { tasks, recordPomodoro, pomodoros } = useTaskStore();
   const [focusSuggestion, setFocusSuggestion] = useState<string>('');
   const [loadingSuggestion, setLoadingSuggestion] = useState(false);
-  const [selectedTaskId, setSelectedTaskId] = useState<string>('');
+  const [selectedTaskId, setSelectedTaskId] = useState<string>(initialTaskId || '');
+
+  // 接收外部传入的任务 ID
+  useEffect(() => {
+    if (initialTaskId) setSelectedTaskId(initialTaskId);
+  }, [initialTaskId]);
   const [mode, setMode] = useState<'work' | 'break'>('work');
   const [secondsLeft, setSecondsLeft] = useState(WORK_MINUTES * 60);
   const [running, setRunning] = useState(false);
@@ -30,6 +37,40 @@ export default function PomodoroView({ onEdit }: Props) {
 
   const handleComplete = useCallback(async () => {
     setRunning(false);
+    // 震动提醒（3 次长震）
+    try {
+      await Haptics.vibrate({ duration: 800 });
+      setTimeout(() => Haptics.vibrate({ duration: 800 }), 400);
+      setTimeout(() => Haptics.vibrate({ duration: 800 }), 800);
+    } catch (e) {
+      // Web 环境忽略
+    }
+    // 系统通知
+    try {
+      const { LocalNotifications } = await import('@capacitor/local-notifications');
+      await LocalNotifications.requestPermissions();
+      if (mode === 'work') {
+        await LocalNotifications.schedule({
+          notifications: [{
+            id: Date.now(),
+            title: '🍅 专注完成！',
+            body: '坚持了一整个番茄钟，去休息 5 分钟吧～',
+            schedule: { at: new Date(Date.now() + 100) },
+          }],
+        });
+      } else {
+        await LocalNotifications.schedule({
+          notifications: [{
+            id: Date.now(),
+            title: '☕ 休息结束',
+            body: '精力充沛，继续下一个番茄钟吧！',
+            schedule: { at: new Date(Date.now() + 100) },
+          }],
+        });
+      }
+    } catch (e) {
+      // 通知不可用时只依赖 Toast 和震动
+    }
     if (mode === 'work') {
       if (selectedTaskId) await recordPomodoro(selectedTaskId, WORK_MINUTES * 60);
       setCompletedCount(c => c + 1);

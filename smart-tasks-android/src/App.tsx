@@ -50,6 +50,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 function Shell() {
   const [tab, setTab] = useState<Tab>('list');
   const [tabDirection, setTabDirection] = useState<'left' | 'right'>('left');
+  const [pomodoroTaskId, setPomodoroTaskId] = useState<string>('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorTask, setEditorTask] = useState<any>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -192,10 +193,14 @@ function Shell() {
             key={tab}
             className={tabDirection === 'left' ? 'tab-slide-in-left' : 'tab-slide-in-right'}
           >
-            {tab === 'list' && <ListView onEdit={openEditTask} onNew={openNewTask} />}
+            {tab === 'list' && <ListView onEdit={openEditTask} onNew={openNewTask} onStartPomodoro={(t) => {
+              setPomodoroTaskId(t.id);
+              setTabDirection('left');
+              setTab('pomodoro');
+            }} />}
             {tab === 'kanban' && <KanbanView onEdit={openEditTask} onNew={openNewTask} />}
             {tab === 'calendar' && <CalendarView onEdit={openEditTask} onNew={openNewTask} />}
-            {tab === 'pomodoro' && <PomodoroView onEdit={openEditTask} />}
+            {tab === 'pomodoro' && <PomodoroView onEdit={openEditTask} initialTaskId={pomodoroTaskId} />}
             {tab === 'dashboard' && <DashboardView />}
           </div>
         )}
