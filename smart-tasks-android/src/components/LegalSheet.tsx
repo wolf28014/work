@@ -120,7 +120,6 @@ const USER_AGREEMENT = `
 
 - 本应用的代码、UI 设计、图标等知识产权归开发者所有
 - 您创建的任务内容归您所有
-- 应用的所有权益归开发者所有
 
 ## 六、免责声明
 
@@ -209,9 +208,6 @@ const ABOUT_INFO = `
 - 数据层：IndexedDB + Supabase（PostgreSQL）
 - 打包：Capacitor → Android APK
 - AI：用户自配 API Key，直连第三方 AI 服务
-
-## 项目声明
-本项目为开发者独立开发的原创应用，所有权益归开发者所有。
 
 ## 联系方式
 - 邮箱：124462327@qq.com

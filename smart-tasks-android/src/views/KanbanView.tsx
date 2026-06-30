@@ -12,11 +12,12 @@ import SwipeableSheet from '../components/SwipeableSheet';
 interface Props {
   onEdit: (t: Task) => void;
   onNew: () => void;
+  onStartPomodoro?: (t: Task) => void;
 }
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 
-export default function KanbanView({ onEdit }: Props) {
+export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
   const { tasks, updateTask, softDeleteTask } = useTaskStore();
   const [selectedStatus, setSelectedStatus] = useState<string>('todo');
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
@@ -273,6 +274,7 @@ export default function KanbanView({ onEdit }: Props) {
                       onDragEnd={() => { setDraggedTaskId(null); setDragOverStatus(null); }}
                       onLongPress={() => !batchMode && setStatusChangeTaskId(task.id)}
                       isDragging={draggedTaskId === task.id}
+                      onStartPomodoro={onStartPomodoro}
                     />
                   </div>
                 </div>
@@ -372,9 +374,10 @@ interface KanbanCardProps {
   onDragEnd: () => void;
   onLongPress: () => void;
   isDragging: boolean;
+  onStartPomodoro?: (t: Task) => void;
 }
 
-function KanbanCard({ task, onClick, onDragStart, onDragEnd, onLongPress, isDragging }: KanbanCardProps) {
+function KanbanCard({ task, onClick, onDragStart, onDragEnd, onLongPress, isDragging, onStartPomodoro }: KanbanCardProps) {
   const priorityColor = PRIORITY_COLORS[task.priority];
   const overdue = isOverdue(task);
   const [pressTimer, setPressTimer] = useState<number | null>(null);
@@ -461,7 +464,16 @@ function KanbanCard({ task, onClick, onDragStart, onDragEnd, onLongPress, isDrag
           )}
         </div>
         <div className="flex items-center gap-2">
-          {task.pomodoros > 0 && <span>🍅 {task.pomodoros}</span>}
+          {task.pomodoros > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onStartPomodoro) onStartPomodoro(task);
+              }}
+              className="px-1.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300 font-medium active:scale-95 transition-transform"
+              title="点击开始番茄钟"
+            >🍅 {task.pomodoros}</button>
+          )}
           <span className={`px-1.5 py-0.5 rounded ${priorityColor.bg} ${priorityColor.text} font-medium`}>
             {PRIORITY_LABELS[task.priority]}
           </span>

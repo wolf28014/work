@@ -26,7 +26,7 @@ interface Props {
  */
 export default function SwipeableSheet({
   onClose, children, fullScreen = false, bodyClassName,
-  zIndex = 50, showEdgeIndicator = true, threshold = 80, edgeWidth = 35,
+  zIndex = 50, showEdgeIndicator = true, threshold = 60, edgeWidth = 50,
 }: Props) {
   const [translateX, setTranslateX] = useState(0);
   const [isAnimating, setIsAnimating] = useState(true);
@@ -34,7 +34,6 @@ export default function SwipeableSheet({
   const touchStartY = useRef<number | null>(null);
   const startEdge = useRef<'left' | 'right' | null>(null);
   const isHorizontalSwipe = useRef<boolean | null>(null);
-  const startedAtTop = useRef(true);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // touch 事件绑在外层遮罩，覆盖整个屏幕，确保边缘能捕获
@@ -51,8 +50,6 @@ export default function SwipeableSheet({
       startEdge.current = null;
     }
     isHorizontalSwipe.current = null;
-    const el = contentRef.current;
-    startedAtTop.current = el ? el.scrollTop <= 0 : true;
     setIsAnimating(false);
   }
 
@@ -67,7 +64,8 @@ export default function SwipeableSheet({
       isHorizontalSwipe.current = Math.abs(dx) > Math.abs(dy);
     }
 
-    if (isHorizontalSwipe.current === true && startedAtTop.current) {
+    // 从上到下任意位置都可以触发，不限制 scrollTop
+    if (isHorizontalSwipe.current === true) {
       if (startEdge.current === 'left' && dx > 0) {
         if (e.cancelable) e.preventDefault();
         setTranslateX(dx);
