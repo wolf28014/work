@@ -13,6 +13,7 @@ import {
   clearCustomImage,
   type BackgroundSettings,
 } from '../lib/background';
+import SwipeableSheet from './SwipeableSheet';
 
 interface Props { onClose: () => void; }
 
@@ -124,16 +125,7 @@ export default function SettingsSheet({ onClose }: Props) {
   const trashedTasks = tasks.filter(t => t.deletedAt);
 
   return (
-    <div className="fixed inset-0 z-50 modal-mask flex items-end" onClick={onClose}>
-      <div
-        className="w-full bg-white dark:bg-black slide-up max-h-[92vh] overflow-y-auto no-scrollbar rounded-t-3xl"
-        onClick={e => e.stopPropagation()}
-        style={{ paddingBottom: 'calc(20px + var(--safe-bottom))' }}
-      >
-        <div className="flex justify-center pt-2 pb-1">
-          <div className="w-10 h-1 bg-slate-300 dark:bg-slate-700 rounded-full" />
-        </div>
-
+    <SwipeableSheet onClose={onClose}>
         <div className="flex items-center justify-between px-4 py-2">
           <button onClick={onClose} className="text-blue-500 text-[15px]">完成</button>
           <span className="text-[15px] font-semibold">设置</span>
@@ -369,8 +361,7 @@ export default function SettingsSheet({ onClose }: Props) {
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </SwipeableSheet>
   );
 }
 

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useTaskStore } from '../lib/store';
 import { aiChat, getAISettings } from '../lib/ai-client';
 import { showToast } from './Toast';
+import SwipeableSheet from './SwipeableSheet';
 
 interface Props { onClose: () => void; }
 interface Message { role: 'user' | 'assistant'; content: string; }
@@ -46,17 +47,8 @@ export default function AIChatSheet({ onClose }: Props) {
   const quickPrompts = ['今天有哪些任务？', '哪个任务最紧急？', '帮我规划一下今天的工作', '我最近压力大吗？'];
 
   return (
-    <div className="fixed inset-0 z-50 modal-mask flex items-end" onClick={onClose}>
-      <div
-        className="w-full bg-white dark:bg-black slide-up h-[88vh] flex flex-col rounded-t-3xl"
-        onClick={e => e.stopPropagation()}
-        style={{ paddingBottom: 'var(--safe-bottom)' }}
-      >
-        <div className="flex justify-center pt-2 pb-1">
-          <div className="w-10 h-1 bg-slate-300 dark:bg-slate-700 rounded-full" />
-        </div>
-
-        <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 dark:border-slate-800">
+    <SwipeableSheet onClose={onClose} fullScreen>
+        <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
           <button onClick={onClose} className="text-blue-500 text-[15px]">关闭</button>
           <span className="text-[15px] font-semibold">✨ AI 助手</span>
           <span className="w-10" />
@@ -116,7 +108,6 @@ export default function AIChatSheet({ onClose }: Props) {
             >↑</button>
           </div>
         </div>
-      </div>
-    </div>
+    </SwipeableSheet>
   );
 }
