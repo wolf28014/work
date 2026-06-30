@@ -4,6 +4,7 @@ import { useTaskStore } from '../lib/store';
 import { PRIORITY_LABELS, STATUS_LABELS, STATUS_ORDER, todayStr } from '../lib/task-utils';
 import { parseTaskWithAI, getAISettings, aiSplitSubtasks, aiTaskSummary } from '../lib/ai-client';
 import { showToast } from './Toast';
+import SwipeableSheet from './SwipeableSheet';
 
 interface Props {
   task: Task | null;
@@ -122,21 +123,12 @@ export default function TaskEditor({ task, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 modal-mask flex items-end" onClick={onClose}>
-      <div
-        className="w-full bg-white dark:bg-black slide-up max-h-[92vh] overflow-y-auto no-scrollbar rounded-t-3xl"
-        onClick={e => e.stopPropagation()}
-        style={{ paddingBottom: 'calc(20px + var(--safe-bottom))' }}
-      >
-        <div className="flex justify-center pt-2 pb-1">
-          <div className="w-10 h-1 bg-slate-300 dark:bg-slate-700 rounded-full" />
-        </div>
-
-        <div className="flex items-center justify-between px-4 py-2 sticky top-0 bg-white dark:bg-black z-10">
-          <button onClick={onClose} className="text-blue-500 text-[15px]">取消</button>
-          <span className="text-[15px] font-semibold">{task ? '编辑任务' : '新建任务'}</span>
-          <button onClick={handleSave} className="text-emerald-500 text-[15px] font-semibold">保存</button>
-        </div>
+    <SwipeableSheet onClose={onClose}>
+      <div className="flex items-center justify-between px-4 py-2 sticky top-0 bg-white dark:bg-black z-10">
+        <button onClick={onClose} className="text-blue-500 text-[15px]">取消</button>
+        <span className="text-[15px] font-semibold">{task ? '编辑任务' : '新建任务'}</span>
+        <button onClick={handleSave} className="text-emerald-500 text-[15px] font-semibold">保存</button>
+      </div>
 
         <div className="px-4 space-y-4">
           <div>
@@ -314,7 +306,6 @@ export default function TaskEditor({ task, onClose }: Props) {
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </SwipeableSheet>
   );
 }

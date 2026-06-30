@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { TaskProvider, useTaskStore } from './lib/store';
 import ListView from './views/ListView';
@@ -43,7 +43,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'list', label: '任务', icon: '📋' },
   { id: 'kanban', label: '看板', icon: '📊' },
   { id: 'calendar', label: '日历', icon: '📅' },
-  { id: 'pomodoro', label: '番茄', icon: '🍅' },
+  { id: 'pomodoro', label: '番茄钟', icon: '🍅' },
   { id: 'dashboard', label: '统计', icon: '📈' },
 ];
 
@@ -59,10 +59,15 @@ function Shell() {
   const [bgSettings, setBgSettings] = useState<BackgroundSettings>(getBackgroundSettings);
   const [customImage, setCustomImage] = useState<string | null>(null);
 
+  // 左右滑动切换 Tab 的手势状态
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const touchStartTime = useRef<number>(0);
+  const isHorizontalSwipe = useRef<boolean | null>(null);
+
   useEffect(() => {
     setupStatusBar();
     getCustomImage().then(setCustomImage).catch(() => {});
-    // 监听背景变化事件
     const handler = () => {
       setBgSettings(getBackgroundSettings());
       getCustomImage().then(setCustomImage).catch(() => {});
@@ -71,11 +76,56 @@ function Shell() {
     return () => window.removeEventListener('background-changed', handler);
   }, []);
 
-  // 解析当前应用的背景
   const bgResolved = resolveBackgroundCss(bgSettings, customImage);
 
   function openNewTask() { setEditorTask(null); setEditorOpen(true); }
   function openEditTask(task: any) { setEditorTask(task); setEditorOpen(true); }
+
+  // 切换到指定 Tab（带边界检查）
+  const switchTab = useCallback((direction: 'left' | 'right') => {
+    const currentIndex = TABS.findIndex(t => t.id === tab);
+    if (direction === 'left') {
+      // 向左滑 = 看下一个 Tab
+      if (currentIndex < TABS.length - 1) {
+        setTab(TABS[currentIndex + 1].id);
+      }
+    } else {
+      // 向右滑 = 看上一个 Tab
+      if (currentIndex > 0) {
+        setTab(TABS[currentIndex - 1].id);
+      }
+    }
+  }, [tab]);
+
+  // 主页面 touch 事件
+  function handleTouchStart(e: React.TouchEvent) {
+    if (editorOpen || settingsOpen || aiOpen) return; // 子页面打开时不处理
+    const touch = e.touches[0];
+    touchStartX.current = touch.clientX;
+    touchStartY.current = touch.clientY;
+    touchStartTime.current = Date.now();
+    isHorizontalSwipe.current = null;
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - touchStartX.current;
+    const dy = touch.clientY - touchStartY.current;
+    const dt = Date.now() - touchStartTime.current;
+    touchStartX.current = null;
+    touchStartY.current = null;
+
+    // 必须是水平方向滑动且距离够
+    if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) || dt > 500) return;
+    if (isHorizontalSwipe.current === false) return;
+
+    if (dx < 0) {
+      switchTab('left'); // 向左滑 = 下一个
+    } else {
+      switchTab('right'); // 向右滑 = 上一个
+    }
+  }
 
   return (
     <div
@@ -95,19 +145,23 @@ function Shell() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto no-scrollbar">
+      <main
+        className="flex-1 overflow-y-auto no-scrollbar"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-slate-400 animate-pulse">加载中…</div>
           </div>
         ) : (
-          <>
+          <div key={tab} className="fade-in">
             {tab === 'list' && <ListView onEdit={openEditTask} onNew={openNewTask} />}
             {tab === 'kanban' && <KanbanView onEdit={openEditTask} onNew={openNewTask} />}
             {tab === 'calendar' && <CalendarView onEdit={openEditTask} onNew={openNewTask} />}
             {tab === 'pomodoro' && <PomodoroView onEdit={openEditTask} />}
             {tab === 'dashboard' && <DashboardView />}
-          </>
+          </div>
         )}
       </main>
 
