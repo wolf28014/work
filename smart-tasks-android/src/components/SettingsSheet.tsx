@@ -158,29 +158,15 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
             <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2.5 whitespace-pre-wrap max-h-24 overflow-y-auto no-scrollbar">
               {updateInfo.notes || '暂无更新说明'}
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => {
-                  window.open(updateInfo.url, '_blank');
-                  showToast('正在跳转 GitHub 下载…', 'info');
-                }}
-                className="py-2 bg-emerald-500 text-white rounded-lg text-[12px] font-semibold active:scale-95 transition-transform"
-              >📥 GitHub 下载</button>
-              <button
-                onClick={() => {
-                  // 备用：通过 ghproxy 加速
-                  const mirror = updateInfo.url.replace(
-                    'https://github.com/',
-                    'https://ghproxy.com/https://github.com/'
-                  );
-                  window.open(mirror, '_blank');
-                  showToast('正在跳转加速镜像下载…', 'info');
-                }}
-                className="py-2 bg-sky-500 text-white rounded-lg text-[12px] font-semibold active:scale-95 transition-transform"
-              >⚡ 加速镜像</button>
-            </div>
+            <button
+              onClick={() => {
+                window.open(updateInfo.url, '_blank');
+                showToast('正在跳转浏览器下载…', 'info');
+              }}
+              className="w-full py-2.5 bg-emerald-500 text-white rounded-lg text-[13px] font-semibold active:scale-95 transition-transform"
+            >📥 下载新版本</button>
             <div className="text-[10px] text-slate-500 text-center mt-1.5">
-              GitHub 慢请用加速镜像 · 下载后点击安装覆盖
+              下载完成后点击安装即可覆盖更新
             </div>
           </div>
         )}
