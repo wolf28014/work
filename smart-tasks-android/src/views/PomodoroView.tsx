@@ -157,7 +157,7 @@ export default function PomodoroView({ onEdit, initialTaskId }: Props) {
             {/* 背景轨道 */}
             <circle
               cx={size / 2} cy={size / 2} r={radius}
-              fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={stroke}
+              fill="none" stroke="var(--card)" strokeWidth={stroke}
             />
             {/* 进度环 */}
             <circle
@@ -222,7 +222,7 @@ export default function PomodoroView({ onEdit, initialTaskId }: Props) {
               <button
                 onClick={(e) => { e.stopPropagation(); setSelectedTaskId(''); }}
                 className="w-7 h-7 rounded-full flex items-center justify-center"
-                style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}
+                style={{ background: 'var(--card)', color: 'var(--text-secondary)' }}
               >×</button>
             </div>
           ) : (
@@ -282,7 +282,7 @@ export default function PomodoroView({ onEdit, initialTaskId }: Props) {
         <button
           onClick={reset}
           className="w-14 h-14 rounded-full flex items-center justify-center text-xl active:scale-90 transition-transform"
-          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+          style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
         >↻</button>
         <button
           onClick={toggle}
@@ -300,7 +300,7 @@ export default function PomodoroView({ onEdit, initialTaskId }: Props) {
         <button
           onClick={skip}
           className="w-14 h-14 rounded-full flex items-center justify-center text-xl active:scale-90 transition-transform"
-          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+          style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
         >⏭</button>
       </div>
     </div>

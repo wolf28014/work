@@ -24,7 +24,7 @@ const STATUS_VAR: Record<string, { soft: string; text: string; dot: string }> = 
   todo:        { soft: 'rgba(91,200,255,0.14)',  text: 'var(--accent-sky)',  dot: 'var(--stat-todo)' },
   in_progress: { soft: 'rgba(245,181,68,0.14)',  text: 'var(--accent-amber)', dot: 'var(--stat-progress)' },
   done:        { soft: 'var(--primary-soft)',    text: 'var(--primary)',     dot: 'var(--stat-done)' },
-  cancelled:   { soft: 'rgba(255,255,255,0.08)', text: 'var(--text-secondary)', dot: 'var(--stat-cancelled)' },
+  cancelled:   { soft: 'var(--card-hover)', text: 'var(--text-secondary)', dot: 'var(--stat-cancelled)' },
 };
 
 const SWIPE_THRESHOLD = 88;
@@ -219,7 +219,7 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
                       key={tagName}
                       className="text-[11px] px-2 py-0.5 rounded-full font-medium"
                       style={{
-                        background: 'rgba(255,255,255,0.05)',
+                        background: 'var(--card)',
                         border: '1px solid var(--border)',
                         color: 'var(--text-secondary)',
                       }}
@@ -257,7 +257,7 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
                     onClick={(e) => { e.stopPropagation(); setShowSubtasks(!showSubtasks); }}
                     className="px-2 py-0.5 rounded-full font-bold active:scale-95 transition-transform"
                     style={{
-                      background: subtaskDone === subtaskTotal ? 'var(--primary-soft)' : 'rgba(255,255,255,0.05)',
+                      background: subtaskDone === subtaskTotal ? 'var(--primary-soft)' : 'var(--card)',
                       color: subtaskDone === subtaskTotal ? 'var(--primary)' : 'var(--text-secondary)',
                       border: '1px solid var(--border)',
                     }}
@@ -380,7 +380,7 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
               <button
                 onClick={() => setShowStatusSheet(false)}
                 className="w-full py-3 rounded-xl text-[15px] font-medium"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
               >取消</button>
             </div>
         </SwipeableSheet>

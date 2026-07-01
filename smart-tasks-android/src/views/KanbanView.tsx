@@ -21,7 +21,7 @@ const STATUS_TOKEN: Record<string, { dot: string; soft: string; text: string }> 
   todo:        { dot: 'var(--stat-todo)',      soft: 'rgba(91,200,255,0.14)',  text: 'var(--accent-sky)' },
   in_progress: { dot: 'var(--stat-progress)',  soft: 'rgba(245,181,68,0.14)',  text: 'var(--accent-amber)' },
   done:        { dot: 'var(--stat-done)',      soft: 'var(--primary-soft)',    text: 'var(--primary)' },
-  cancelled:   { dot: 'var(--stat-cancelled)', soft: 'rgba(255,255,255,0.08)', text: 'var(--text-secondary)' },
+  cancelled:   { dot: 'var(--stat-cancelled)', soft: 'var(--card-hover)', text: 'var(--text-secondary)' },
 };
 const PRI_TOKEN: Record<string, { bar: string; soft: string; text: string }> = {
   high:   { bar: 'var(--pri-high)',    soft: 'var(--pri-high-soft)',    text: 'var(--pri-high)' },
@@ -100,7 +100,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
       {/* 顶部统计栏 */}
       <div
         className="px-4 py-2.5 flex items-center justify-between"
-        style={{ background: 'rgba(11,15,14,0.55)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border)' }}
+        style={{ background: 'var(--bar-bg)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border)' }}
       >
         <button onClick={() => !batchMode && setShowCategorySheet(true)} className="flex items-center gap-2 flex-1">
           <span className="text-[12px]" style={{ color: 'var(--text-secondary)' }}>
@@ -119,7 +119,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
           }}
           className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap active:scale-95 transition-transform ml-2"
           style={{
-            background: batchMode ? 'var(--pri-high-soft)' : 'rgba(255,255,255,0.05)',
+            background: batchMode ? 'var(--pri-high-soft)' : 'var(--card)',
             border: `1px solid ${batchMode ? 'rgba(255,110,127,0.35)' : 'var(--border)'}`,
             color: batchMode ? 'var(--pri-high)' : 'var(--text-secondary)',
           }}
@@ -143,12 +143,12 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
                 setSelectedIds(newSet);
               }}
               className="px-3 py-1.5 text-[12px] font-bold rounded-full active:scale-95 transition-transform"
-              style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+              style={{ background: 'var(--card-hover)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
             >全选</button>
             <button
               onClick={() => setSelectedIds(new Set())}
               className="px-3 py-1.5 text-[12px] font-bold rounded-full active:scale-95 transition-transform"
-              style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+              style={{ background: 'var(--card-hover)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
             >清空</button>
             <button
               onClick={async () => {
@@ -172,7 +172,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
         {/* 左侧：分类列表 */}
         <aside
           className="w-[92px] flex-shrink-0 overflow-y-auto no-scrollbar py-2.5 px-2 space-y-2"
-          style={{ background: 'rgba(0,0,0,0.18)', borderRight: '1px solid var(--border)' }}
+          style={{ background: 'var(--bg-elevated)', borderRight: '1px solid var(--border)' }}
         >
           {STATUS_ORDER.map(status => {
             const sc = STATUS_TOKEN[status];
@@ -204,7 +204,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
                   {count > 0 && (
                     <div
                       className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-bold leading-none"
-                      style={{ background: isActive ? 'var(--primary)' : 'rgba(255,255,255,0.12)', color: isActive ? '#06140F' : 'var(--text-primary)', border: '1px solid var(--border)' }}
+                      style={{ background: isActive ? 'var(--primary)' : 'var(--card)', color: isActive ? '#06140F' : 'var(--text-primary)', border: '1px solid var(--border)' }}
                     >
                       {count > 99 ? '99+' : count}
                     </div>
@@ -232,7 +232,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
           {/* 当前列头部 */}
           <div
             className="px-4 py-3 sticky top-0 z-10"
-            style={{ background: 'rgba(11,15,14,0.7)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border)' }}
+            style={{ background: 'var(--bar-bg)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border)' }}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -344,7 +344,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
               <button
                 onClick={() => setStatusChangeTaskId(null)}
                 className="w-full py-3 rounded-xl text-[15px] font-medium"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
               >取消</button>
             </div>
         </SwipeableSheet>
@@ -390,7 +390,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
               <button
                 onClick={() => setShowCategorySheet(false)}
                 className="w-full py-3 rounded-xl text-[15px] font-medium"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
               >取消</button>
             </div>
         </SwipeableSheet>
@@ -494,7 +494,7 @@ function KanbanCard({ task, tagColorDot, onClick, onDragStart, onDragEnd, onLong
               onClick={(e) => { e.stopPropagation(); setShowSubtasks(!showSubtasks); }}
               className="px-1.5 py-0.5 rounded-full font-bold active:scale-95 transition-transform"
               style={{
-                background: subtaskDone === subtaskTotal ? 'var(--primary-soft)' : 'rgba(255,255,255,0.05)',
+                background: subtaskDone === subtaskTotal ? 'var(--primary-soft)' : 'var(--card)',
                 color: subtaskDone === subtaskTotal ? 'var(--primary)' : 'var(--text-secondary)',
                 border: '1px solid var(--border)',
               }}

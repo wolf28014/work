@@ -11,7 +11,7 @@ const STATUS_TOKEN: Record<string, { dot: string; soft: string; text: string }> 
   todo:        { dot: 'var(--stat-todo)',       soft: 'rgba(91,200,255,0.16)',  text: 'var(--accent-sky)' },
   in_progress: { dot: 'var(--stat-progress)',   soft: 'rgba(245,181,68,0.16)',  text: 'var(--accent-amber)' },
   done:        { dot: 'var(--stat-done)',       soft: 'var(--primary-soft)',    text: 'var(--primary)' },
-  cancelled:   { dot: 'var(--stat-cancelled)',  soft: 'rgba(255,255,255,0.08)', text: 'var(--text-secondary)' },
+  cancelled:   { dot: 'var(--stat-cancelled)',  soft: 'var(--card-hover)', text: 'var(--text-secondary)' },
 };
 
 const PRI_TOKEN: Record<string, { dot: string; soft: string; text: string }> = {
@@ -140,7 +140,7 @@ export default function DashboardView() {
           </div>
           <div className="relative">
             <svg width="64" height="64" className="-rotate-90">
-              <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="6" />
+              <circle cx="32" cy="32" r="26" fill="none" stroke="var(--card)" strokeWidth="6" />
               <circle
                 cx="32" cy="32" r="26" fill="none" stroke="var(--primary)" strokeWidth="6"
                 strokeLinecap="round"
@@ -154,7 +154,7 @@ export default function DashboardView() {
             </div>
           </div>
         </div>
-        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--card)' }}>
           <div
             className="h-full rounded-full"
             style={{
@@ -179,7 +179,7 @@ export default function DashboardView() {
                   style={{
                     height: `${(d.count / maxDailyCompleted) * 100}%`,
                     minHeight: d.count > 0 ? '6px' : '2px',
-                    background: d.count > 0 ? 'linear-gradient(180deg, var(--primary), var(--primary-strong))' : 'rgba(255,255,255,0.06)',
+                    background: d.count > 0 ? 'linear-gradient(180deg, var(--primary), var(--primary-strong))' : 'var(--card)',
                     boxShadow: d.count > 0 ? '0 0 12px var(--primary-glow)' : 'none',
                     animationDelay: `${i * 80}ms`,
                   }}
@@ -199,7 +199,7 @@ export default function DashboardView() {
           {stats.statusDist.map(s => (
             <div key={s.status} className="flex items-center gap-3">
               <div className="text-[11px] w-12" style={{ color: 'var(--text-secondary)' }}>{s.label}</div>
-              <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+              <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'var(--card)' }}>
                 <div
                   className="h-full rounded-full"
                   style={{
@@ -218,7 +218,7 @@ export default function DashboardView() {
       {/* 优先级分布 */}
       <div className="v3-card p-4">
         <div className="text-[13px] font-bold mb-3" style={{ color: 'var(--text-primary)' }}>优先级分布</div>
-        <div className="flex h-3 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+        <div className="flex h-3 rounded-full overflow-hidden" style={{ background: 'var(--card)' }}>
           {stats.priorityDist.map(p => (p.count > 0 && (
             <div
               key={p.priority}
@@ -266,7 +266,7 @@ export default function DashboardView() {
                   style={{
                     height: `${(d.count / maxDailyPomodoro) * 100}%`,
                     minHeight: d.count > 0 ? '4px' : '2px',
-                    background: d.count > 0 ? 'linear-gradient(180deg, var(--pri-high), #D4525E)' : 'rgba(255,255,255,0.06)',
+                    background: d.count > 0 ? 'linear-gradient(180deg, var(--pri-high), #D4525E)' : 'var(--card)',
                     animationDelay: `${i * 80}ms`,
                   }}
                 />
@@ -292,7 +292,7 @@ export default function DashboardView() {
                 <div
                   key={t.name}
                   className="text-[12px] px-3 py-1.5 rounded-full font-medium"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                  style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
                 >
                   <span style={{ color: dotColor }}>#</span>{t.name} <span style={{ color: 'var(--text-tertiary)' }}>· {t.count}</span>
                 </div>

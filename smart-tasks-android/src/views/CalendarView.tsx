@@ -15,7 +15,7 @@ const STATUS_TOKEN: Record<string, { dot: string; soft: string; text: string }> 
   todo:        { dot: 'var(--stat-todo)',      soft: 'rgba(91,200,255,0.14)',  text: 'var(--accent-sky)' },
   in_progress: { dot: 'var(--stat-progress)',  soft: 'rgba(245,181,68,0.14)',  text: 'var(--accent-amber)' },
   done:        { dot: 'var(--stat-done)',      soft: 'var(--primary-soft)',    text: 'var(--primary)' },
-  cancelled:   { dot: 'var(--stat-cancelled)', soft: 'rgba(255,255,255,0.08)', text: 'var(--text-secondary)' },
+  cancelled:   { dot: 'var(--stat-cancelled)', soft: 'var(--card-hover)', text: 'var(--text-secondary)' },
 };
 
 const PRI_BAR: Record<string, string> = {
@@ -78,7 +78,7 @@ export default function CalendarView({ onEdit }: Props) {
         <button
           onClick={prevMonth}
           className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform"
-          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+          style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
         >‹</button>
         <div className="text-center">
           <div className="text-[18px] font-bold" style={{ color: 'var(--text-primary)' }}>
@@ -93,7 +93,7 @@ export default function CalendarView({ onEdit }: Props) {
         <button
           onClick={nextMonth}
           className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform"
-          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+          style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
         >›</button>
       </div>
 

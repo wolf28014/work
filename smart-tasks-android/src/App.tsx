@@ -19,6 +19,7 @@ import PrivacyConsentSheet, { isPrivacyAgreed } from './components/PrivacyConsen
 import {
   getBackgroundSettings,
   getCustomImage,
+  resolveBackgroundCss,
 } from './lib/background';
 import { initAuth, useAuth, mergeLocalToCloud } from './lib/auth';
 import { checkUpdateOnLaunch, getCachedUpdateInfo } from './lib/updater';
@@ -162,16 +163,18 @@ function Shell() {
   const overdueCount = tasks.filter(t => !t.deletedAt && isOverdue(t)).length;
   const completedToday = tasks.filter(t => !t.deletedAt && t.completedAt && new Date(t.completedAt).toDateString() === new Date().toDateString()).length;
 
-  // 用户的自定义背景作为微弱底层（v3 默认深色玻璃覆盖在上）
+  // 解析背景设置
+  const bgResolved = resolveBackgroundCss(bgSettings, customImage);
   const showCustomBg = bgSettings.type === 'custom' && customImage;
+  const showPresetBg = bgSettings.type === 'preset' && bgResolved;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden relative">
-      {/* 底层：用户自定义图片（如有） */}
+    <div className="flex flex-col h-screen overflow-hidden relative" style={showPresetBg ? { background: bgResolved!.css } : {}}>
+      {/* 底层：用户自定义图片 */}
       {showCustomBg && (
         <div
           className="absolute inset-0 pointer-events-none z-0"
-          style={{ background: `url(${customImage}) center/cover no-repeat fixed`, opacity: 0.18 }}
+          style={{ background: `url(${customImage}) center/cover no-repeat fixed` }}
         />
       )}
       {/* v3 深色玻璃基底 */}
@@ -213,7 +216,7 @@ function Shell() {
               <button
                 onClick={() => setSettingsOpen(true)}
                 className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)' }}
+                style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
                 aria-label="设置"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-secondary)' }}>
@@ -237,7 +240,7 @@ function Shell() {
               </div>
             )}
             {completedToday > 0 && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-full mx-1" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-full mx-1" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
                 <span className="text-[11px] font-semibold" style={{ color: 'var(--text-secondary)' }}>已完成</span>
                 <span className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>{completedToday}</span>
               </div>
@@ -271,7 +274,7 @@ function Shell() {
           <button
             onClick={() => setUpdateBanner(null)}
             className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}
+            style={{ background: 'var(--card)', color: 'var(--text-secondary)' }}
           >×</button>
         </div>
       )}

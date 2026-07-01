@@ -156,7 +156,7 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
             onClick={() => setShowSortSheet(true)}
             className="px-3 py-2 rounded-full text-[12px] font-bold whitespace-nowrap flex items-center gap-1 active:scale-95 transition-transform"
             style={{
-              background: (sortMode !== 'priority' || sortAsc) ? 'var(--primary-soft)' : 'rgba(255,255,255,0.05)',
+              background: (sortMode !== 'priority' || sortAsc) ? 'var(--primary-soft)' : 'var(--card)',
               border: `1px solid ${(sortMode !== 'priority' || sortAsc) ? 'var(--primary-border)' : 'var(--border)'}`,
               color: (sortMode !== 'priority' || sortAsc) ? 'var(--primary)' : 'var(--text-secondary)',
             }}
@@ -168,7 +168,7 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
             onClick={() => setGroupByTag(!groupByTag)}
             className="px-3 py-2 rounded-full text-[12px] font-bold whitespace-nowrap active:scale-95 transition-transform"
             style={{
-              background: groupByTag ? 'var(--primary-soft)' : 'rgba(255,255,255,0.05)',
+              background: groupByTag ? 'var(--primary-soft)' : 'var(--card)',
               border: `1px solid ${groupByTag ? 'var(--primary-border)' : 'var(--border)'}`,
               color: groupByTag ? 'var(--primary)' : 'var(--text-secondary)',
             }}
@@ -180,7 +180,7 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
             }}
             className="px-3 py-2 rounded-full text-[12px] font-bold whitespace-nowrap active:scale-95 transition-transform"
             style={{
-              background: batchMode ? 'var(--pri-high-soft)' : 'rgba(255,255,255,0.05)',
+              background: batchMode ? 'var(--pri-high-soft)' : 'var(--card)',
               border: `1px solid ${batchMode ? 'rgba(255,110,127,0.35)' : 'var(--border)'}`,
               color: batchMode ? 'var(--pri-high)' : 'var(--text-secondary)',
             }}
@@ -205,12 +205,12 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
                 setSelectedIds(newSet);
               }}
               className="px-3 py-1.5 text-[12px] font-bold rounded-full active:scale-95 transition-transform"
-              style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+              style={{ background: 'var(--card-hover)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
             >全选</button>
             <button
               onClick={() => setSelectedIds(new Set())}
               className="px-3 py-1.5 text-[12px] font-bold rounded-full active:scale-95 transition-transform"
-              style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+              style={{ background: 'var(--card-hover)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
             >清空</button>
             <button
               onClick={async () => {
@@ -287,7 +287,7 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
                     </div>
                     <span
                       className="text-[11px] font-bold px-2 py-0.5 rounded-full"
-                      style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                      style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
                     >
                       {group.tasks.length}
                     </span>
@@ -376,7 +376,7 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
               <button
                 onClick={() => setShowSortSheet(false)}
                 className="w-full py-3 rounded-xl text-[15px] font-medium"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
               >完成</button>
             </div>
         </SwipeableSheet>
