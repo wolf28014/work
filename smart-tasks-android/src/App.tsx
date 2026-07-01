@@ -361,7 +361,7 @@ function Shell() {
               >
                 <TabIcon glyph={t.glyph} active={isActive} />
                 <span
-                  className="text-[10px] font-semibold transition-colors"
+                  className="text-[11px] font-bold transition-colors"
                   style={{ color: isActive ? 'var(--primary)' : 'var(--text-secondary)' }}
                 >
                   {t.label}

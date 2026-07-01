@@ -105,7 +105,7 @@ export default function PomodoroView({ onEdit, initialTaskId }: Props) {
   const stroke = 12;
   const radius = (size - stroke * 2) / 2 - 6;
   const circumference = 2 * Math.PI * radius;
-  const accentColor = mode === 'work' ? 'var(--primary)' : 'var(--accent-sky)';
+  const accentColor = mode === 'work' ? 'var(--primary)' : 'var(--pri-high)';
   const accentGlow  = mode === 'work' ? 'var(--primary-glow)' : 'rgba(91,200,255,0.5)';
 
   return (
@@ -128,7 +128,7 @@ export default function PomodoroView({ onEdit, initialTaskId }: Props) {
           onClick={() => { if (mode !== 'break') { setMode('break'); setSecondsLeft(BREAK_MINUTES * 60); setRunning(false); } }}
           className="flex-1 py-2.5 rounded-full text-[13px] font-bold transition-all"
           style={{
-            background: mode === 'break' ? 'linear-gradient(135deg, var(--accent-sky), #3BAAE0)' : 'transparent',
+            background: mode === 'break' ? 'linear-gradient(135deg, var(--pri-high), #E53E5C)' : 'transparent',
             color: mode === 'break' ? '#06140F' : 'var(--text-secondary)',
             boxShadow: mode === 'break' ? '0 4px 14px rgba(91,200,255,0.4)' : 'none',
           }}
@@ -150,8 +150,8 @@ export default function PomodoroView({ onEdit, initialTaskId }: Props) {
           <svg width={size} height={size} className="absolute inset-0 -rotate-90 glow-ring">
             <defs>
               <linearGradient id="pomoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor={mode === 'work' ? '#6366F1' : '#5BC8FF'} />
-                <stop offset="100%" stopColor={mode === 'work' ? '#8B5CF6' : '#3BAAE0'} />
+                <stop offset="0%" stopColor={mode === 'work' ? '#6366F1' : '#FB7185'} />
+                <stop offset="100%" stopColor={mode === 'work' ? '#8B5CF6' : '#E53E5C'} />
               </linearGradient>
             </defs>
             {/* 背景轨道 */}
@@ -290,7 +290,7 @@ export default function PomodoroView({ onEdit, initialTaskId }: Props) {
           style={{
             background: mode === 'work'
               ? 'linear-gradient(135deg, var(--primary), var(--primary-strong))'
-              : 'linear-gradient(135deg, var(--accent-sky), #3BAAE0)',
+              : 'linear-gradient(135deg, var(--pri-high), #E53E5C)',
             color: mode === 'work' ? '#ffffff' : '#06140F',
             boxShadow: mode === 'work' ? '0 8px 20px var(--primary-glow)' : '0 8px 20px rgba(91,200,255,0.4)',
           }}
