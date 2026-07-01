@@ -80,7 +80,12 @@ function Shell() {
   const [tab, setTab] = useState<Tab>('list');
   const [tabDirection, setTabDirection] = useState<'left' | 'right'>('left');
   const [pomodoroTaskId, setPomodoroTaskId] = useState<string>('');
-  const [updateBanner, setUpdateBanner] = useState(getCachedUpdateInfo());
+  // updateBanner 初始为 null，避免启动时闪现上一次缓存的更新提示
+  // 等 checkUpdateOnLaunch 完成后再决定是否显示
+  const [updateBanner, setUpdateBanner] = useState<{ version: string; url: string; notes: string } | null>(null);
+  // authReady: 初始 false，initAuth 完成后才置 true
+  // 期间不渲染"登录同步"按钮和更新 banner，避免登录状态下闪现
+  const [authReady, setAuthReady] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorTask, setEditorTask] = useState<any>(null);
   const [editorTemplate, setEditorTemplate] = useState<TaskTemplate | null>(null);
@@ -142,10 +147,14 @@ function Shell() {
   useEffect(() => {
     if (privacyAgreed) {
       initAuth().then(() => {
+        setAuthReady(true);
         checkUpdateOnLaunch().then(() => {
           setUpdateBanner(getCachedUpdateInfo());
         }).catch(() => {});
-      });
+      }).catch(() => setAuthReady(true));
+    } else {
+      // 没同意隐私协议时不进入 initAuth，但也要标记 ready 避免卡死
+      setAuthReady(true);
     }
   }, [privacyAgreed]);
 
@@ -374,7 +383,7 @@ function Shell() {
           )}
 
           {/* Login button — visible only when not logged in */}
-          {!user && isConfigured && (
+          {!user && isConfigured && authReady && (
             <button className="pc-sidebar-login-btn" onClick={() => setAuthOpen(true)}>
               登录同步
             </button>
@@ -540,7 +549,7 @@ function Shell() {
         </div>
 
         {/* 更新提醒横幅 */}
-        {updateBanner && (
+        {authReady && updateBanner && (
           <div className="mx-4 mt-2 ios-card p-3 fade-in flex items-center gap-3">
             <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
               <span style={{ color: 'var(--primary)', fontSize: 16, fontWeight: 700 }}>✦</span>
@@ -641,7 +650,7 @@ function Shell() {
         </nav>
 
         {/* 未登录提示 — mobile only (PC shows it in sidebar) */}
-        {!user && isConfigured && (
+        {!user && isConfigured && authReady && (
           <button
             onClick={() => setAuthOpen(true)}
             className="mobile-only absolute right-4 z-30 px-3 py-1.5 text-[11px] font-medium rounded-full active:scale-95 transition-transform"
