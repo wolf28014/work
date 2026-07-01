@@ -239,6 +239,10 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
   const [pinned, setPinned] = useState(note?.pinned || false);
   const [saveTimer, setSaveTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  // 新建笔记时，第一次 persist 会生成 ID 并存到这里，
+  // 后续 persist 复用这个 ID（变成 update 而不是 create），
+  // 避免每次自动保存都创建一条新笔记。
+  const [createdNoteId, setCreatedNoteId] = useState<string | null>(null);
 
   useEffect(() => {
     // Auto-focus title for new notes
@@ -251,19 +255,37 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
   async function persist(t: string, c: string, p: boolean) {
     try {
       const now = Date.now();
-      const updated: Note = note
-        ? { ...note, title: t, content: c, pinned: p, updatedAt: now }
-        : {
-            id: genId(),
-            title: t,
-            content: c,
-            pinned: p,
-            createdAt: now,
-            updatedAt: now,
-            deletedAt: null,
-          };
-      await saveNote(updated);
-      syncNoteToCloud(updated).catch(e => console.log('Sync failed:', e));
+      const existingId = note?.id || createdNoteId;
+
+      if (existingId) {
+        // Update existing note (either editing an old one, or re-saving a newly created one)
+        const updated: Note = {
+          id: existingId,
+          title: t,
+          content: c,
+          pinned: p,
+          createdAt: note?.createdAt || now,
+          updatedAt: now,
+          deletedAt: null,
+        };
+        await saveNote(updated);
+        syncNoteToCloud(updated).catch(e => console.log('Sync failed:', e));
+      } else {
+        // First save of a brand-new note — generate ID once, remember it
+        const newId = genId();
+        const created: Note = {
+          id: newId,
+          title: t,
+          content: c,
+          pinned: p,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null,
+        };
+        setCreatedNoteId(newId);
+        await saveNote(created);
+        syncNoteToCloud(created).catch(e => console.log('Sync failed:', e));
+      }
     } catch (e: any) {
       showToast('保存失败：' + e.message, 'error');
     }
