@@ -493,15 +493,26 @@ export async function syncTagToCloud(tag: Tag) {
 }
 
 // v6.0 — 同步单条笔记到云端
+// v6.4.1 — 失败时打印错误到 console.error（之前用 console.log 静默吞掉了，
+//         导致 notes 表未在 Supabase 创建时用户完全看不到错误）
 export async function syncNoteToCloud(note: Note) {
-  if (!currentUser) return;
+  if (!currentUser) {
+    console.warn('[syncNote] 未登录，跳过同步');
+    return;
+  }
   const sb = getSupabase();
-  if (!sb) return;
-  await sb.from('notes').upsert({
+  if (!sb) {
+    console.warn('[syncNote] Supabase 未配置，跳过同步');
+    return;
+  }
+  const { error } = await sb.from('notes').upsert({
     id: note.id, user_id: currentUser!.id,
     title: note.title, content: note.content, pinned: note.pinned,
     created_at: note.createdAt, updated_at: note.updatedAt, deleted_at: note.deletedAt,
   }, { onConflict: 'id' });
+  if (error) {
+    console.error('[syncNote] 同步失败:', error.message, 'note.id=', note.id);
+  }
 }
 
 // 删除云端标签

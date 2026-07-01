@@ -5,8 +5,11 @@ import { showToast } from '../components/Toast';
 
 const GITHUB_REPO = 'wolf28014/work';
 
-// 当前版本 - 务必与 GitHub Release tag 保持一致
-export const CURRENT_VERSION = '6.3.0';
+// 当前版本 - 由 Vite 在构建时从最近 git tag 自动注入
+// 例如 tag v6.4 → '6.4'，tag v6.3.2 → '6.3.2'
+// 这样发版只需打 tag，版本号会自动跟随，不会出现"装了新版还提示更新"的问题
+declare const __APP_VERSION__: string;
+export const CURRENT_VERSION: string = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
 
 // 从 Supabase 查询最新版本
 async function checkFromSupabase(): Promise<{ version: string; url: string; notes: string } | null> {
