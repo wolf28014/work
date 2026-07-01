@@ -33,6 +33,15 @@ export default function NotesView({ onOpenEditor }: Props) {
 
   useEffect(() => { refresh(); }, []);
 
+  // v6.1 — listen for real-time note changes from another device (PC ↔ mobile sync).
+  // When a remote INSERT/UPDATE/DELETE arrives, re-query IndexedDB (the realtime
+  // handler in auth.ts already saved the change to IndexedDB) and refresh the list.
+  useEffect(() => {
+    const handler = () => { refresh(); };
+    window.addEventListener('notes-realtime-change', handler);
+    return () => window.removeEventListener('notes-realtime-change', handler);
+  }, []);
+
   function filtered() {
     if (!query.trim()) return notes;
     const q = query.trim().toLowerCase();

@@ -1,6 +1,7 @@
 // 用户授权 + Pro 状态 + 云同步管理
 import { useEffect, useState } from 'react';
 import { getSupabase, isSupabaseConfigured, getCurrentUser, signOut } from './supabase';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 // re-export 供其他模块使用
 export { isSupabaseConfigured } from './supabase';
@@ -44,6 +45,12 @@ export async function initAuth() {
     await refreshProStatus();
     notify();
   }
+}
+
+// v6.1 — accessor used by store.tsx to subscribe to real-time after login.
+// Returns the current user id (or null if not signed in).
+export function getCurrentUserId(): string | null {
+  return currentUser?.id ?? null;
 }
 
 // 邮箱密码注册
@@ -98,6 +105,8 @@ export async function verifyOtp(phone: string, token: string) {
 
 // 退出登录
 export async function logout() {
+  // v6.1 — tear down real-time subscription before signing out
+  unsubscribeRealtime();
   await signOut();
   currentUser = null;
   currentProStatus = { isPro: false, expiresAt: null, type: null };
@@ -295,6 +304,101 @@ export async function syncTaskToCloud(task: Task) {
   }, { onConflict: 'id' });
 }
 
+// ============== v6.1 — Incremental cloud → local sync (polling backup) ==============
+
+// Tracks the most recent `updated_at` we've seen from the cloud. Used by
+// syncFromCloud() to only fetch rows that changed since the last poll.
+//
+// Stored in localStorage so it persists across sessions and survives page
+// reloads. Without this, every poll would re-fetch ALL tasks.
+const LAST_SYNC_KEY = 'last-cloud-sync-time';
+let lastSyncTime = 0;
+
+function getLastSyncTime(): number {
+  if (lastSyncTime > 0) return lastSyncTime;
+  try {
+    const stored = localStorage.getItem(LAST_SYNC_KEY);
+    lastSyncTime = stored ? parseInt(stored, 10) || 0 : 0;
+  } catch { lastSyncTime = 0; }
+  return lastSyncTime;
+}
+
+function setLastSyncTime(t: number) {
+  lastSyncTime = t;
+  try { localStorage.setItem(LAST_SYNC_KEY, String(t)); } catch {}
+}
+
+/**
+ * v6.1 — Incremental cloud → local sync. Acts as a backup to the Supabase
+ * real-time subscription (which can miss events when the WebSocket drops or
+ * the app was offline).
+ *
+ * Algorithm:
+ *   1. Fetch tasks from cloud where updated_at > lastSyncTime (for this user).
+ *   2. For each remote task, only save locally if:
+ *        - the local task doesn't exist (new from another device), OR
+ *        - remote.updated_at > local.updated_at (other device has newer edit)
+ *   3. Advance lastSyncTime to the max updated_at seen.
+ *   4. If anything changed, dispatch a 'cloud-poll-sync' window event so the
+ *      store can reload tasks from IndexedDB.
+ *
+ * Safe to call repeatedly — does nothing if not logged in or Supabase is not
+ * configured. Returns the number of tasks that were actually written to local
+ * IndexedDB (0 in the common steady-state case).
+ */
+export async function syncFromCloud(): Promise<number> {
+  if (!currentUser) return 0;
+  const sb = getSupabase();
+  if (!sb) return 0;
+
+  const since = getLastSyncTime();
+  const { data: remoteTasks, error } = await sb
+    .from('tasks')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .gt('updated_at', since);
+  if (error || !remoteTasks) return 0;
+  if (remoteTasks.length === 0) {
+    // No changes since last sync — advance the watermark to "now" so the next
+    // poll's query stays narrow even if writes happened that we already had.
+    setLastSyncTime(Date.now());
+    return 0;
+  }
+
+  const localTasks = await getAllTasks(true);
+  const localMap = new Map(localTasks.map(t => [t.id, t]));
+
+  let updated = 0;
+  let maxUpdatedAt = since;
+  for (const t of remoteTasks) {
+    const remoteTask: Task = {
+      id: t.id, title: t.title, description: t.description || '',
+      dueDate: t.due_date, priority: t.priority, status: t.status,
+      recurrence: t.recurrence, tags: t.tags || [],
+      subtasks: t.subtasks || [], dependsOn: t.depends_on || [],
+      pomodoros: t.pomodoros || 0, noteMarkdown: t.note_markdown,
+      createdAt: t.created_at, updatedAt: t.updated_at,
+      completedAt: t.completed_at, deletedAt: t.deleted_at,
+    };
+    const local = localMap.get(remoteTask.id);
+    if (!local || remoteTask.updatedAt > local.updatedAt) {
+      await saveTask(remoteTask);
+      updated++;
+    }
+    if (remoteTask.updatedAt > maxUpdatedAt) {
+      maxUpdatedAt = remoteTask.updatedAt;
+    }
+  }
+
+  setLastSyncTime(maxUpdatedAt);
+
+  if (updated > 0) {
+    // Tell the store to reload tasks from IndexedDB (where we just wrote).
+    window.dispatchEvent(new CustomEvent('cloud-poll-sync', { detail: { count: updated } }));
+  }
+  return updated;
+}
+
 // 同步单条番茄钟到云端
 export async function syncPomodoroToCloud(session: PomodoroSession) {
   if (!currentUser) return;
@@ -372,4 +476,187 @@ export async function mergeLocalToCloud() {
 
   // 3. 拉取云端全部数据写回本地
   await pullCloudToLocal();
+}
+
+// ============== v6.1 — Real-time Sync ==============
+
+/**
+ * Real-time change handlers. Called by the Supabase real-time subscription
+ * when a remote row changes. The store wires these to its dispatch actions.
+ */
+export interface RealtimeHandlers {
+  onTaskInsert: (task: Task) => void;
+  onTaskUpdate: (task: Task) => void;
+  onTaskDelete: (id: string) => void;
+  onTagInsert: (tag: Tag) => void;
+  onTagUpdate: (tag: Tag) => void;
+  onTagDelete: (id: string) => void;
+  onPomodoroInsert: (session: PomodoroSession) => void;
+  onPomodoroDelete: (id: string) => void;
+  // Notes are not in the store — dispatch a window event for NotesView to refresh.
+  onNoteChange: (eventType: 'INSERT' | 'UPDATE' | 'DELETE', note: Note | { id: string }) => void;
+}
+
+let realtimeChannel: RealtimeChannel | null = null;
+
+/**
+ * Subscribe to Supabase real-time changes on the user's tasks, tags,
+ * pomodoro_sessions, and notes. Returns immediately; changes are pushed
+ * asynchronously to the provided handlers.
+ *
+ * v6.1 — enables PC to see mobile changes (and vice versa) without refresh.
+ */
+export function subscribeRealtime(userId: string, handlers: RealtimeHandlers) {
+  const sb = getSupabase();
+  if (!sb) return;
+
+  // Unsubscribe any existing channel first (idempotent)
+  unsubscribeRealtime();
+
+  realtimeChannel = sb.channel('smart-tasks-realtime')
+
+    // === TASKS ===
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'tasks', filter: `user_id=eq.${userId}` },
+      (payload: any) => {
+        try {
+          const t = payload.new;
+          if (!t) return;
+          const task: Task = {
+            id: t.id, title: t.title, description: t.description || '',
+            dueDate: t.due_date, priority: t.priority, status: t.status,
+            recurrence: t.recurrence, tags: t.tags || [],
+            subtasks: t.subtasks || [], dependsOn: t.depends_on || [],
+            pomodoros: t.pomodoros || 0, noteMarkdown: t.note_markdown,
+            createdAt: t.created_at, updatedAt: t.updated_at,
+            completedAt: t.completed_at, deletedAt: t.deleted_at,
+          };
+          // Persist to IndexedDB so local cache stays in sync
+          saveTask(task).catch(e => console.log('[realtime] saveTask failed:', e));
+          handlers.onTaskInsert(task);
+        } catch (e) { console.log('[realtime] task INSERT parse failed:', e); }
+      })
+    .on('postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'tasks', filter: `user_id=eq.${userId}` },
+      (payload: any) => {
+        try {
+          const t = payload.new;
+          if (!t) return;
+          const task: Task = {
+            id: t.id, title: t.title, description: t.description || '',
+            dueDate: t.due_date, priority: t.priority, status: t.status,
+            recurrence: t.recurrence, tags: t.tags || [],
+            subtasks: t.subtasks || [], dependsOn: t.depends_on || [],
+            pomodoros: t.pomodoros || 0, noteMarkdown: t.note_markdown,
+            createdAt: t.created_at, updatedAt: t.updated_at,
+            completedAt: t.completed_at, deletedAt: t.deleted_at,
+          };
+          saveTask(task).catch(e => console.log('[realtime] saveTask failed:', e));
+          handlers.onTaskUpdate(task);
+        } catch (e) { console.log('[realtime] task UPDATE parse failed:', e); }
+      })
+    .on('postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'tasks', filter: `user_id=eq.${userId}` },
+      (payload: any) => {
+        try {
+          const oldId = payload.old?.id;
+          if (!oldId) return;
+          handlers.onTaskDelete(oldId);
+        } catch (e) { console.log('[realtime] task DELETE parse failed:', e); }
+      })
+
+    // === TAGS ===
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'tags', filter: `user_id=eq.${userId}` },
+      (payload: any) => {
+        try {
+          const t = payload.new; if (!t) return;
+          const tag: Tag = {
+            id: t.id, name: t.name, color: t.color,
+            createdAt: t.created_at, updatedAt: t.updated_at,
+          };
+          saveTag(tag).catch(e => console.log('[realtime] saveTag failed:', e));
+          handlers.onTagInsert(tag);
+        } catch (e) { console.log('[realtime] tag INSERT parse failed:', e); }
+      })
+    .on('postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'tags', filter: `user_id=eq.${userId}` },
+      (payload: any) => {
+        try {
+          const t = payload.new; if (!t) return;
+          const tag: Tag = {
+            id: t.id, name: t.name, color: t.color,
+            createdAt: t.created_at, updatedAt: t.updated_at,
+          };
+          saveTag(tag).catch(e => console.log('[realtime] saveTag failed:', e));
+          handlers.onTagUpdate(tag);
+        } catch (e) { console.log('[realtime] tag UPDATE parse failed:', e); }
+      })
+    .on('postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'tags', filter: `user_id=eq.${userId}` },
+      (payload: any) => {
+        try {
+          const oldId = payload.old?.id; if (!oldId) return;
+          handlers.onTagDelete(oldId);
+        } catch (e) { console.log('[realtime] tag DELETE parse failed:', e); }
+      })
+
+    // === POMODORO SESSIONS ===
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'pomodoro_sessions', filter: `user_id=eq.${userId}` },
+      (payload: any) => {
+        try {
+          const p = payload.new; if (!p) return;
+          const session: PomodoroSession = {
+            id: p.id, taskId: p.task_id, startedAt: p.started_at,
+            endedAt: p.ended_at, duration: p.duration,
+          };
+          addPomodoroSession(session).catch(e => console.log('[realtime] addPomodoroSession failed:', e));
+          handlers.onPomodoroInsert(session);
+        } catch (e) { console.log('[realtime] pomodoro INSERT parse failed:', e); }
+      })
+    .on('postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'pomodoro_sessions', filter: `user_id=eq.${userId}` },
+      (payload: any) => {
+        try {
+          const oldId = payload.old?.id; if (!oldId) return;
+          handlers.onPomodoroDelete(oldId);
+        } catch (e) { console.log('[realtime] pomodoro DELETE parse failed:', e); }
+      })
+
+    // === NOTES (not in store — dispatch a window event for NotesView) ===
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'notes', filter: `user_id=eq.${userId}` },
+      (payload: any) => {
+        try {
+          const eventType = payload.eventType;
+          if (eventType === 'DELETE') {
+            handlers.onNoteChange('DELETE', { id: payload.old?.id });
+          } else {
+            const n = payload.new; if (!n) return;
+            const note: Note = {
+              id: n.id, title: n.title || '', content: n.content || '',
+              pinned: !!n.pinned,
+              createdAt: n.created_at, updatedAt: n.updated_at, deletedAt: n.deleted_at,
+            };
+            // Persist to IndexedDB so NotesView picks it up on refresh
+            saveNote(note).catch(e => console.log('[realtime] saveNote failed:', e));
+            handlers.onNoteChange(eventType, note);
+          }
+        } catch (e) { console.log('[realtime] note change parse failed:', e); }
+      })
+
+    .subscribe();
+}
+
+/** Unsubscribe from real-time changes (called on logout or theme/account switch). */
+export function unsubscribeRealtime() {
+  if (!realtimeChannel) return;
+  try {
+    const sb = getSupabase();
+    if (sb) sb.removeChannel(realtimeChannel);
+  } catch (e) {
+    console.log('[realtime] unsubscribe failed:', e);
+  }
+  realtimeChannel = null;
 }

@@ -3,8 +3,8 @@ import type { Task, PomodoroSession, Tag } from './db';
 import { getAllTasks, saveTask, deleteTaskPermanent, getAllPomodoros, addPomodoroSession, getAllTags, saveTag, deleteTag as deleteTagDB } from './db';
 import { genId } from './db';
 import { generateNextRecurrence } from './task-utils';
-import { syncTaskToCloud, syncPomodoroToCloud, syncTagToCloud, deleteTagFromCloud } from './auth';
-import { applyTheme, getLastLightThemeId, THEMES } from './themes';
+import { syncTaskToCloud, syncPomodoroToCloud, syncTagToCloud, deleteTagFromCloud, useAuth, subscribeRealtime, unsubscribeRealtime } from './auth';
+import { applyTheme, getLastLightThemeId, THEMES, isDarkTheme } from './themes';
 
 interface State {
   tasks: Task[];
@@ -24,6 +24,7 @@ type Action =
   | { type: 'RESTORE_TASK'; id: string }
   | { type: 'PURGE_TASK'; id: string }
   | { type: 'ADD_POMODORO'; session: PomodoroSession; taskId: string }
+  | { type: 'PURGE_POMODORO'; id: string }
   | { type: 'ADD_TAG'; tag: Tag }
   | { type: 'DELETE_TAG'; id: string }
   | { type: 'SET_THEME'; theme: 'light' | 'dark' }
@@ -45,31 +46,62 @@ const initialAppTheme: string = (() => {
 
 const initialState: State = {
   tasks: [], pomodoros: [], tags: [], loading: true,
-  // v6.0 — `theme` is derived from `appTheme` (dark-pro → dark, else → light).
+  // v6.0 — `theme` is derived from `appTheme` (any dark theme → dark, else → light).
   // Kept in sync by the SET_APP_THEME reducer case.
-  theme: initialAppTheme === 'dark-pro' ? 'dark' : 'light',
-  // v6.0 — current theme palette (ocean-blue / sunset-orange / forest-green / royal-purple / dark-pro)
+  theme: isDarkTheme(initialAppTheme) ? 'dark' : 'light',
+  // v6.1 — current theme palette (10 themes: ocean-blue / sunset-orange / forest-green /
+  // royal-purple / dark-pro / aurora / cherry / midnight / warm-sand / deep-ocean)
   appTheme: initialAppTheme,
 };
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'LOAD': return { ...state, tasks: action.tasks, pomodoros: action.pomodoros, tags: action.tags, loading: false };
-    case 'ADD_TASK': return { ...state, tasks: [action.task, ...state.tasks] };
+    case 'ADD_TASK': {
+      // v6.1 — real-time sync may push an INSERT for a task we just created locally.
+      // Treat ADD_TASK as an upsert: if the id already exists, replace it.
+      if (state.tasks.some(t => t.id === action.task.id)) {
+        return { ...state, tasks: state.tasks.map(t => t.id === action.task.id ? action.task : t) };
+      }
+      return { ...state, tasks: [action.task, ...state.tasks] };
+    }
     case 'UPDATE_TASK': return { ...state, tasks: state.tasks.map(t => t.id === action.task.id ? action.task : t) };
     case 'DELETE_TASK': return { ...state, tasks: state.tasks.map(t => t.id === action.id ? { ...t, deletedAt: Date.now() } : t) };
     case 'RESTORE_TASK': return { ...state, tasks: state.tasks.map(t => t.id === action.id ? { ...t, deletedAt: null } : t) };
     case 'PURGE_TASK': return { ...state, tasks: state.tasks.filter(t => t.id !== action.id) };
-    case 'ADD_POMODORO': return {
-      ...state,
-      pomodoros: [...state.pomodoros, action.session],
-      tasks: state.tasks.map(t => t.id === action.taskId ? { ...t, pomodoros: t.pomodoros + 1 } : t),
-    };
-    case 'ADD_TAG': if (state.tags.some(t => t.name === action.tag.name)) return state; return { ...state, tags: [...state.tags, action.tag] };
+    case 'ADD_POMODORO': {
+      // v6.1 — upsert (real-time sync may send a duplicate INSERT)
+      if (state.pomodoros.some(p => p.id === action.session.id)) {
+        return {
+          ...state,
+          pomodoros: state.pomodoros.map(p => p.id === action.session.id ? action.session : p),
+        };
+      }
+      return {
+        ...state,
+        pomodoros: [...state.pomodoros, action.session],
+        tasks: state.tasks.map(t => t.id === action.taskId ? { ...t, pomodoros: t.pomodoros + 1 } : t),
+      };
+    }
+    case 'PURGE_POMODORO': {
+      // v6.1 — remote DELETE; remove from local array (don't decrement task count
+      // since the remote delete doesn't automatically sync the task's pomodoro count).
+      return { ...state, pomodoros: state.pomodoros.filter(p => p.id !== action.id) };
+    }
+    case 'ADD_TAG': {
+      // v6.1 — upsert by id (real-time sync may send a duplicate INSERT)
+      if (state.tags.some(t => t.id === action.tag.id)) {
+        return { ...state, tags: state.tags.map(t => t.id === action.tag.id ? action.tag : t) };
+      }
+      // dedupe by name (legacy behavior — first write wins)
+      if (state.tags.some(t => t.name === action.tag.name)) return state;
+      return { ...state, tags: [...state.tags, action.tag] };
+    }
     case 'DELETE_TAG': return { ...state, tags: state.tags.filter(t => t.id !== action.id) };
     case 'SET_THEME': return { ...state, theme: action.theme };
     case 'SET_APP_THEME': {
-      const isDark = action.appTheme === 'dark-pro';
+      // v6.1 — derive `theme` (legacy 'light'|'dark') from the theme's isDark flag.
+      const isDark = isDarkTheme(action.appTheme);
       return { ...state, appTheme: action.appTheme, theme: isDark ? 'dark' : 'light' };
     }
     default: return state;
@@ -97,6 +129,37 @@ const TaskContext = createContext<ContextValue | null>(null);
 export function TaskProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
+  // v6.1 — subscribe to Supabase real-time changes when user is logged in.
+  // This makes the PC see mobile changes (and vice versa) without a refresh.
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user?.id) {
+      // Not logged in — make sure no stale subscription is running.
+      unsubscribeRealtime();
+      return;
+    }
+    // Subscribe with handlers that dispatch into our reducer.
+    subscribeRealtime(user.id, {
+      onTaskInsert: (task) => dispatch({ type: 'ADD_TASK', task }),
+      onTaskUpdate: (task) => dispatch({ type: 'UPDATE_TASK', task }),
+      onTaskDelete: (id) => dispatch({ type: 'PURGE_TASK', id }),
+      onTagInsert: (tag) => dispatch({ type: 'ADD_TAG', tag }),
+      onTagUpdate: (tag) => dispatch({ type: 'ADD_TAG', tag }), // upsert by id
+      onTagDelete: (id) => dispatch({ type: 'DELETE_TAG', id }),
+      onPomodoroInsert: (session) => dispatch({ type: 'ADD_POMODORO', session, taskId: session.taskId }),
+      onPomodoroDelete: (id) => dispatch({ type: 'PURGE_POMODORO', id }),
+      // Notes aren't in the store — dispatch a window event so NotesView refreshes.
+      onNoteChange: (eventType, note) => {
+        window.dispatchEvent(new CustomEvent('notes-realtime-change', { detail: { eventType, note } }));
+      },
+    });
+    return () => {
+      // Cleanup on logout / user change / unmount
+      unsubscribeRealtime();
+    };
+  }, [user?.id]);
+
   useEffect(() => {
     (async () => {
       try {
@@ -108,6 +171,25 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'LOAD', tasks: [], pomodoros: [], tags: [] });
       }
     })();
+  }, []);
+
+  // v6.1 — Listen for the 'cloud-poll-sync' window event (dispatched by
+  // syncFromCloud() in auth.ts when it writes new/updated remote tasks into
+  // IndexedDB). On this event, reload tasks from IndexedDB so the UI reflects
+  // the changes the polling backup picked up.
+  useEffect(() => {
+    const handler = async () => {
+      try {
+        const [tasks, pomodoros, tags] = await Promise.all([
+          getAllTasks(true), getAllPomodoros(), getAllTags(),
+        ]);
+        dispatch({ type: 'LOAD', tasks, pomodoros, tags });
+      } catch (e) {
+        console.log('Reload after poll sync failed:', e);
+      }
+    };
+    window.addEventListener('cloud-poll-sync', handler);
+    return () => window.removeEventListener('cloud-poll-sync', handler);
   }, []);
 
   useEffect(() => {
@@ -274,15 +356,17 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       deleteTagFromCloud(id).catch(e => console.log('Sync failed:', e));
     },
     toggleTheme() {
-      // v6.0 — toggle between dark-pro and the last-used light theme
-      if (state.theme === 'dark') {
+      // v6.1 — toggle between the current dark theme and the last-used light theme.
+      // Works with any dark theme (dark-pro or midnight).
+      if (isDarkTheme(state.appTheme)) {
         const lastLight = getLastLightThemeId();
         dispatch({ type: 'SET_APP_THEME', appTheme: lastLight });
       } else {
         // remember current light theme before switching to dark
-        if (state.appTheme !== 'dark-pro') {
+        if (!isDarkTheme(state.appTheme)) {
           localStorage.setItem('last-light-theme', state.appTheme);
         }
+        // Default dark theme is dark-pro (user can pick midnight from theme picker)
         dispatch({ type: 'SET_APP_THEME', appTheme: 'dark-pro' });
       }
     },

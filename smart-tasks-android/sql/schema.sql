@@ -191,3 +191,16 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ============== v6.1 — Realtime Sync (PC ↔ mobile live updates) ==============
+-- Add the 4 user-data tables to the Supabase Realtime publication so the
+-- client can subscribe to INSERT/UPDATE/DELETE events via postgres_changes.
+-- Without this, .channel('...').on('postgres_changes', ...) will not emit anything.
+-- (These statements are idempotent — re-running them is safe.)
+DO $$
+BEGIN
+  BEGIN EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks'; EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE public.tags'; EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE public.pomodoro_sessions'; EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE public.notes'; EXCEPTION WHEN OTHERS THEN NULL; END;
+END $$;

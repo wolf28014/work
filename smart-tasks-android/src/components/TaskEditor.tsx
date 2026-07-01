@@ -159,6 +159,19 @@ export default function TaskEditor({ task, onClose, template }: Props) {
       </div>
 
         <div className="px-4 space-y-4">
+          {/* v6.1 — 创建日期（仅编辑模式显示，灰色小字） */}
+          {task && (
+            <div
+              className="text-[11px] font-medium -mt-1 mb-1"
+              style={{ color: 'var(--text-tertiary)' }}
+              title={`创建于 ${new Date(task.createdAt).toLocaleString('zh-CN')}`}
+            >
+              创建于 {new Date(task.createdAt).getMonth() + 1}月{new Date(task.createdAt).getDate()}日
+              {task.updatedAt > task.createdAt && (
+                <span> · 更新于 {new Date(task.updatedAt).getMonth() + 1}月{new Date(task.updatedAt).getDate()}日</span>
+              )}
+            </div>
+          )}
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <input

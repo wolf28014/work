@@ -49,6 +49,10 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
   const subtaskDone = task.subtasks.filter(s => s.done).length;
   const subtaskTotal = task.subtasks.length;
 
+  // v6.1 — 创建日期 (M月D日 创建) — 灰色小字，显示在 info row 末尾
+  const createdDate = new Date(task.createdAt);
+  const createdLabel = `${createdDate.getMonth() + 1}月${createdDate.getDate()}日创建`;
+
   async function handleCheck() {
     if (isDone) {
       await updateTask(task.id, { status: 'todo', completedAt: null });
@@ -295,6 +299,14 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
                     title="点击开始番茄钟"
                   >🍅 {task.pomodoros}</button>
                 )}
+                {/* v6.1 — 创建日期（灰色小字，自动靠右；flex-wrap 时换行显示） */}
+                <span
+                  className="font-medium whitespace-nowrap"
+                  style={{ color: 'var(--text-quaternary)', marginLeft: 'auto' }}
+                  title={`创建于 ${createdDate.toLocaleDateString('zh-CN')}`}
+                >
+                  {createdLabel}
+                </span>
               </div>
 
               {showSubtasks && subtaskTotal > 0 && (

@@ -352,15 +352,47 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                 </div>
               </div>
 
-              {/* v6.0 — 主题选择器 */}
+              {/* 关于区 */}
+              <div>
+                <div className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-2 px-1">关于</div>
+                <div className="ios-list-group">
+                  <button onClick={() => onOpenLegal?.('about')} className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]">
+                    <span className="text-sm flex-1">关于智能待办</span>
+                    <span className="text-[color:var(--text-tertiary)]">›</span>
+                  </button>
+                  <button onClick={() => onOpenLegal?.('privacy')} className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]">
+                    <span className="text-sm flex-1">隐私政策</span>
+                    <span className="text-[color:var(--text-tertiary)]">›</span>
+                  </button>
+                  <button onClick={() => onOpenLegal?.('agreement')} className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]">
+                    <span className="text-sm flex-1">用户协议</span>
+                    <span className="text-[color:var(--text-tertiary)]">›</span>
+                  </button>
+                  <button onClick={() => onOpenLegal?.('permissions')} className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]">
+                    <span className="text-sm flex-1">权限说明</span>
+                    <span className="text-[color:var(--text-tertiary)]">›</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === 'background' && (
+            <div className="space-y-4">
+              {/* v6.1 — 主题选择器（从「通用」tab 移到这里，放于背景预设之上） */}
               <div>
                 <div className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-2 px-1">主题</div>
                 <div className="ios-list-group">
                   <div className="ios-list-item flex-col items-stretch !block py-3.5">
-                    <div className="text-[12px] text-[color:var(--text-secondary)] mb-2.5">选择主题配色</div>
+                    <div className="text-[12px] text-[color:var(--text-secondary)] mb-2.5">选择主题配色（10 款）</div>
                     <div className="flex items-center gap-2.5 flex-wrap">
                       {THEMES.map(t => {
                         const isActive = appTheme === t.id;
+                        // For gradient themes (bg is a CSS gradient), use the bg directly.
+                        // For solid-color themes, build a primary→primaryStrong gradient.
+                        const circleBg = typeof t.bg === 'string' && t.bg.includes('gradient')
+                          ? t.bg
+                          : `linear-gradient(135deg, ${t.primary}, ${t.primaryStrong})`;
                         return (
                           <button
                             key={t.id}
@@ -374,9 +406,7 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                             <div
                               className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
                               style={{
-                                background: t.isDark
-                                  ? `linear-gradient(135deg, ${t.bg}, ${t.card})`
-                                  : `linear-gradient(135deg, ${t.primary}, ${t.primaryStrong})`,
+                                background: circleBg,
                                 border: isActive
                                   ? `3px solid ${t.primary}`
                                   : `2px solid var(--border)`,
@@ -414,39 +444,12 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                       })}
                     </div>
                     <div className="text-[11px] text-[color:var(--text-tertiary)] mt-2.5 px-1 leading-relaxed">
-                      💡 选择主题会改变全 App 配色。深色模式开关在「暗夜专业版」和上次使用的浅色主题之间切换。
+                      💡 选择主题会改变全 App 配色（含渐变主题）。深色模式开关在当前深色主题和上次使用的浅色主题之间切换。
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* 关于区 */}
-              <div>
-                <div className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-2 px-1">关于</div>
-                <div className="ios-list-group">
-                  <button onClick={() => onOpenLegal?.('about')} className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]">
-                    <span className="text-sm flex-1">关于智能待办</span>
-                    <span className="text-[color:var(--text-tertiary)]">›</span>
-                  </button>
-                  <button onClick={() => onOpenLegal?.('privacy')} className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]">
-                    <span className="text-sm flex-1">隐私政策</span>
-                    <span className="text-[color:var(--text-tertiary)]">›</span>
-                  </button>
-                  <button onClick={() => onOpenLegal?.('agreement')} className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]">
-                    <span className="text-sm flex-1">用户协议</span>
-                    <span className="text-[color:var(--text-tertiary)]">›</span>
-                  </button>
-                  <button onClick={() => onOpenLegal?.('permissions')} className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]">
-                    <span className="text-sm flex-1">权限说明</span>
-                    <span className="text-[color:var(--text-tertiary)]">›</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {tab === 'background' && (
-            <div className="space-y-4">
               <div>
                 <div className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-2 px-1">预设背景</div>
                 <div className="grid grid-cols-3 gap-2.5">

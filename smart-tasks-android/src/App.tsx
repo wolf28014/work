@@ -23,10 +23,10 @@ import {
   getCustomImage,
   resolveBackgroundCss,
 } from './lib/background';
-import { initAuth, useAuth, mergeLocalToCloud } from './lib/auth';
+import { initAuth, useAuth, mergeLocalToCloud, syncFromCloud } from './lib/auth';
 import { checkUpdateOnLaunch, getCachedUpdateInfo } from './lib/updater';
 import { todayStr, isOverdue } from './lib/task-utils';
-import { getThemeById } from './lib/themes';
+import { getThemeById, isDarkTheme } from './lib/themes';
 import type { TaskTemplate } from './lib/templates';
 import type { Note } from './lib/db';
 
@@ -132,6 +132,22 @@ function Shell() {
     }
   }, [privacyAgreed]);
 
+  // v6.1 — Polling backup for cloud → local sync.
+  // The Supabase real-time subscription in store.tsx handles instant pushes,
+  // but WebSockets can drop or the app may have been offline. This 30s poll
+  // fetches any tasks with updated_at > lastSyncTime and merges them in,
+  // acting as a safety net for missed events.
+  useEffect(() => {
+    if (!user) return;
+    // Run once immediately after login (catches anything missed while offline).
+    syncFromCloud().catch(e => console.log('Initial poll sync failed:', e));
+    // Then poll every 30 seconds.
+    const interval = setInterval(() => {
+      syncFromCloud().catch(e => console.log('Poll sync failed:', e));
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
+
   // 系统返回键监听（无活动 Sheet 时退出 App）
   // 暂时禁用 backButton listener（排查黑屏问题）
   useEffect(() => {
@@ -195,7 +211,8 @@ function Shell() {
   }, [hasCustomBg, theme]);
 
   // 有自定义/预设背景时，顶栏和底栏改为半透明毛玻璃
-  const isDark = appTheme === 'dark-pro';
+  // v6.1 — isDark now uses isDarkTheme() to support midnight (and any future dark theme)
+  const isDark = isDarkTheme(appTheme);
   const barStyle = hasCustomBg
     ? { background: isDark ? 'rgba(15,15,26,0.65)' : 'rgba(255,255,255,0.65)', backdropFilter: 'blur(16px) saturate(140%)', WebkitBackdropFilter: 'blur(16px) saturate(140%)' }
     : undefined;
