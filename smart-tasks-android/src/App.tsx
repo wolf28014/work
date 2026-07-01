@@ -81,7 +81,7 @@ function Shell() {
   const [authOpen, setAuthOpen] = useState(false);
   const [proOpen, setProOpen] = useState(false);
   const [legalOpen, setLegalOpen] = useState<null | 'privacy' | 'agreement' | 'about' | 'permissions'>(null);
-  const [privacyAgreed, setPrivacyAgreed] = useState(isPrivacyAgreed());
+  const [privacyAgreed, setPrivacyAgreed] = useState(true); // 默认跳过隐私政策
   const { loading, tasks, theme } = useTaskStore();
   const { user, pro, isConfigured } = useAuth();
 
@@ -121,13 +121,9 @@ function Shell() {
   }, [privacyAgreed]);
 
   // 系统返回键监听（无活动 Sheet 时退出 App）
+  // 暂时禁用 backButton listener（排查黑屏问题）
   useEffect(() => {
-    const handleBackButton = ({ canGoBack }: { canGoBack: boolean }) => {
-      if (hasActiveSheet()) return;
-      if (canGoBack) CapacitorApp.exitApp();
-    };
-    const listener = CapacitorApp.addListener('backButton', handleBackButton);
-    return () => { listener.then(l => l.remove()); };
+    // do nothing
   }, []);
 
   async function handleAuthSuccess() {

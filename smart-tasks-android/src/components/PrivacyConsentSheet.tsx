@@ -38,7 +38,7 @@ export default function PrivacyConsentSheet() {
   }
 
   return (
-    <div className="fixed inset-0 z-[90] bg-white dark:bg-black flex flex-col">
+    <div className="fixed inset-0 z-[90] flex flex-col" style={{ background: 'var(--bg)' }}>
       <div className="flex-shrink-0 pt-12 pb-4 px-6 text-center">
         <div className="text-5xl mb-3">✅</div>
         <h1 className="text-xl font-bold mb-1">智能待办</h1>
@@ -46,7 +46,7 @@ export default function PrivacyConsentSheet() {
       </div>
 
       <div className="flex-1 overflow-y-auto no-scrollbar px-6 pb-4">
-        <div className="text-[14px] leading-relaxed text-slate-700 dark:text-slate-200 space-y-3">
+        <div className="text-[14px] leading-relaxed text-[color:var(--text-primary)] space-y-3">
           <p>欢迎使用智能待办！在使用前，请您仔细阅读并同意以下协议：</p>
 
           <div className="ios-card p-4 space-y-2">
