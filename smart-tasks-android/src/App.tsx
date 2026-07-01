@@ -165,7 +165,8 @@ function Shell() {
   const bgResolved = resolveBackgroundCss(bgSettings, customImage);
   const showCustomBg = bgSettings.type === 'custom' && customImage;
   const showPresetBg = bgSettings.type === 'preset' && bgResolved;
-  const hasCustomBg = showCustomBg || showPresetBg;
+  // 深色模式时不显示背景颜色，只有浅色模式才显示
+  const hasCustomBg = (showCustomBg || showPresetBg) && theme !== 'dark';
 
   // 有自定义/预设背景时，动态设置 body 背景为透明，让根 div 的背景显示
   useEffect(() => {
