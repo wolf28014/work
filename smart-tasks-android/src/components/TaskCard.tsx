@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import type { Task } from '../lib/db';
 import { useTaskStore } from '../lib/store';
 import {
@@ -30,7 +30,7 @@ const STATUS_VAR: Record<string, { soft: string; text: string; dot: string }> = 
 const SWIPE_THRESHOLD = 88;
 
 export default function TaskCard({ task, onEdit, onStartPomodoro, compact = false }: Props) {
-  const { completeTask, updateTask, softDeleteTask, tags } = useTaskStore();
+  const { completeTask, updateTask, softDeleteTask, tags, tasks: allTasks } = useTaskStore();
   const [showActions, setShowActions] = useState(false);
   const [showStatusSheet, setShowStatusSheet] = useState(false);
   const [showSubtasks, setShowSubtasks] = useState(false);
@@ -48,6 +48,56 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
   const isDone = task.status === 'done';
   const subtaskDone = task.subtasks.filter(s => s.done).length;
   const subtaskTotal = task.subtasks.length;
+
+  // 计算重复任务的完成频次
+  const recurrenceInfo = useMemo(() => {
+    if (!task.recurrence) return null;
+    // 找所有同标题的已完成任务（包括当前任务）
+    const completed = allTasks.filter(t =>
+      !t.deletedAt &&
+      t.title === task.title &&
+      t.status === 'done' &&
+      t.completedAt
+    );
+    if (completed.length === 0) return null;
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const weekStart = todayStart - (now.getDay() * 86400000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+    const todayDone = completed.filter(t => t.completedAt! >= todayStart);
+    const weekDone = completed.filter(t => t.completedAt! >= weekStart);
+    const monthDone = completed.filter(t => t.completedAt! >= monthStart);
+
+    // 最近一次完成日期
+    const lastDone = completed.reduce((max, t) => t.completedAt! > max ? t.completedAt! : max, 0);
+    const lastDoneDate = new Date(lastDone);
+    const lastDoneStr = `${lastDoneDate.getMonth() + 1}月${lastDoneDate.getDate()}日`;
+
+    if (task.recurrence === 'daily') {
+      const todayCompleted = todayDone.length > 0;
+      return {
+        text: todayCompleted ? `${lastDoneStr}已完成` : '今日未完成',
+        count: `本周 ${weekDone.length}次`,
+        completed: todayCompleted,
+      };
+    } else if (task.recurrence === 'weekly') {
+      const thisWeekCompleted = weekDone.length > 0;
+      return {
+        text: thisWeekCompleted ? `${lastDoneStr}已完成` : '本周未完成',
+        count: `本月 ${monthDone.length}次`,
+        completed: thisWeekCompleted,
+      };
+    } else {
+      const thisMonthCompleted = monthDone.length > 0;
+      return {
+        text: thisMonthCompleted ? `${lastDoneStr}已完成` : '本月未完成',
+        count: `总计 ${completed.length}次`,
+        completed: thisMonthCompleted,
+      };
+    }
+  }, [task, allTasks]);
 
   // v6.1 — 创建日期 (M月D日 创建) — 灰色小字，显示在 info row 末尾
   const createdDate = new Date(task.createdAt);
@@ -263,8 +313,12 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
                   </span>
                 )}
                 {task.recurrence && (
-                  <span style={{ color: 'var(--text-tertiary)' }}>
+                  <span style={{
+                    color: recurrenceInfo?.completed ? 'var(--stat-done, #10B981)' : 'var(--text-tertiary)',
+                    fontWeight: recurrenceInfo?.completed ? 600 : 400,
+                  }}>
                     ↻ {task.recurrence === 'daily' ? '每日' : task.recurrence === 'weekly' ? '每周' : '每月'}
+                    {recurrenceInfo && ` · ${recurrenceInfo.text} · ${recurrenceInfo.count}`}
                   </span>
                 )}
                 {subtaskTotal > 0 && (

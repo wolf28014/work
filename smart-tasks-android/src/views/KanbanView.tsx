@@ -415,9 +415,33 @@ function KanbanCard({ task, tagColorDot, onClick, onDragStart, onDragEnd, onLong
   const overdue = isOverdue(task);
   const [pressTimer, setPressTimer] = useState<number | null>(null);
   const [showSubtasks, setShowSubtasks] = useState(false);
-  const { updateTask } = useTaskStore();
+  const { updateTask, tasks: allTasks } = useTaskStore();
   const subtaskDone = task.subtasks.filter(s => s.done).length;
   const subtaskTotal = task.subtasks.length;
+
+  // 重复任务完成频次
+  const recurrenceInfo = useMemo(() => {
+    if (!task.recurrence) return null;
+    const completed = allTasks.filter(t => !t.deletedAt && t.title === task.title && t.status === 'done' && t.completedAt);
+    if (completed.length === 0) return null;
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const weekStart = todayStart - (now.getDay() * 86400000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const lastDone = completed.reduce((max, t) => t.completedAt! > max ? t.completedAt! : max, 0);
+    const lastDoneDate = new Date(lastDone);
+    const lastDoneStr = `${lastDoneDate.getMonth() + 1}月${lastDoneDate.getDate()}日`;
+    if (task.recurrence === 'daily') {
+      const todayDone = completed.filter(t => t.completedAt! >= todayStart);
+      return { text: todayDone.length > 0 ? `${lastDoneStr}已完成` : '今日未完成', count: `本周${completed.filter(t => t.completedAt! >= weekStart).length}次`, done: todayDone.length > 0 };
+    } else if (task.recurrence === 'weekly') {
+      const weekDone = completed.filter(t => t.completedAt! >= weekStart);
+      return { text: weekDone.length > 0 ? `${lastDoneStr}已完成` : '本周未完成', count: `本月${completed.filter(t => t.completedAt! >= monthStart).length}次`, done: weekDone.length > 0 };
+    } else {
+      const monthDone = completed.filter(t => t.completedAt! >= monthStart);
+      return { text: monthDone.length > 0 ? `${lastDoneStr}已完成` : '本月未完成', count: `总计${completed.length}次`, done: monthDone.length > 0 };
+    }
+  }, [task, allTasks]);
 
   function handleTouchStart() {
     const timer = window.setTimeout(() => {
@@ -503,7 +527,10 @@ function KanbanCard({ task, tagColorDot, onClick, onDragStart, onDragEnd, onLong
             </button>
           )}
           {task.recurrence && (
-            <span>↻ {task.recurrence === 'daily' ? '日' : task.recurrence === 'weekly' ? '周' : '月'}</span>
+            <span style={{ color: recurrenceInfo?.done ? 'var(--stat-done, #10B981)' : 'var(--text-tertiary)', fontWeight: recurrenceInfo?.done ? 600 : 400 }}>
+              ↻ {task.recurrence === 'daily' ? '日' : task.recurrence === 'weekly' ? '周' : '月'}
+              {recurrenceInfo && ` · ${recurrenceInfo.text} · ${recurrenceInfo.count}`}
+            </span>
           )}
         </div>
         <div className="flex items-center gap-2">
