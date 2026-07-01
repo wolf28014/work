@@ -117,22 +117,34 @@ export default function NotesView({ onOpenEditor }: Props) {
 
       {/* Search */}
       <div className="relative mb-3">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10" style={{ color: 'var(--text-tertiary)' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+        </span>
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="搜索笔记…"
-          className="ios-input pl-9"
-          style={{ background: 'var(--bg-elevated)' }}
+          className="ios-input"
+          style={{
+            background: 'var(--bg-elevated)',
+            paddingTop: 10,
+            paddingBottom: 10,
+            paddingLeft: 36,
+            paddingRight: query ? 36 : 14,
+            borderRadius: 'var(--r-pill)',
+          }}
         />
-        <svg
-          width="16" height="16" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-          className="absolute left-3 top-1/2 -translate-y-1/2"
-          style={{ color: 'var(--text-tertiary)' }}
-        >
-          <circle cx="11" cy="11" r="8" />
-          <path d="m21 21-4.3-4.3" />
-        </svg>
+        {query && (
+          <button
+            onClick={() => setQuery('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center z-10"
+            style={{ background: 'var(--bg-sunken)', color: 'var(--text-secondary)' }}
+            aria-label="清除"
+          >×</button>
+        )}
       </div>
 
       {/* Notes list */}
