@@ -1,0 +1,15 @@
+{
+  "name": "智能待办",
+  "short_name": "Smart Tasks",
+  "description": "AI 智能任务管理工具",
+  "start_url": "/work/",
+  "scope": "/work/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f0f1a",
+  "theme_color": "#6366F1",
+  "icons": [
+    { "src": "/work/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/work/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
