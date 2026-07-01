@@ -95,7 +95,7 @@ export default function NotesView({ onOpenEditor }: Props) {
   }
 
   return (
-    <div className="px-4 py-3 pb-6">
+    <div className="px-4 py-3 pb-6 pc-content-wrap">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-[22px] font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>笔记</h2>
@@ -152,7 +152,7 @@ export default function NotesView({ onOpenEditor }: Props) {
           </div>
         </div>
       ) : (
-        <div className="space-y-2.5">
+        <div className="notes-grid space-y-2.5">
           {visibleNotes.map(note => {
             const previewText = preview(note.content);
             return (

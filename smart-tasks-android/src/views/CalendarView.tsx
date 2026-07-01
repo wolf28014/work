@@ -72,7 +72,7 @@ export default function CalendarView({ onEdit }: Props) {
   const tStr = todayStr();
 
   return (
-    <div className="pb-4">
+    <div className="pb-4 pc-content-wrap">
       {/* 月份切换 */}
       <div className="flex items-center justify-between px-4 py-3">
         <button
@@ -105,7 +105,7 @@ export default function CalendarView({ onEdit }: Props) {
       </div>
 
       {/* 日历主体 */}
-      <div className="grid grid-cols-7 px-2 gap-1">
+      <div className="cal-grid grid grid-cols-7 px-2 gap-1">
         {days.map((d, i) => {
           if (!d) return <div key={i} />;
           const dayTasks = tasksByDate.get(d.date) || [];

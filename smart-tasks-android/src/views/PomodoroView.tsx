@@ -89,6 +89,18 @@ export default function PomodoroView({ onEdit, initialTaskId }: Props) {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [running, mode, handleComplete]);
 
+  // v6.2 — listen for the 'pomodoro-toggle' window event dispatched by the
+  // PC keyboard shortcut (Space). Allows starting/pausing without clicking.
+  // Uses a ref so the listener is added once and always calls the latest
+  // toggle() (which closes over the latest secondsLeft / mode values).
+  const toggleRef = useRef<() => void>(() => {});
+  toggleRef.current = toggle;
+  useEffect(() => {
+    const handler = () => toggleRef.current();
+    window.addEventListener('pomodoro-toggle', handler);
+    return () => window.removeEventListener('pomodoro-toggle', handler);
+  }, []);
+
   function toggle() {
     if (secondsLeft === 0) setSecondsLeft(totalSeconds);
     setRunning(r => !r);

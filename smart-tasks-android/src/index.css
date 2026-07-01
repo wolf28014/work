@@ -497,3 +497,232 @@ body.dark select option {
 .swipe-reveal-right {
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(99, 102, 241, 0.10));
 }
+
+/* ============================================================
+   v6.2 — PC / Desktop layout (sidebar + main, wider content)
+   Mobile-first: `.pc-only` hidden by default, `.mobile-only` visible.
+   At ≥768px, swap visibility and switch root to row layout.
+   ============================================================ */
+.pc-only { display: none !important; }
+
+/* Sync indicator (visible on both, but styled here for reuse) */
+.sync-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  user-select: none;
+}
+.sync-indicator.syncing {
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-color: var(--primary-border);
+}
+.sync-indicator .sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 6px var(--primary-glow);
+  flex-shrink: 0;
+}
+.sync-indicator.syncing .sync-dot {
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@media (min-width: 768px) {
+  .mobile-only { display: none !important; }
+  .pc-only { display: flex !important; }
+  .pc-only.is-block { display: block !important; }
+
+  /* Root becomes sidebar + main column */
+  .app-root {
+    flex-direction: row !important;
+  }
+
+  /* Sidebar (left) */
+  .pc-sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    flex-direction: column;
+    background: var(--bar-bg);
+    backdrop-filter: saturate(160%) blur(20px);
+    -webkit-backdrop-filter: saturate(160%) blur(20px);
+    border-right: 1px solid var(--border);
+    padding: 16px 12px;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  .pc-sidebar-logo {
+    padding: 4px 8px 16px;
+    align-items: center;
+    gap: 8px;
+    font-weight: 800;
+    font-size: 16px;
+  }
+  .pc-sidebar-nav {
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+  }
+  .pc-sidebar-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: var(--r-md);
+    background: transparent;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.15s;
+    cursor: pointer;
+    border: 1px solid transparent;
+    width: 100%;
+    text-align: left;
+  }
+  .pc-sidebar-nav-item:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+  }
+  .pc-sidebar-nav-item.active {
+    background: var(--primary-soft);
+    color: var(--primary);
+    border-color: var(--primary-border);
+  }
+  .pc-sidebar-footer {
+    margin-top: 12px;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .pc-sidebar-login-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 8px 12px;
+    border-radius: var(--r-pill);
+    background: var(--primary-soft);
+    border: 1px solid var(--primary-border);
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* Main wrap (right column) */
+  .pc-main-wrap {
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* PC top bar (replaces mobile header) */
+  .pc-top-bar {
+    align-items: center;
+    gap: 12px;
+    padding: 12px 24px;
+    background: var(--bar-bg);
+    backdrop-filter: saturate(160%) blur(22px);
+    -webkit-backdrop-filter: saturate(160%) blur(22px);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .pc-top-bar-title {
+    flex: 1;
+    min-width: 0;
+  }
+  .pc-top-bar-title h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+  }
+  .pc-top-bar-title .sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .pc-top-bar-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: var(--r-pill);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    transition: all 0.15s;
+  }
+  .pc-top-bar-btn:hover { background: var(--card-hover); color: var(--text-primary); }
+  .pc-top-bar-btn.primary {
+    background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+    color: #ffffff;
+    border-color: transparent;
+    box-shadow: 0 4px 12px var(--primary-glow);
+  }
+  .pc-top-bar-btn.icon-only {
+    width: 36px;
+    padding: 0;
+  }
+
+  /* Centered, wider content area on PC */
+  .pc-content-wrap {
+    max-width: 900px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 0 24px;
+  }
+
+  /* 2-column task list grid on PC */
+  .task-list-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  /* When grouped by tag, keep the per-group grid */
+  .task-list-grid .task-list-grid { gap: 12px; }
+
+  /* 4-column KPI grid on PC (Dashboard) */
+  .kpi-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+
+  /* 2-column Kanban task list on PC */
+  .kanban-task-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  /* Larger calendar cells on PC: stretch the grid to fill width */
+  .cal-grid { gap: 6px; }
+  .cal-grid > button { aspect-ratio: 1 / 1; }
+
+  /* Notes: 2-column grid on PC */
+  .notes-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  /* Sync indicator in PC sidebar footer */
+  .pc-sidebar .sync-indicator { width: 100%; justify-content: center; }
+}
+
+@media (max-width: 767px) {
+  .pc-only { display: none !important; }
+}

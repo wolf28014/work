@@ -94,8 +94,25 @@ function Shell() {
   const [proOpen, setProOpen] = useState(false);
   const [legalOpen, setLegalOpen] = useState<null | 'privacy' | 'agreement' | 'about' | 'permissions'>(null);
   const [privacyAgreed, setPrivacyAgreed] = useState(true); // 默认跳过隐私政策
+  // v6.2 — sync indicator state: true while a cloud poll is in-flight.
+  const [isSyncing, setIsSyncing] = useState(false);
   const { loading, tasks, theme, appTheme } = useTaskStore();
   const { user, pro, isConfigured } = useAuth();
+
+  // v6.2 — wraps syncFromCloud so the sync indicator reflects in-flight state.
+  // Used both for the immediate-on-login sync and the 30 s polling interval.
+  async function doCloudSync() {
+    if (!user) return;
+    setIsSyncing(true);
+    try {
+      await syncFromCloud();
+    } catch (e) {
+      console.log('Poll sync failed:', e);
+    } finally {
+      // Brief delay so the indicator is visible even on very fast polls.
+      setTimeout(() => setIsSyncing(false), 400);
+    }
+  }
 
   // 背景设置（全局生效）
   const [bgSettings, setBgSettings] = useState(getBackgroundSettings);
@@ -137,15 +154,18 @@ function Shell() {
   // but WebSockets can drop or the app may have been offline. This 30s poll
   // fetches any tasks with updated_at > lastSyncTime and merges them in,
   // acting as a safety net for missed events.
+  // v6.2 — now also syncs notes (syncFromCloud was extended to fetch notes).
+  // The wrapper doCloudSync() updates the isSyncing state for the indicator.
   useEffect(() => {
     if (!user) return;
     // Run once immediately after login (catches anything missed while offline).
-    syncFromCloud().catch(e => console.log('Initial poll sync failed:', e));
+    doCloudSync();
     // Then poll every 30 seconds.
     const interval = setInterval(() => {
-      syncFromCloud().catch(e => console.log('Poll sync failed:', e));
+      doCloudSync();
     }, 30000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // 系统返回键监听（无活动 Sheet 时退出 App）
@@ -184,6 +204,85 @@ function Shell() {
     setTab(newTab);
   }
 
+  // v6.2 — close any open sheet (used by Esc keyboard shortcut).
+  function closeAnyOpenSheet() {
+    if (editorOpen) { setEditorOpen(false); return; }
+    if (templatePickerOpen) { setTemplatePickerOpen(false); return; }
+    if (noteEditorOpen) { setNoteEditorOpen(false); return; }
+    if (settingsOpen) { setSettingsOpen(false); return; }
+    if (aiOpen) { setAIOpen(false); return; }
+    if (authOpen) { setAuthOpen(false); return; }
+    if (proOpen) { setProOpen(false); return; }
+    if (legalOpen) { setLegalOpen(null); return; }
+  }
+
+  // v6.2 — PC keyboard shortcuts.
+  //   Ctrl/Cmd+N → new task (preventDefault so the browser doesn't open a new window)
+  //   Ctrl/Cmd+F → focus search in list view (switches to list first)
+  //   1..6       → switch tabs
+  //   Esc        → close any open sheet
+  //   Space      → start/pause pomodoro (only on pomodoro tab)
+  // Skipped when an input/textarea/contenteditable is focused (Esc still closes sheets).
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      const isTyping = tag === 'input' || tag === 'textarea' || tag === 'select' ||
+                        (target?.isContentEditable === true);
+
+      // Esc always closes sheets, even while typing.
+      if (e.key === 'Escape') {
+        if (hasActiveSheet()) {
+          e.preventDefault();
+          closeAnyOpenSheet();
+        }
+        return;
+      }
+
+      if (isTyping) return;
+
+      // Ctrl/Cmd+N → new task
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'n' || e.key === 'N')) {
+        e.preventDefault();
+        openNewTask();
+        return;
+      }
+
+      // Ctrl/Cmd+F → focus search (list view)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        if (tab !== 'list') switchTab('list');
+        // Defer to next tick so the ListView has time to mount.
+        setTimeout(() => {
+          const el = document.querySelector<HTMLElement>('[data-search-input]');
+          el?.focus();
+        }, 50);
+        return;
+      }
+
+      // 1..6 → switch tabs (TABS has 6 entries)
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && /^[1-6]$/.test(e.key)) {
+        const idx = parseInt(e.key, 10) - 1;
+        const tabTarget = TABS[idx];
+        if (tabTarget) {
+          e.preventDefault();
+          switchTab(tabTarget.id);
+        }
+        return;
+      }
+
+      // Space → start/pause pomodoro (only on pomodoro tab)
+      if (e.key === ' ' && tab === 'pomodoro') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('pomodoro-toggle'));
+        return;
+      }
+    }
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, editorOpen, templatePickerOpen, noteEditorOpen, settingsOpen, aiOpen, authOpen, proOpen, legalOpen]);
+
   if (!privacyAgreed) {
     return <PrivacyConsentSheet />;
   }
@@ -217,9 +316,13 @@ function Shell() {
     ? { background: isDark ? 'rgba(15,15,26,0.65)' : 'rgba(255,255,255,0.65)', backdropFilter: 'blur(16px) saturate(140%)', WebkitBackdropFilter: 'blur(16px) saturate(140%)' }
     : undefined;
 
+  // v6.2 — current tab's display name for PC top bar / sidebar header.
+  const activeTab = TABS.find(t => t.id === tab);
+  const syncLabel = isSyncing ? '同步中…' : (user ? '已同步' : '未登录');
+
   return (
     <div
-      className="flex flex-col h-screen overflow-hidden relative"
+      className="app-root flex flex-col h-screen overflow-hidden relative"
       style={showPresetBg ? { background: bgResolved!.css, minHeight: '100vh' } : showCustomBg ? { minHeight: '100vh' } : {}}
     >
       {/* 底层：用户自定义图片（全局覆盖） */}
@@ -230,185 +333,329 @@ function Shell() {
         />
       )}
 
-      {/* iOS-style 顶栏：AI 按钮（左）+ 标题（中）+ 设置/Pro（右） */}
-      <header className="app-header sticky top-0 z-30" style={{ paddingTop: 'var(--safe-top)', ...(barStyle || {}) }}>
-        <div className="px-4 pt-2 pb-2.5">
-          <div className="flex items-center justify-between gap-3">
-            {/* 左侧：AI 按钮 */}
-            <button
-              onClick={() => setAIOpen(true)}
-              className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform flex-shrink-0"
-              style={{
-                background: 'var(--primary-soft)',
-                border: '1px solid var(--primary-border)',
-              }}
-              aria-label="AI 助手"
-            >
-              <span style={{ fontSize: 16, color: 'var(--primary)', fontWeight: 700 }}>✦</span>
-            </button>
-
-            {/* 中间：问候（左对齐，更自然） */}
-            <div className="flex-1 min-w-0">
-              <h1 className="text-[17px] font-bold tracking-tight truncate" style={{ color: 'var(--text-primary)' }}>
-                {greeting.title}
-              </h1>
-              <div className="text-[11px] font-medium truncate" style={{ color: 'var(--text-secondary)' }}>
-                {new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })}
-              </div>
-            </div>
-
-            {/* 右侧：Pro + 设置 */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {pro?.isPro ? (
-                <button
-                  onClick={() => setProOpen(true)}
-                  className="flex items-center gap-1 px-2.5 h-9 rounded-full active:scale-95 transition-transform"
-                  style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))', color: '#ffffff', boxShadow: '0 4px 12px var(--primary-glow)' }}
-                >
-                  <span className="text-[11px] font-bold">PRO</span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => setProOpen(true)}
-                  className="flex items-center gap-1 px-2.5 h-9 rounded-full active:scale-95 transition-transform"
-                  style={{ background: 'var(--primary-soft)', border: '1px solid var(--primary-border)', color: 'var(--primary)' }}
-                >
-                  <span className="text-[11px]">✦</span>
-                  <span className="text-[11px] font-bold">升级</span>
-                </button>
-              )}
-              <button
-                onClick={() => setSettingsOpen(true)}
-                className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform"
-                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
-                aria-label="设置"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-secondary)' }}>
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                </svg>
-              </button>
-            </div>
-          </div>
+      {/* ============================================================
+          v6.2 — PC sidebar (hidden on mobile via .pc-only).
+          Logo at top, vertical tab nav in middle, sync indicator +
+          Pro + settings + login at the bottom.
+          ============================================================ */}
+      <aside className="pc-sidebar pc-only" style={barStyle || {}}>
+        <div className="pc-sidebar-logo" style={{ color: 'var(--text-primary)' }}>
+          <span style={{ color: 'var(--primary)' }}>✦</span>
+          <span>Smart-Tasks</span>
         </div>
-      </header>
 
-      {/* 更新提醒横幅 */}
-      {updateBanner && (
-        <div className="mx-4 mt-2 ios-card p-3 fade-in flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
-            <span style={{ color: 'var(--primary)', fontSize: 16, fontWeight: 700 }}>✦</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>
-              发现新版本 v{updateBanner.version}
-            </div>
-            <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
-              点击下载，体验更多新功能
-            </div>
-          </div>
-          <button
-            onClick={() => {
-              window.open(updateBanner.url, '_blank');
-              showToast('正在跳转浏览器下载…', 'info');
-            }}
-            className="px-3 py-1.5 rounded-full text-[12px] font-bold active:scale-95 transition-transform"
-            style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))', color: '#ffffff' }}
-          >下载</button>
-          <button
-            onClick={() => setUpdateBanner(null)}
-            className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
-          >×</button>
-        </div>
-      )}
-
-      <main className="flex-1 overflow-y-auto no-scrollbar">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3">
-            <div className="w-10 h-10 rounded-full border-2 border-transparent" style={{ borderTopColor: 'var(--primary)', animation: 'spinSlow 1s linear infinite' }} />
-            <div style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>加载中…</div>
-          </div>
-        ) : (
-          <div
-            key={tab}
-            className={tabDirection === 'left' ? 'tab-slide-in-left' : 'tab-slide-in-right'}
-          >
-            {tab === 'list' && <ListView onEdit={openEditTask} onNew={openNewTask} onStartPomodoro={(t) => {
-              setPomodoroTaskId(t.id);
-              switchTab('pomodoro');
-            }} />}
-            {tab === 'kanban' && <KanbanView onEdit={openEditTask} onNew={openNewTask} onStartPomodoro={(t) => {
-              setPomodoroTaskId(t.id);
-              switchTab('pomodoro');
-            }} />}
-            {tab === 'calendar' && <CalendarView onEdit={openEditTask} onNew={openNewTask} />}
-            {tab === 'pomodoro' && <PomodoroView onEdit={openEditTask} initialTaskId={pomodoroTaskId} />}
-            {tab === 'dashboard' && <DashboardView onOpenPro={() => setProOpen(true)} />}
-            {tab === 'notes' && <NotesView key={notesRefreshSignal} onOpenEditor={openNoteEditor} />}
-          </div>
-        )}
-      </main>
-
-      {/* 新建任务浮动按钮（右下角） — 笔记页有自己的新建按钮 */}
-      {tab !== 'pomodoro' && tab !== 'dashboard' && tab !== 'notes' && (
-        <button
-          onClick={openNewTask}
-          className="absolute right-4 z-40 w-14 h-14 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-          style={{
-            bottom: `calc(72px + var(--safe-bottom))`,
-            background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))',
-            color: '#ffffff',
-            boxShadow: 'var(--shadow-fab)',
-          }}
-          aria-label="新建任务"
-        >
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
-      )}
-
-      {/* iOS 风格底部 Tab Bar */}
-      <nav className="tab-bar z-30" style={barStyle || {}}>
-        <div className="flex items-center justify-around px-2" style={{ height: 56 }}>
+        <nav className="pc-sidebar-nav">
           {TABS.map(t => {
             const isActive = tab === t.id;
             return (
               <button
                 key={t.id}
                 onClick={() => switchTab(t.id)}
-                className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full active:scale-95 transition-transform"
-                style={{ opacity: isActive ? 1 : 0.55 }}
+                className={`pc-sidebar-nav-item ${isActive ? 'active' : ''}`}
               >
                 <TabIcon glyph={t.glyph} active={isActive} />
-                <span
-                  className="text-[11px] font-bold transition-colors"
-                  style={{ color: isActive ? 'var(--primary)' : 'var(--text-secondary)' }}
-                >
-                  {t.label}
-                </span>
+                <span>{t.label}</span>
               </button>
             );
           })}
-        </div>
-      </nav>
+        </nav>
 
-      {/* 未登录提示 */}
-      {!user && isConfigured && (
-        <button
-          onClick={() => setAuthOpen(true)}
-          className="absolute right-4 z-30 px-3 py-1.5 text-[11px] font-medium rounded-full active:scale-95 transition-transform"
-          style={{
-            top: `calc(var(--safe-top) + 56px)`,
-            background: 'var(--primary-soft)',
-            border: '1px solid var(--primary-border)',
-            color: 'var(--primary)',
-          }}
-        >
-          登录同步
-        </button>
-      )}
+        <div className="pc-sidebar-footer">
+          {/* Sync indicator — visible only when logged in */}
+          {user && (
+            <div className={`sync-indicator ${isSyncing ? 'syncing' : ''}`} title={user.email || user.phone || '已登录'}>
+              {isSyncing ? (
+                <span className="sync-dot" />
+              ) : (
+                <span style={{ color: 'var(--primary)', fontWeight: 900, fontSize: 11 }}>✓</span>
+              )}
+              <span>{syncLabel}</span>
+            </div>
+          )}
+
+          {/* Login button — visible only when not logged in */}
+          {!user && isConfigured && (
+            <button className="pc-sidebar-login-btn" onClick={() => setAuthOpen(true)}>
+              登录同步
+            </button>
+          )}
+
+          {/* Pro button */}
+          {pro?.isPro ? (
+            <button
+              onClick={() => setProOpen(true)}
+              className="pc-sidebar-nav-item"
+              style={{
+                background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))',
+                color: '#ffffff',
+                borderColor: 'transparent',
+                justifyContent: 'center',
+                boxShadow: '0 4px 12px var(--primary-glow)',
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 800 }}>PRO</span>
+            </button>
+          ) : (
+            <button onClick={() => setProOpen(true)} className="pc-sidebar-nav-item" style={{ justifyContent: 'center' }}>
+              <span style={{ color: 'var(--primary)' }}>✦</span>
+              <span>升级 Pro</span>
+            </button>
+          )}
+
+          {/* Settings button */}
+          <button onClick={() => setSettingsOpen(true)} className="pc-sidebar-nav-item" style={{ justifyContent: 'center' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-secondary)' }}>
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            <span>设置</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Main wrapper: contains mobile header (hidden on PC), PC top bar
+          (hidden on mobile), main content, mobile tab bar (hidden on PC),
+          mobile FAB (hidden on PC), mobile login button (hidden on PC). */}
+      <div className="pc-main-wrap flex flex-1 flex-col min-w-0 overflow-hidden">
+        {/* ============================================================
+            Mobile header (hidden on PC via .mobile-only)
+            ============================================================ */}
+        <header className="app-header mobile-only sticky top-0 z-30" style={{ paddingTop: 'var(--safe-top)', ...(barStyle || {}) }}>
+          <div className="px-4 pt-2 pb-2.5">
+            <div className="flex items-center justify-between gap-3">
+              {/* 左侧：AI 按钮 */}
+              <button
+                onClick={() => setAIOpen(true)}
+                className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform flex-shrink-0"
+                style={{
+                  background: 'var(--primary-soft)',
+                  border: '1px solid var(--primary-border)',
+                }}
+                aria-label="AI 助手"
+              >
+                <span style={{ fontSize: 16, color: 'var(--primary)', fontWeight: 700 }}>✦</span>
+              </button>
+
+              {/* 中间：问候（左对齐，更自然） */}
+              <div className="flex-1 min-w-0">
+                <h1 className="text-[17px] font-bold tracking-tight truncate" style={{ color: 'var(--text-primary)' }}>
+                  {greeting.title}
+                </h1>
+                <div className="text-[11px] font-medium truncate" style={{ color: 'var(--text-secondary)' }}>
+                  {new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })}
+                </div>
+              </div>
+
+              {/* 右侧：Pro + 设置 */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {pro?.isPro ? (
+                  <button
+                    onClick={() => setProOpen(true)}
+                    className="flex items-center gap-1 px-2.5 h-9 rounded-full active:scale-95 transition-transform"
+                    style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))', color: '#ffffff', boxShadow: '0 4px 12px var(--primary-glow)' }}
+                  >
+                    <span className="text-[11px] font-bold">PRO</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setProOpen(true)}
+                    className="flex items-center gap-1 px-2.5 h-9 rounded-full active:scale-95 transition-transform"
+                    style={{ background: 'var(--primary-soft)', border: '1px solid var(--primary-border)', color: 'var(--primary)' }}
+                  >
+                    <span className="text-[11px]">✦</span>
+                    <span className="text-[11px] font-bold">升级</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setSettingsOpen(true)}
+                  className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                  aria-label="设置"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-secondary)' }}>
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* ============================================================
+            PC top bar (hidden on mobile via .pc-only)
+            Title + sync indicator + new task + AI + Pro + settings
+            ============================================================ */}
+        <div className="pc-top-bar pc-only" style={barStyle || {}}>
+          <div className="pc-top-bar-title">
+            <h1>{activeTab?.label || greeting.title}</h1>
+            <div className="sub">
+              {new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
+            </div>
+          </div>
+
+          {/* Sync indicator (PC top bar — visible only when logged in) */}
+          {user && (
+            <div className={`sync-indicator ${isSyncing ? 'syncing' : ''}`} title={user.email || user.phone || '已登录'}>
+              {isSyncing ? (
+                <span className="sync-dot" />
+              ) : (
+                <span style={{ color: 'var(--primary)', fontWeight: 900, fontSize: 11 }}>✓</span>
+              )}
+              <span>{syncLabel}</span>
+            </div>
+          )}
+
+          {/* New task button — hidden on pomodoro / dashboard / notes tabs (those have their own) */}
+          {tab !== 'pomodoro' && tab !== 'dashboard' && tab !== 'notes' && (
+            <button onClick={openNewTask} className="pc-top-bar-btn primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              <span>新建任务</span>
+            </button>
+          )}
+
+          <button onClick={() => setAIOpen(true)} className="pc-top-bar-btn icon-only" aria-label="AI 助手">
+            <span style={{ color: 'var(--primary)', fontWeight: 700, fontSize: 15 }}>✦</span>
+          </button>
+
+          {pro?.isPro ? (
+            <button onClick={() => setProOpen(true)} className="pc-top-bar-btn primary" style={{ padding: '0 12px' }}>
+              <span style={{ fontSize: 11, fontWeight: 800 }}>PRO</span>
+            </button>
+          ) : (
+            <button onClick={() => setProOpen(true)} className="pc-top-bar-btn">
+              <span style={{ color: 'var(--primary)' }}>✦</span>
+              <span>升级</span>
+            </button>
+          )}
+
+          <button onClick={() => setSettingsOpen(true)} className="pc-top-bar-btn icon-only" aria-label="设置">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-secondary)' }}>
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+        </div>
+
+        {/* 更新提醒横幅 */}
+        {updateBanner && (
+          <div className="mx-4 mt-2 ios-card p-3 fade-in flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
+              <span style={{ color: 'var(--primary)', fontSize: 16, fontWeight: 700 }}>✦</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>
+                发现新版本 v{updateBanner.version}
+              </div>
+              <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                点击下载，体验更多新功能
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                window.open(updateBanner.url, '_blank');
+                showToast('正在跳转浏览器下载…', 'info');
+              }}
+              className="px-3 py-1.5 rounded-full text-[12px] font-bold active:scale-95 transition-transform"
+              style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))', color: '#ffffff' }}
+            >下载</button>
+            <button
+              onClick={() => setUpdateBanner(null)}
+              className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+            >×</button>
+          </div>
+        )}
+
+        <main className="flex-1 overflow-y-auto no-scrollbar">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3">
+              <div className="w-10 h-10 rounded-full border-2 border-transparent" style={{ borderTopColor: 'var(--primary)', animation: 'spinSlow 1s linear infinite' }} />
+              <div style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>加载中…</div>
+            </div>
+          ) : (
+            <div
+              key={tab}
+              className={tabDirection === 'left' ? 'tab-slide-in-left' : 'tab-slide-in-right'}
+            >
+              {tab === 'list' && <ListView onEdit={openEditTask} onNew={openNewTask} onStartPomodoro={(t) => {
+                setPomodoroTaskId(t.id);
+                switchTab('pomodoro');
+              }} />}
+              {tab === 'kanban' && <KanbanView onEdit={openEditTask} onNew={openNewTask} onStartPomodoro={(t) => {
+                setPomodoroTaskId(t.id);
+                switchTab('pomodoro');
+              }} />}
+              {tab === 'calendar' && <CalendarView onEdit={openEditTask} onNew={openNewTask} />}
+              {tab === 'pomodoro' && <PomodoroView onEdit={openEditTask} initialTaskId={pomodoroTaskId} />}
+              {tab === 'dashboard' && <DashboardView onOpenPro={() => setProOpen(true)} />}
+              {tab === 'notes' && <NotesView key={notesRefreshSignal} onOpenEditor={openNoteEditor} />}
+            </div>
+          )}
+        </main>
+
+        {/* 新建任务浮动按钮（右下角） — 笔记页有自己的新建按钮。Hidden on PC. */}
+        {tab !== 'pomodoro' && tab !== 'dashboard' && tab !== 'notes' && (
+          <button
+            onClick={openNewTask}
+            className="mobile-only absolute right-4 z-40 w-14 h-14 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+            style={{
+              bottom: `calc(72px + var(--safe-bottom))`,
+              background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))',
+              color: '#ffffff',
+              boxShadow: 'var(--shadow-fab)',
+            }}
+            aria-label="新建任务"
+          >
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </button>
+        )}
+
+        {/* iOS 风格底部 Tab Bar — mobile only */}
+        <nav className="tab-bar mobile-only z-30" style={barStyle || {}}>
+          <div className="flex items-center justify-around px-2" style={{ height: 56 }}>
+            {TABS.map(t => {
+              const isActive = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => switchTab(t.id)}
+                  className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full active:scale-95 transition-transform"
+                  style={{ opacity: isActive ? 1 : 0.55 }}
+                >
+                  <TabIcon glyph={t.glyph} active={isActive} />
+                  <span
+                    className="text-[11px] font-bold transition-colors"
+                    style={{ color: isActive ? 'var(--primary)' : 'var(--text-secondary)' }}
+                  >
+                    {t.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+
+        {/* 未登录提示 — mobile only (PC shows it in sidebar) */}
+        {!user && isConfigured && (
+          <button
+            onClick={() => setAuthOpen(true)}
+            className="mobile-only absolute right-4 z-30 px-3 py-1.5 text-[11px] font-medium rounded-full active:scale-95 transition-transform"
+            style={{
+              top: `calc(var(--safe-top) + 56px)`,
+              background: 'var(--primary-soft)',
+              border: '1px solid var(--primary-border)',
+              color: 'var(--primary)',
+            }}
+          >
+            登录同步
+          </button>
+        )}
+      </div>
 
       {editorOpen && (<TaskEditor task={editorTask} template={editorTemplate} onClose={() => setEditorOpen(false)} />)}
       {templatePickerOpen && (

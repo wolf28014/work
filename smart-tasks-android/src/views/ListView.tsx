@@ -127,7 +127,7 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
   ];
 
   return (
-    <div className="pb-4">
+    <div className="pb-4 pc-content-wrap">
       {/* 搜索 + 工具栏 */}
       <div className="px-4 pt-3 pb-2 sticky top-0 z-20 app-header">
         <div className="flex items-center gap-2">
@@ -142,6 +142,7 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
               onChange={e => setQuery(e.target.value)}
               placeholder="搜索任务…"
               className="ios-input"
+              data-search-input
               style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 36, paddingRight: query ? 36 : 14, borderRadius: 'var(--r-pill)' }}
             />
             {query && (
@@ -294,7 +295,7 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
                     <div className="flex-1 h-px ml-1" style={{ background: 'var(--border)' }} />
                   </div>
                 ) : null}
-                <div className="space-y-2.5">
+                <div className="space-y-2.5 task-list-grid">
                   {group.tasks.map(task => (
                     <div key={task.id} className={batchMode ? 'flex items-center gap-2' : ''}>
                       {batchMode && (

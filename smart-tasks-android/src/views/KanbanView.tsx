@@ -252,7 +252,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
           </div>
 
           {/* 任务卡片列表 */}
-          <div className="p-3 space-y-2.5 min-h-[200px]" onDragOver={e => e.preventDefault()}>
+          <div className="p-3 space-y-2.5 min-h-[200px] kanban-task-grid" onDragOver={e => e.preventDefault()}>
             {currentTasks.length === 0 ? (
               <div className="text-center py-16">
                 <div

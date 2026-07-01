@@ -311,8 +311,14 @@ export async function syncTaskToCloud(task: Task) {
 //
 // Stored in localStorage so it persists across sessions and survives page
 // reloads. Without this, every poll would re-fetch ALL tasks.
+//
+// v6.2 — notes get their own watermark (`last-cloud-sync-time-notes`) since
+// notes and tasks have independent update timestamps. A single shared
+// watermark would advance past note updates whenever a task was newer.
 const LAST_SYNC_KEY = 'last-cloud-sync-time';
+const LAST_SYNC_NOTES_KEY = 'last-cloud-sync-time-notes';
 let lastSyncTime = 0;
+let lastSyncNotesTime = 0;
 
 function getLastSyncTime(): number {
   if (lastSyncTime > 0) return lastSyncTime;
@@ -328,6 +334,20 @@ function setLastSyncTime(t: number) {
   try { localStorage.setItem(LAST_SYNC_KEY, String(t)); } catch {}
 }
 
+function getLastSyncNotesTime(): number {
+  if (lastSyncNotesTime > 0) return lastSyncNotesTime;
+  try {
+    const stored = localStorage.getItem(LAST_SYNC_NOTES_KEY);
+    lastSyncNotesTime = stored ? parseInt(stored, 10) || 0 : 0;
+  } catch { lastSyncNotesTime = 0; }
+  return lastSyncNotesTime;
+}
+
+function setLastSyncNotesTime(t: number) {
+  lastSyncNotesTime = t;
+  try { localStorage.setItem(LAST_SYNC_NOTES_KEY, String(t)); } catch {}
+}
+
 /**
  * v6.1 — Incremental cloud → local sync. Acts as a backup to the Supabase
  * real-time subscription (which can miss events when the WebSocket drops or
@@ -339,64 +359,114 @@ function setLastSyncTime(t: number) {
  *        - the local task doesn't exist (new from another device), OR
  *        - remote.updated_at > local.updated_at (other device has newer edit)
  *   3. Advance lastSyncTime to the max updated_at seen.
- *   4. If anything changed, dispatch a 'cloud-poll-sync' window event so the
- *      store can reload tasks from IndexedDB.
+ *   4. Repeat steps 1-3 for notes (v6.2) using a separate watermark.
+ *   5. If anything changed, dispatch a 'cloud-poll-sync' window event so the
+ *      store can reload tasks from IndexedDB, and a 'notes-realtime-change'
+ *      window event so NotesView refreshes.
  *
  * Safe to call repeatedly — does nothing if not logged in or Supabase is not
- * configured. Returns the number of tasks that were actually written to local
- * IndexedDB (0 in the common steady-state case).
+ * configured. Returns the number of rows (tasks + notes) actually written to
+ * local IndexedDB (0 in the common steady-state case).
  */
 export async function syncFromCloud(): Promise<number> {
   if (!currentUser) return 0;
   const sb = getSupabase();
   if (!sb) return 0;
 
-  const since = getLastSyncTime();
+  let totalUpdated = 0;
+
+  // === TASKS ===
+  const sinceTasks = getLastSyncTime();
   const { data: remoteTasks, error } = await sb
     .from('tasks')
     .select('*')
     .eq('user_id', currentUser.id)
-    .gt('updated_at', since);
-  if (error || !remoteTasks) return 0;
-  if (remoteTasks.length === 0) {
-    // No changes since last sync — advance the watermark to "now" so the next
-    // poll's query stays narrow even if writes happened that we already had.
-    setLastSyncTime(Date.now());
-    return 0;
+    .gt('updated_at', sinceTasks);
+  if (!error && remoteTasks) {
+    if (remoteTasks.length === 0) {
+      // No changes since last sync — advance the watermark to "now" so the next
+      // poll's query stays narrow even if writes happened that we already had.
+      setLastSyncTime(Date.now());
+    } else {
+      const localTasks = await getAllTasks(true);
+      const localMap = new Map(localTasks.map(t => [t.id, t]));
+
+      let maxUpdatedAt = sinceTasks;
+      for (const t of remoteTasks) {
+        const remoteTask: Task = {
+          id: t.id, title: t.title, description: t.description || '',
+          dueDate: t.due_date, priority: t.priority, status: t.status,
+          recurrence: t.recurrence, tags: t.tags || [],
+          subtasks: t.subtasks || [], dependsOn: t.depends_on || [],
+          pomodoros: t.pomodoros || 0, noteMarkdown: t.note_markdown,
+          createdAt: t.created_at, updatedAt: t.updated_at,
+          completedAt: t.completed_at, deletedAt: t.deleted_at,
+        };
+        const local = localMap.get(remoteTask.id);
+        if (!local || remoteTask.updatedAt > local.updatedAt) {
+          await saveTask(remoteTask);
+          totalUpdated++;
+        }
+        if (remoteTask.updatedAt > maxUpdatedAt) {
+          maxUpdatedAt = remoteTask.updatedAt;
+        }
+      }
+      setLastSyncTime(maxUpdatedAt);
+    }
   }
 
-  const localTasks = await getAllTasks(true);
-  const localMap = new Map(localTasks.map(t => [t.id, t]));
+  // v6.2 — NOTES (separate watermark so a newer task update doesn't cause us
+  // to skip a note that was updated between the previous poll and now).
+  const sinceNotes = getLastSyncNotesTime();
+  const { data: remoteNotes, error: notesError } = await sb
+    .from('notes')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .gt('updated_at', sinceNotes);
+  if (!notesError && remoteNotes) {
+    if (remoteNotes.length === 0) {
+      setLastSyncNotesTime(Date.now());
+    } else {
+      const localNotes = await getAllNotes(true);
+      const localNotesMap = new Map(localNotes.map(n => [n.id, n]));
 
-  let updated = 0;
-  let maxUpdatedAt = since;
-  for (const t of remoteTasks) {
-    const remoteTask: Task = {
-      id: t.id, title: t.title, description: t.description || '',
-      dueDate: t.due_date, priority: t.priority, status: t.status,
-      recurrence: t.recurrence, tags: t.tags || [],
-      subtasks: t.subtasks || [], dependsOn: t.depends_on || [],
-      pomodoros: t.pomodoros || 0, noteMarkdown: t.note_markdown,
-      createdAt: t.created_at, updatedAt: t.updated_at,
-      completedAt: t.completed_at, deletedAt: t.deleted_at,
-    };
-    const local = localMap.get(remoteTask.id);
-    if (!local || remoteTask.updatedAt > local.updatedAt) {
-      await saveTask(remoteTask);
-      updated++;
-    }
-    if (remoteTask.updatedAt > maxUpdatedAt) {
-      maxUpdatedAt = remoteTask.updatedAt;
+      let maxUpdatedAt = sinceNotes;
+      let notesChanged = false;
+      for (const n of remoteNotes) {
+        const remoteNote: Note = {
+          id: n.id, title: n.title || '', content: n.content || '',
+          pinned: !!n.pinned,
+          createdAt: n.created_at, updatedAt: n.updated_at, deletedAt: n.deleted_at,
+        };
+        const local = localNotesMap.get(remoteNote.id);
+        if (!local || remoteNote.updatedAt > local.updatedAt) {
+          await saveNote(remoteNote);
+          totalUpdated++;
+          notesChanged = true;
+        }
+        if (remoteNote.updatedAt > maxUpdatedAt) {
+          maxUpdatedAt = remoteNote.updatedAt;
+        }
+      }
+      setLastSyncNotesTime(maxUpdatedAt);
+
+      // Notes aren't in the global store — dispatch a window event so NotesView
+      // re-queries IndexedDB and refreshes its list. Use the same event name
+      // that the realtime subscription uses for consistency.
+      if (notesChanged) {
+        window.dispatchEvent(new CustomEvent('notes-realtime-change', {
+          detail: { eventType: 'UPDATE', source: 'poll' },
+        }));
+      }
     }
   }
 
-  setLastSyncTime(maxUpdatedAt);
-
-  if (updated > 0) {
+  if (totalUpdated > 0) {
     // Tell the store to reload tasks from IndexedDB (where we just wrote).
-    window.dispatchEvent(new CustomEvent('cloud-poll-sync', { detail: { count: updated } }));
+    // Notes are handled by the 'notes-realtime-change' event above.
+    window.dispatchEvent(new CustomEvent('cloud-poll-sync', { detail: { count: totalUpdated } }));
   }
-  return updated;
+  return totalUpdated;
 }
 
 // 同步单条番茄钟到云端

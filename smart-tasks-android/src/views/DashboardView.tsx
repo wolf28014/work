@@ -116,7 +116,7 @@ export default function DashboardView({ onOpenPro }: Props) {
   ];
 
   return (
-    <div className="px-4 py-4 space-y-4 pb-4">
+    <div className="px-4 py-4 space-y-4 pb-4 pc-content-wrap">
       {/* Pro 升级入口（仅非 Pro 显示） */}
       {onOpenPro && !pro?.isPro && (
         <button
@@ -145,7 +145,7 @@ export default function DashboardView({ onOpenPro }: Props) {
       )}
 
       {/* KPI 卡片网格 */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="kpi-grid grid grid-cols-2 gap-3">
         {kpis.map((k, i) => (
           <div key={k.label} className="kpi-card p-4 fade-in" style={{ animationDelay: `${i * 60}ms` }}>
             <div className="flex items-center justify-between mb-2">
