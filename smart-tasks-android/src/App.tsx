@@ -167,20 +167,24 @@ function Shell() {
   const bgResolved = resolveBackgroundCss(bgSettings, customImage);
   const showCustomBg = bgSettings.type === 'custom' && customImage;
   const showPresetBg = bgSettings.type === 'preset' && bgResolved;
+  const hasCustomBg = showCustomBg || showPresetBg;
+
+  // 有自定义/预设背景时，顶栏和底栏改为更透明的毛玻璃
+  const barStyle = hasCustomBg
+    ? { background: 'var(--bar-bg)', backdropFilter: 'blur(20px) saturate(150%)', WebkitBackdropFilter: 'blur(20px) saturate(150%)' }
+    : undefined;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden relative" style={showPresetBg ? { background: bgResolved!.css } : {}}>
-      {/* 底层：用户自定义图片 */}
+    <div className="flex flex-col h-screen overflow-hidden relative" style={showPresetBg ? { background: bgResolved!.css } : showCustomBg ? {} : {}}>
+      {/* 底层：用户自定义图片（全局覆盖） */}
       {showCustomBg && (
         <div
-          className="absolute inset-0 pointer-events-none z-0"
+          className="fixed inset-0 pointer-events-none z-0"
           style={{ background: `url(${customImage}) center/cover no-repeat fixed` }}
         />
       )}
-      {/* v3 深色玻璃基底 */}
-      <div className="absolute inset-0 pointer-events-none z-0" />
 
-      <header className="app-header sticky top-0 z-30" style={{ paddingTop: 'var(--safe-top)' }}>
+      <header className="app-header sticky top-0 z-30" style={{ paddingTop: 'var(--safe-top)', ...(barStyle || {}) }}>
         <div className="px-5 pt-2 pb-3">
           <div className="flex items-start justify-between">
             <div className="min-w-0 flex-1">
@@ -346,7 +350,7 @@ function Shell() {
       )}
 
       {/* 新版浮动 Tab 栏 */}
-      <nav className="tab-bar z-30">
+      <nav className="tab-bar z-30" style={barStyle || {}}>
         <div className="flex items-center justify-around px-3 h-16">
           {TABS.map((t, idx) => {
             const currentIdx = TABS.findIndex(x => x.id === tab);
