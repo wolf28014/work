@@ -118,7 +118,7 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
 
   const tagColor = (name: string) => {
     const tg = tags.find(t => t.name === name);
-    return tg?.color || 'emerald';
+    return tg?.color || 'violet';
   };
   const TAG_DOT: Record<string, string> = {
     emerald: 'var(--primary)', amber: 'var(--accent-amber)', rose: 'var(--pri-high)',

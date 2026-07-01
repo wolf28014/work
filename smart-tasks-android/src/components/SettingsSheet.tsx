@@ -35,7 +35,7 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
   const [updateInfo, setUpdateInfo] = useState(getCachedUpdateInfo());
   const [checking, setChecking] = useState(false);
   const [newTagName, setNewTagName] = useState('');
-  const [newTagColor, setNewTagColor] = useState('emerald');
+  const [newTagColor, setNewTagColor] = useState('violet');
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
 
   // 背景设置
@@ -157,10 +157,10 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex-1 min-w-[56px] py-2.5 text-sm font-medium relative ${tab === t.id ? 'text-emerald-500' : 'text-slate-500'}`}
+              className={`flex-1 min-w-[56px] py-2.5 text-sm font-medium relative ${tab === t.id ? 'text-indigo-500' : 'text-slate-500'}`}
             >
               {t.label}
-              {tab === t.id && (<div className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-emerald-500 rounded-full" />)}
+              {tab === t.id && (<div className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-indigo-500 rounded-full" />)}
             </button>
           ))}
         </div>
@@ -175,14 +175,14 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                   user ? (
                     <div className="ios-list-group">
                       <div className="ios-list-item">
-                        <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold flex-shrink-0">
                           {(user.email || user.phone || '?').charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium truncate">{user.email || user.phone}</div>
                           <div className="text-[11px] mt-0.5">
                             {pro.isPro ? (
-                              <span className="text-emerald-500 font-medium">⭐ Pro 会员{pro.expiresAt && pro.expiresAt < 9999999999999 ? ` · ${new Date(pro.expiresAt).toLocaleDateString('zh-CN')} 到期` : ' · 永久'}</span>
+                              <span className="text-indigo-500 font-medium">⭐ Pro 会员{pro.expiresAt && pro.expiresAt < 9999999999999 ? ` · ${new Date(pro.expiresAt).toLocaleDateString('zh-CN')} 到期` : ' · 永久'}</span>
                             ) : (
                               <span className="text-slate-400">免费版</span>
                             )}
@@ -229,7 +229,7 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                   <div className="ios-list-group">
                     <div className="ios-list-item">
                       <span className="text-sm flex-1">当前状态</span>
-                      <span className={`text-xs font-medium ${pro.isPro ? 'text-emerald-500' : 'text-slate-400'}`}>
+                      <span className={`text-xs font-medium ${pro.isPro ? 'text-indigo-500' : 'text-slate-400'}`}>
                         {pro.isPro ? '⭐ Pro 已激活' : '免费版'}
                       </span>
                     </div>
@@ -254,7 +254,7 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                               showToast(e.message || '兑换失败', 'error');
                             }
                           }}
-                          className="px-3 py-2 bg-emerald-500 text-white rounded-xl text-xs font-medium"
+                          className="px-3 py-2 bg-indigo-500 text-white rounded-xl text-xs font-medium"
                         >兑换</button>
                       </div>
                     </div>
@@ -388,7 +388,7 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                         key={preset.id}
                         onClick={() => applyBackground({ type: 'preset', presetId: preset.id })}
                         className={`relative aspect-[3/4] rounded-2xl overflow-hidden transition-all active:scale-95 ${
-                          isActive ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : ''
+                          isActive ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : ''
                         }`}
                         style={{ background: preset.cssBackground }}
                       >
@@ -398,7 +398,7 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                           {preset.name}
                         </div>
                         {isActive && (
-                          <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                          <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center">
                             <span className="text-white text-xs">✓</span>
                           </div>
                         )}
@@ -445,7 +445,7 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                             {bgSettings.type === 'custom' ? '当前应用中' : '点击应用'}
                           </div>
                         </div>
-                        {bgSettings.type === 'custom' && <span className="text-emerald-500">✓</span>}
+                        {bgSettings.type === 'custom' && <span className="text-indigo-500">✓</span>}
                       </button>
                       <button
                         onClick={handleClearCustom}
@@ -527,7 +527,7 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                       return (
                         <div key={tag.id} className="ios-card p-3">
                           <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full ${TAG_COLORS[tag.color] || TAG_COLORS.emerald} flex items-center justify-center flex-shrink-0`}>
+                            <div className={`w-8 h-8 rounded-full ${TAG_COLORS[tag.color] || TAG_COLORS.violet} flex items-center justify-center flex-shrink-0`}>
                               <span className="text-xs font-bold">#</span>
                             </div>
                             <div className="flex-1 min-w-0">
@@ -564,7 +564,7 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                                       await updateTagColor(tag.id, c);
                                       showToast('颜色已更新', 'success');
                                     }}
-                                    className={`w-8 h-8 rounded-full ${TAG_COLORS[c]} ${tag.color === c ? 'ring-2 ring-offset-2 ring-emerald-500' : ''}`}
+                                    className={`w-8 h-8 rounded-full ${TAG_COLORS[c]} ${tag.color === c ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}
                                   />
                                 ))}
                               </div>
@@ -662,7 +662,7 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                       </div>
                       <button
                         onClick={() => { restoreTask(t.id); showToast('已恢复', 'success'); }}
-                        className="text-xs px-3 py-1.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-lg font-medium"
+                        className="text-xs px-3 py-1.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-lg font-medium"
                       >恢复</button>
                       <button
                         onClick={() => { if (confirm('永久删除？此操作不可撤销')) { purgeTask(t.id); showToast('已永久删除', 'info'); } }}

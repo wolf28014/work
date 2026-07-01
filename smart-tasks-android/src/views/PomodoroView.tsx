@@ -120,7 +120,7 @@ export default function PomodoroView({ onEdit, initialTaskId }: Props) {
           className="flex-1 py-2.5 rounded-full text-[13px] font-bold transition-all"
           style={{
             background: mode === 'work' ? 'linear-gradient(135deg, var(--primary), var(--primary-strong))' : 'transparent',
-            color: mode === 'work' ? '#06140F' : 'var(--text-secondary)',
+            color: mode === 'work' ? '#ffffff' : 'var(--text-secondary)',
             boxShadow: mode === 'work' ? '0 4px 14px var(--primary-glow)' : 'none',
           }}
         >专注 {WORK_MINUTES} 分钟</button>
@@ -150,8 +150,8 @@ export default function PomodoroView({ onEdit, initialTaskId }: Props) {
           <svg width={size} height={size} className="absolute inset-0 -rotate-90 glow-ring">
             <defs>
               <linearGradient id="pomoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor={mode === 'work' ? '#2EE6A6' : '#5BC8FF'} />
-                <stop offset="100%" stopColor={mode === 'work' ? '#25C98F' : '#3BAAE0'} />
+                <stop offset="0%" stopColor={mode === 'work' ? '#6366F1' : '#5BC8FF'} />
+                <stop offset="100%" stopColor={mode === 'work' ? '#8B5CF6' : '#3BAAE0'} />
               </linearGradient>
             </defs>
             {/* 背景轨道 */}
@@ -291,7 +291,7 @@ export default function PomodoroView({ onEdit, initialTaskId }: Props) {
             background: mode === 'work'
               ? 'linear-gradient(135deg, var(--primary), var(--primary-strong))'
               : 'linear-gradient(135deg, var(--accent-sky), #3BAAE0)',
-            color: '#06140F',
+            color: mode === 'work' ? '#ffffff' : '#06140F',
             boxShadow: mode === 'work' ? '0 8px 20px var(--primary-glow)' : '0 8px 20px rgba(91,200,255,0.4)',
           }}
         >

@@ -26,7 +26,7 @@ export default function Toast() {
 
   const colors = {
     info: 'bg-slate-800 text-white',
-    success: 'bg-emerald-500 text-white',
+    success: 'bg-indigo-500 text-white',
     error: 'bg-rose-500 text-white',
   };
 

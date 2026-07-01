@@ -132,7 +132,7 @@ export default function TaskEditor({ task, onClose }: Props) {
       <div className="flex items-center justify-between px-4 py-2 sticky top-0 bg-white dark:bg-black z-10">
         <button onClick={onClose} className="text-blue-500 text-[15px]">取消</button>
         <span className="text-[15px] font-semibold">{task ? '编辑任务' : '新建任务'}</span>
-        <button onClick={handleSave} className="text-emerald-500 text-[15px] font-semibold">保存</button>
+        <button onClick={handleSave} className="text-indigo-500 dark:text-indigo-300 text-[15px] font-semibold">保存</button>
       </div>
 
         <div className="px-4 space-y-4">
@@ -148,7 +148,7 @@ export default function TaskEditor({ task, onClose }: Props) {
               <button
                 onClick={handleAIParse}
                 disabled={parsing || !title.trim()}
-                className="px-3 py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-medium whitespace-nowrap disabled:opacity-50 active:scale-95 transition-transform"
+                className="px-3 py-2.5 bg-indigo-500 text-white rounded-xl text-xs font-medium whitespace-nowrap disabled:opacity-50 active:scale-95 transition-transform"
                 title={getAISettings() ? 'AI 解析自然语言' : '需要先在设置中配置 AI'}
               >
                 {parsing ? '解析中…' : '✨ AI'}
@@ -201,7 +201,7 @@ export default function TaskEditor({ task, onClose }: Props) {
                   key={k}
                   onClick={() => setPriority(k as any)}
                   className={`py-2.5 rounded-xl text-sm font-medium transition-all ${
-                    priority === k ? 'bg-emerald-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    priority === k ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                   }`}
                 >{v}</button>
               ))}
@@ -216,7 +216,7 @@ export default function TaskEditor({ task, onClose }: Props) {
                   key={k}
                   onClick={() => setStatus(k as any)}
                   className={`py-2 rounded-xl text-xs font-medium transition-all ${
-                    status === k ? 'bg-emerald-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    status === k ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                   }`}
                 >{STATUS_LABELS[k]}</button>
               ))}
@@ -231,13 +231,13 @@ export default function TaskEditor({ task, onClose }: Props) {
                 <button
                   onClick={handleAISummary}
                   disabled={loadingSummary}
-                  className="text-[11px] px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-full font-medium disabled:opacity-50 active:scale-95 transition-transform"
+                  className="text-[11px] px-2.5 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-full font-medium disabled:opacity-50 active:scale-95 transition-transform"
                 >
                   {loadingSummary ? '生成中…' : summary ? '重新生成' : '生成总结'}
                 </button>
               </div>
               {summary && (
-                <div className="ios-card p-3.5 bg-emerald-50/50 dark:bg-emerald-900/20 fade-in">
+                <div className="ios-card p-3.5 bg-indigo-50/60 dark:bg-indigo-900/20 fade-in">
                   <div className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
                     {summary}
                   </div>
@@ -261,7 +261,7 @@ export default function TaskEditor({ task, onClose }: Props) {
                     onClick={() => toggleTag(tag.name)}
                     className={`text-xs px-3 py-1.5 rounded-full transition-all ${
                       selectedTags.includes(tag.name)
-                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 ring-2 ring-offset-1 ring-emerald-400'
+                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 ring-2 ring-offset-1 ring-indigo-400'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
                     }`}
                   >#{tag.name}</button>
@@ -292,7 +292,7 @@ export default function TaskEditor({ task, onClose }: Props) {
                 placeholder="输入子任务后按回车或点添加…"
                 className="ios-input flex-1"
               />
-              <button onClick={addSubtask} className="px-4 bg-emerald-500 text-white rounded-xl text-sm font-medium active:scale-95 transition-transform">添加</button>
+              <button onClick={addSubtask} className="px-4 bg-indigo-500 text-white rounded-xl text-sm font-medium active:scale-95 transition-transform">添加</button>
             </div>
             <div className="ios-list-group">
               {subtasks.length === 0 && (

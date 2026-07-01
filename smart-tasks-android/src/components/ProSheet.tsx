@@ -77,7 +77,7 @@ export default function ProSheet({ onClose }: Props) {
             className="inline-flex items-center justify-center w-16 h-16 rounded-3xl glow-pulse mb-3"
             style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))' }}
           >
-            <span style={{ fontSize: 30, color: '#06140F', fontWeight: 900 }}>✦</span>
+            <span style={{ fontSize: 30, color: '#ffffff', fontWeight: 900 }}>✦</span>
           </div>
           <h2 className="text-[26px] font-black tracking-tight" style={{ color: 'var(--text-primary)' }}>
             Smart-Tasks <span style={{ color: 'var(--primary)' }}>Pro</span>
@@ -146,7 +146,7 @@ export default function ProSheet({ onClose }: Props) {
                     className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full text-[9px] font-bold whitespace-nowrap"
                     style={{
                       background: p.highlight ? 'linear-gradient(135deg, var(--primary), var(--primary-strong))' : 'var(--accent-violet)',
-                      color: '#06140F',
+                      color: '#ffffff',
                     }}
                   >
                     {p.badge}
@@ -173,7 +173,7 @@ export default function ProSheet({ onClose }: Props) {
           className="w-full py-3.5 rounded-full text-[15px] font-bold active:scale-[0.98] transition-transform mb-5"
           style={{
             background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))',
-            color: '#06140F',
+            color: '#ffffff',
             boxShadow: '0 8px 20px var(--primary-glow)',
           }}
         >

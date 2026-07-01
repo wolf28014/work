@@ -112,7 +112,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       { id: genId(), title: '整理本月开支', description: '', dueDate: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10), priority: 'low', status: 'todo', recurrence: 'monthly', tags: ['生活'], subtasks: [], dependsOn: [], pomodoros: 0, noteMarkdown: null, createdAt: Date.now() - 86400000, updatedAt: Date.now(), completedAt: null, deletedAt: null },
     ];
     const demoTags: Tag[] = [
-      { id: genId(), name: '工作', color: 'emerald', createdAt: Date.now(), updatedAt: Date.now() },
+      { id: genId(), name: '工作', color: 'violet', createdAt: Date.now(), updatedAt: Date.now() },
       { id: genId(), name: '学习', color: 'sky', createdAt: Date.now(), updatedAt: Date.now() },
       { id: genId(), name: '生活', color: 'amber', createdAt: Date.now(), updatedAt: Date.now() },
       { id: genId(), name: '健康', color: 'rose', createdAt: Date.now(), updatedAt: Date.now() },
@@ -208,7 +208,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'ADD_POMODORO', session, taskId });
       syncPomodoroToCloud(session).catch(e => console.log('Sync failed:', e));
     },
-    async ensureTag(name, color = 'emerald') {
+    async ensureTag(name, color = 'violet') {
       const cleaned = name.replace(/^#/, '').trim();
       if (!cleaned) return state.tags[0];
       const existing = state.tags.find(t => t.name === cleaned);

@@ -83,7 +83,7 @@ export default function DashboardView({ onOpenPro }: Props) {
     const tagCounts = new Map<string, number>();
     active.forEach(t => t.tags.forEach(tg => tagCounts.set(tg, (tagCounts.get(tg) || 0) + 1)));
     const topTags = Array.from(tagCounts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6)
-      .map(([name, count]) => ({ name, count, color: tags.find(t => t.name === name)?.color || 'emerald' }));
+      .map(([name, count]) => ({ name, count, color: tags.find(t => t.name === name)?.color || 'violet' }));
     const dailyCompleted = Array.from({ length: 7 }, (_, i) => {
       const day = new Date();
       day.setDate(day.getDate() - (6 - i));

@@ -116,7 +116,7 @@ export default function AuthSheet({ onClose, onSuccess }: Props) {
               此版本未配置 Supabase 后端，无法使用账号功能。<br/>
               请联系开发者或在 src/lib/supabase.ts 中配置。
             </div>
-            <button onClick={onClose} className="px-6 py-2 bg-emerald-500 text-white rounded-full text-sm">
+            <button onClick={onClose} className="px-6 py-2 bg-indigo-500 text-white rounded-full text-sm">
               关闭
             </button>
           </div>
@@ -148,13 +148,13 @@ export default function AuthSheet({ onClose, onSuccess }: Props) {
             <button
               onClick={() => setMethod('email')}
               className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-                method === 'email' ? 'bg-white dark:bg-slate-700 text-emerald-500 shadow-sm' : 'text-slate-500'
+                method === 'email' ? 'bg-white dark:bg-slate-700 text-indigo-500 shadow-sm' : 'text-slate-500'
               }`}
             >📧 邮箱</button>
             <button
               onClick={() => setMethod('phone')}
               className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-                method === 'phone' ? 'bg-white dark:bg-slate-700 text-emerald-500 shadow-sm' : 'text-slate-500'
+                method === 'phone' ? 'bg-white dark:bg-slate-700 text-indigo-500 shadow-sm' : 'text-slate-500'
               }`}
             >📱 手机号</button>
           </div>
@@ -250,7 +250,7 @@ export default function AuthSheet({ onClose, onSuccess }: Props) {
             {mode === 'signin' ? '没有账号？' : '已有账号？'}
             <button
               onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
-              className="text-emerald-500 font-medium ml-1"
+              className="text-indigo-500 font-medium ml-1"
             >
               {mode === 'signin' ? '去注册' : '去登录'}
             </button>
@@ -258,7 +258,7 @@ export default function AuthSheet({ onClose, onSuccess }: Props) {
 
           {/* 协议 */}
           <div className="text-[10px] text-slate-400 text-center mt-4 leading-relaxed">
-            登录即表示同意 <span className="text-emerald-500">《用户协议》</span> 和 <span className="text-emerald-500">《隐私政策》</span>
+            登录即表示同意 <span className="text-indigo-500">《用户协议》</span> 和 <span className="text-indigo-500">《隐私政策》</span>
           </div>
         </div>
       </div>

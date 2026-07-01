@@ -204,7 +204,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
                   {count > 0 && (
                     <div
                       className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-bold leading-none"
-                      style={{ background: isActive ? 'var(--primary)' : 'var(--card)', color: isActive ? '#06140F' : 'var(--text-primary)', border: '1px solid var(--border)' }}
+                      style={{ background: isActive ? 'var(--primary)' : 'var(--card)', color: isActive ? '#ffffff' : 'var(--text-primary)', border: '1px solid var(--border)' }}
                     >
                       {count > 99 ? '99+' : count}
                     </div>
@@ -286,7 +286,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
                   <div className="flex-1">
                     <KanbanCard
                       task={task}
-                      tagColorDot={(name: string) => TAG_DOT[tags.find(t => t.name === name)?.color || 'emerald'] || 'var(--primary)'}
+                      tagColorDot={(name: string) => TAG_DOT[tags.find(t => t.name === name)?.color || 'violet'] || 'var(--primary)'}
                       onClick={() => {
                         if (batchMode) {
                           const newSet = new Set(selectedIds);

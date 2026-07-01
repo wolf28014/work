@@ -134,7 +134,7 @@ export default function CalendarView({ onEdit }: Props) {
               <span
                 className="text-[13px] font-bold"
                 style={{
-                  color: isSelected ? '#06140F' : isAllDone ? 'var(--text-tertiary)' : isToday ? 'var(--primary)' : 'var(--text-primary)',
+                  color: isSelected ? '#ffffff' : isAllDone ? 'var(--text-tertiary)' : isToday ? 'var(--primary)' : 'var(--text-primary)',
                   textDecoration: isAllDone && !isSelected ? 'line-through' : 'none',
                 }}
               >
@@ -149,7 +149,7 @@ export default function CalendarView({ onEdit }: Props) {
                       <div
                         key={s}
                         className="rounded-full"
-                        style={{ width: 4, height: 4, background: isSelected ? '#06140F' : STATUS_TOKEN[s].dot }}
+                        style={{ width: 4, height: 4, background: isSelected ? '#ffffff' : STATUS_TOKEN[s].dot }}
                       />
                     );
                   })}

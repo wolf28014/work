@@ -273,7 +273,7 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
         ) : (
           grouped.map(group => {
             const tagInfo = tags.find(t => t.name === group.key);
-            const tagColor = tagInfo?.color || 'emerald';
+            const tagColor = tagInfo?.color || 'violet';
             const tagDot = TAG_DOT[tagColor] || 'var(--primary)';
 
             return (

@@ -74,7 +74,7 @@ export default function AIChatSheet({ onClose }: Props) {
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[80%] px-3.5 py-2.5 rounded-2xl text-[14px] leading-relaxed whitespace-pre-wrap ${
-                m.role === 'user' ? 'bg-emerald-500 text-white rounded-br-md' : 'ios-card rounded-bl-md'
+                m.role === 'user' ? 'bg-indigo-500 text-white rounded-br-md' : 'ios-card rounded-bl-md'
               }`}>{m.content}</div>
             </div>
           ))}
@@ -104,7 +104,7 @@ export default function AIChatSheet({ onClose }: Props) {
             <button
               onClick={() => send()}
               disabled={loading || !input.trim()}
-              className="w-10 h-10 bg-emerald-500 text-white rounded-xl flex items-center justify-center disabled:opacity-50 active:scale-90 transition-transform"
+              className="w-10 h-10 bg-indigo-500 text-white rounded-xl flex items-center justify-center disabled:opacity-50 active:scale-90 transition-transform"
             >↑</button>
           </div>
         </div>

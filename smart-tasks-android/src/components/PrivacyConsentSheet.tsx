@@ -75,8 +75,8 @@ export default function PrivacyConsentSheet() {
             </div>
           </div>
 
-          <div className="ios-card p-4 bg-emerald-50 dark:bg-emerald-900/20">
-            <div className="text-[12px] text-emerald-700 dark:text-emerald-300 leading-relaxed">
+          <div className="ios-card p-4 bg-indigo-50 dark:bg-indigo-900/20">
+            <div className="text-[12px] text-indigo-700 dark:text-indigo-300 leading-relaxed">
               <strong>关键提示：</strong>
               <ul className="mt-1 space-y-1 list-disc list-inside">
                 <li>无需注册即可使用全部本地功能</li>
@@ -92,7 +92,7 @@ export default function PrivacyConsentSheet() {
       <div className="flex-shrink-0 px-6 py-4 border-t border-slate-100 dark:border-slate-800 space-y-2" style={{ paddingBottom: 'calc(16px + var(--safe-bottom))' }}>
         <button
           onClick={handleAgree}
-          className="w-full py-3.5 bg-emerald-500 text-white rounded-xl text-[15px] font-semibold active:scale-[0.98] transition-transform"
+          className="w-full py-3.5 bg-indigo-500 text-white rounded-xl text-[15px] font-semibold active:scale-[0.98] transition-transform"
         >
           同意并继续
         </button>

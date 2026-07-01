@@ -3,9 +3,9 @@
 @tailwind utilities;
 
 /* ============================================================
-   Smart-Tasks v4.0 — iOS-style Light Design System
-   Reverts to v2.14 stable light theme with v3.x feature parity.
+   Smart-Tasks v4.1 — iOS-style Light Design System + Indigo
    Light is the default; dark activates via body.dark class.
+   Primary color: indigo (#6366F1 light / #818CF8 dark).
    ============================================================ */
 
 :root {
@@ -23,18 +23,18 @@
   --card-active: #f0f0f2;
   --card-blur: 0px;
 
-  --primary: #10B981;
-  --primary-strong: #059669;
-  --primary-soft: rgba(16, 185, 129, 0.10);
-  --primary-glow: rgba(16, 185, 129, 0.25);
-  --primary-border: rgba(16, 185, 129, 0.25);
+  --primary: #6366F1;
+  --primary-strong: #4F46E5;
+  --primary-soft: rgba(99, 102, 241, 0.10);
+  --primary-glow: rgba(99, 102, 241, 0.25);
+  --primary-border: rgba(99, 102, 241, 0.25);
 
   --accent-violet: #8B5CF6;
   --accent-amber: #F59E0B;
   --accent-rose: #F43F5E;
   --accent-sky: #0EA5E9;
 
-  --text-primary: rgba(0, 0, 0, 0.88);
+  --text-primary: #1d1d1f;
   --text-secondary: rgba(0, 0, 0, 0.55);
   --text-tertiary: rgba(0, 0, 0, 0.35);
   --text-quaternary: rgba(0, 0, 0, 0.20);
@@ -50,7 +50,7 @@
   --pri-low: #0EA5E9;
   --pri-low-soft: rgba(14, 165, 233, 0.10);
 
-  /* Status */
+  /* Status (kept semantically green for done, blue for todo, amber for in-progress) */
   --stat-todo: #0EA5E9;
   --stat-progress: #F59E0B;
   --stat-done: #10B981;
@@ -64,30 +64,30 @@
 
   /* Shadows */
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.05);
-  --shadow-fab: 0 6px 18px rgba(16, 185, 129, 0.35), 0 2px 6px rgba(0, 0, 0, 0.08);
+  --shadow-fab: 0 6px 18px rgba(99, 102, 241, 0.35), 0 2px 6px rgba(0, 0, 0, 0.08);
   --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.12);
 
   /* Bar backgrounds */
-  --bar-bg: rgba(245, 245, 247, 0.82);
+  --bar-bg: rgba(255, 255, 255, 0.82);
   --modal-mask: rgba(0, 0, 0, 0.3);
 }
 
-/* === Dark mode overrides === */
+/* === Dark mode overrides (all variables properly set) === */
 body.dark {
-  --bg: #000000;
-  --bg-elevated: rgba(255, 255, 255, 0.04);
+  --bg: #1a1a2e;
+  --bg-elevated: rgba(255, 255, 255, 0.05);
   --bg-sunken: rgba(0, 0, 0, 0.3);
 
-  --card: rgba(255, 255, 255, 0.06);
-  --card-hover: rgba(255, 255, 255, 0.10);
-  --card-active: rgba(255, 255, 255, 0.14);
+  --card: rgba(255, 255, 255, 0.08);
+  --card-hover: rgba(255, 255, 255, 0.12);
+  --card-active: rgba(255, 255, 255, 0.16);
   --card-blur: 18px;
 
-  --primary: #2EE6A6;
-  --primary-strong: #25C98F;
-  --primary-soft: rgba(46, 230, 166, 0.16);
-  --primary-glow: rgba(46, 230, 166, 0.40);
-  --primary-border: rgba(46, 230, 166, 0.35);
+  --primary: #818CF8;
+  --primary-strong: #6366F1;
+  --primary-soft: rgba(129, 140, 248, 0.16);
+  --primary-glow: rgba(129, 140, 248, 0.40);
+  --primary-border: rgba(129, 140, 248, 0.35);
 
   --accent-violet: #A78BFA;
   --accent-amber: #FBBF24;
@@ -95,12 +95,12 @@ body.dark {
   --accent-sky: #38BDF8;
 
   --text-primary: rgba(255, 255, 255, 0.95);
-  --text-secondary: rgba(255, 255, 255, 0.62);
-  --text-tertiary: rgba(255, 255, 255, 0.38);
+  --text-secondary: rgba(255, 255, 255, 0.65);
+  --text-tertiary: rgba(255, 255, 255, 0.40);
   --text-quaternary: rgba(255, 255, 255, 0.22);
 
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
+  --border: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.18);
 
   --pri-high: #FB7185;
   --pri-high-soft: rgba(251, 113, 133, 0.16);
@@ -114,11 +114,11 @@ body.dark {
   --stat-done: #2EE6A6;
   --stat-cancelled: rgba(255, 255, 255, 0.32);
 
-  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  --shadow-fab: 0 12px 32px rgba(46, 230, 166, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-fab: 0 12px 32px rgba(129, 140, 248, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-pop: 0 20px 48px rgba(0, 0, 0, 0.5);
 
-  --bar-bg: rgba(0, 0, 0, 0.82);
+  --bar-bg: rgba(26, 26, 46, 0.85);
   --modal-mask: rgba(0, 0, 0, 0.5);
 }
 
@@ -145,11 +145,11 @@ body {
   transition: background 0.25s ease, color 0.25s ease;
 }
 
-/* 暗色模式氛围光晕 */
+/* 暗色模式氛围光晕 (indigo + violet) */
 body.dark {
   background:
-    radial-gradient(1200px 800px at 12% -10%, rgba(46, 230, 166, 0.06), transparent 60%),
-    radial-gradient(900px 700px at 110% 20%, rgba(139, 124, 255, 0.06), transparent 60%),
+    radial-gradient(1200px 800px at 12% -10%, rgba(99, 102, 241, 0.10), transparent 60%),
+    radial-gradient(900px 700px at 110% 20%, rgba(139, 92, 246, 0.08), transparent 60%),
     var(--bg);
 }
 
@@ -265,8 +265,6 @@ body.dark .kpi-card {
 .btn-primary:active { transform: scale(0.96); box-shadow: 0 3px 10px var(--primary-glow); }
 .btn-primary:disabled { opacity: 0.4; box-shadow: none; }
 
-body.dark .btn-primary { color: #06140F; }
-
 .btn-ghost {
   background: var(--bg-elevated);
   color: var(--text-primary);
@@ -321,7 +319,7 @@ body.dark .ios-input,
 body.dark input,
 body.dark textarea,
 body.dark select {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .ios-input:focus,
@@ -340,7 +338,7 @@ select option {
   color: #000000;
 }
 body.dark select option {
-  background: #11181A;
+  background: #1a1a2e;
   color: #ffffff;
 }
 
@@ -495,14 +493,10 @@ body.dark select option {
   transform: rotate(45deg) translate(-1px, -1px);
 }
 
-body.dark .ios-checkbox.checked::after {
-  border-color: #06140F;
-}
-
-/* Swipe-action reveal backgrounds */
+/* Swipe-action reveal backgrounds (right = positive = indigo) */
 .swipe-reveal-left {
   background: linear-gradient(135deg, rgba(244, 63, 94, 0.18), rgba(244, 63, 94, 0.10));
 }
 .swipe-reveal-right {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(16, 185, 129, 0.10));
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(99, 102, 241, 0.10));
 }
