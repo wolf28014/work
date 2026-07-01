@@ -29,12 +29,8 @@ import { todayStr, isOverdue } from './lib/task-utils';
 async function setupStatusBar(isDark: boolean) {
   try {
     await StatusBar.setOverlaysWebView({ overlay: false });
-    await StatusBar.setBackgroundColor({ color: isDark ? '#1a1a2e' : '#f5f5f7' });
+    await StatusBar.setBackgroundColor({ color: isDark ? '#0f0f1a' : '#f5f5f7' });
     await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
-    const info = await StatusBar.getInfo();
-    if (info && typeof info.height === 'number') {
-      document.documentElement.style.setProperty('--safe-top', `${Math.ceil(info.height)}px`);
-    }
   } catch (e) {
     console.log('StatusBar not available:', e);
   }
