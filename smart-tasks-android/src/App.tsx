@@ -203,16 +203,13 @@ function Shell() {
               <span style={{ fontSize: 16, color: 'var(--primary)', fontWeight: 700 }}>✦</span>
             </button>
 
-            {/* 中间：问候 + 日期 */}
-            <div className="flex-1 min-w-0 text-center">
+            {/* 中间：问候（左对齐，更自然） */}
+            <div className="flex-1 min-w-0">
+              <h1 className="text-[17px] font-bold tracking-tight truncate" style={{ color: 'var(--text-primary)' }}>
+                {greeting.title}
+              </h1>
               <div className="text-[11px] font-medium truncate" style={{ color: 'var(--text-secondary)' }}>
                 {new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })}
-              </div>
-              <div className="flex items-baseline justify-center gap-1.5 mt-0.5">
-                <h1 className="text-[17px] font-bold tracking-tight truncate" style={{ color: 'var(--text-primary)' }}>
-                  {greeting.title}
-                </h1>
-                <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>· {greeting.sub}</span>
               </div>
             </div>
 
@@ -248,26 +245,6 @@ function Shell() {
                 </svg>
               </button>
             </div>
-          </div>
-
-          {/* 今日摘要条 */}
-          <div className="flex items-center gap-2 mt-2 overflow-x-auto no-scrollbar">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: 'var(--primary-soft)', border: '1px solid var(--primary-border)' }}>
-              <span className="text-[10px] font-semibold" style={{ color: 'var(--primary)' }}>今日</span>
-              <span className="text-[12px] font-bold" style={{ color: 'var(--text-primary)' }}>{todayTasks.length}</span>
-            </div>
-            {overdueCount > 0 && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: 'var(--pri-high-soft)', border: '1px solid var(--pri-high)' + '40' }}>
-                <span className="text-[10px] font-semibold" style={{ color: 'var(--pri-high)' }}>逾期</span>
-                <span className="text-[12px] font-bold" style={{ color: 'var(--text-primary)' }}>{overdueCount}</span>
-              </div>
-            )}
-            {completedToday > 0 && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-                <span className="text-[10px] font-semibold" style={{ color: 'var(--text-secondary)' }}>已完成</span>
-                <span className="text-[12px] font-bold" style={{ color: 'var(--text-primary)' }}>{completedToday}</span>
-              </div>
-            )}
           </div>
         </div>
       </header>
