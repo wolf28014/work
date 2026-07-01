@@ -5,19 +5,19 @@ const config: CapacitorConfig = {
   appName: '智能待办',
   webDir: 'dist',
   android: {
-    backgroundColor: '#10b981',
+    backgroundColor: '#0f0f1a',
     allowMixedContent: false,
   },
   plugins: {
     SplashScreen: {
-      launchShowDuration: 1500,
-      backgroundColor: '#10b981',
+      launchShowDuration: 1000,
+      backgroundColor: '#0f0f1a',
       showSpinner: false,
       androidScaleType: 'CENTER_CROP',
     },
     StatusBar: {
       style: 'DARK',
-      backgroundColor: '#10b981',
+      backgroundColor: '#0f0f1a',
     },
   },
 };
