@@ -167,15 +167,24 @@ function Shell() {
   const showPresetBg = bgSettings.type === 'preset' && bgResolved;
   const hasCustomBg = showCustomBg || showPresetBg;
 
-  // 有自定义/预设背景时，顶栏和底栏改为高度透明的毛玻璃，让背景透出
+  // 有自定义/预设背景时，动态设置 body 背景为透明，让根 div 的背景显示
+  useEffect(() => {
+    if (hasCustomBg) {
+      document.body.style.background = 'transparent';
+    } else {
+      document.body.style.background = '';
+    }
+  }, [hasCustomBg, theme]);
+
+  // 有自定义/预设背景时，顶栏和底栏改为半透明毛玻璃
   const barStyle = hasCustomBg
-    ? { background: theme === 'dark' ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.65)', backdropFilter: 'blur(16px) saturate(140%)', WebkitBackdropFilter: 'blur(16px) saturate(140%)' }
+    ? { background: theme === 'dark' ? 'rgba(15,15,26,0.65)' : 'rgba(255,255,255,0.65)', backdropFilter: 'blur(16px) saturate(140%)', WebkitBackdropFilter: 'blur(16px) saturate(140%)' }
     : undefined;
 
   return (
     <div
       className="flex flex-col h-screen overflow-hidden relative"
-      style={showPresetBg ? { background: bgResolved!.css } : showCustomBg ? {} : {}}
+      style={showPresetBg ? { background: bgResolved!.css, minHeight: '100vh' } : showCustomBg ? { minHeight: '100vh' } : {}}
     >
       {/* 底层：用户自定义图片（全局覆盖） */}
       {showCustomBg && (
