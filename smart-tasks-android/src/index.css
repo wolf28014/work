@@ -75,13 +75,13 @@
 /* === Dark mode overrides (all variables properly set) === */
 body.dark {
   --bg: #1a1a2e;
-  --bg-elevated: rgba(255, 255, 255, 0.05);
+  --bg-elevated: rgba(255, 255, 255, 0.08);
   --bg-sunken: rgba(0, 0, 0, 0.3);
 
-  --card: rgba(255, 255, 255, 0.08);
-  --card-hover: rgba(255, 255, 255, 0.12);
-  --card-active: rgba(255, 255, 255, 0.16);
-  --card-blur: 18px;
+  --card: #252539;
+  --card-hover: #2D2D45;
+  --card-active: #353551;
+  --card-blur: 0px;
 
   --primary: #818CF8;
   --primary-strong: #6366F1;
@@ -168,8 +168,7 @@ body.dark {
 body.dark .ios-card,
 body.dark .v3-card,
 body.dark .glass-card {
-  backdrop-filter: blur(var(--card-blur)) saturate(140%);
-  -webkit-backdrop-filter: blur(var(--card-blur)) saturate(140%);
+  /* 深色模式用实色背景，不需要毛玻璃 */
 }
 
 .glass {
