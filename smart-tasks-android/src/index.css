@@ -74,18 +74,18 @@
 
 /* === Dark mode overrides (all variables properly set) === */
 body.dark {
-  --bg: #1a1a2e;
-  --bg-elevated: rgba(255, 255, 255, 0.08);
+  --bg: #0f0f1a;
+  --bg-elevated: #1c1c2e;
   --bg-sunken: rgba(0, 0, 0, 0.3);
 
-  --card: #252539;
-  --card-hover: #2D2D45;
-  --card-active: #353551;
+  --card: #1e1e30;
+  --card-hover: #262640;
+  --card-active: #2e2e4a;
   --card-blur: 0px;
 
   --primary: #818CF8;
   --primary-strong: #6366F1;
-  --primary-soft: rgba(129, 140, 248, 0.16);
+  --primary-soft: rgba(129, 140, 248, 0.20);
   --primary-glow: rgba(129, 140, 248, 0.40);
   --primary-border: rgba(129, 140, 248, 0.35);
 
@@ -94,32 +94,32 @@ body.dark {
   --accent-rose: #FB7185;
   --accent-sky: #38BDF8;
 
-  --text-primary: rgba(255, 255, 255, 0.95);
-  --text-secondary: rgba(255, 255, 255, 0.65);
-  --text-tertiary: rgba(255, 255, 255, 0.40);
-  --text-quaternary: rgba(255, 255, 255, 0.22);
+  --text-primary: #FFFFFF;
+  --text-secondary: rgba(255, 255, 255, 0.75);
+  --text-tertiary: rgba(255, 255, 255, 0.50);
+  --text-quaternary: rgba(255, 255, 255, 0.30);
 
-  --border: rgba(255, 255, 255, 0.10);
-  --border-strong: rgba(255, 255, 255, 0.18);
+  --border: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.20);
 
   --pri-high: #FB7185;
-  --pri-high-soft: rgba(251, 113, 133, 0.16);
+  --pri-high-soft: rgba(251, 113, 133, 0.20);
   --pri-medium: #FBBF24;
-  --pri-medium-soft: rgba(251, 191, 36, 0.16);
+  --pri-medium-soft: rgba(251, 191, 36, 0.20);
   --pri-low: #38BDF8;
-  --pri-low-soft: rgba(56, 189, 248, 0.16);
+  --pri-low-soft: rgba(56, 189, 248, 0.20);
 
   --stat-todo: #38BDF8;
   --stat-progress: #FBBF24;
-  --stat-done: #2EE6A6;
-  --stat-cancelled: rgba(255, 255, 255, 0.32);
+  --stat-done: #34D399;
+  --stat-cancelled: rgba(255, 255, 255, 0.40);
 
-  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.4);
-  --shadow-fab: 0 12px 32px rgba(129, 140, 248, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-pop: 0 20px 48px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-fab: 0 8px 24px rgba(129, 140, 248, 0.4), 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.6);
 
-  --bar-bg: rgba(26, 26, 46, 0.85);
-  --modal-mask: rgba(0, 0, 0, 0.5);
+  --bar-bg: rgba(15, 15, 26, 0.90);
+  --modal-mask: rgba(0, 0, 0, 0.6);
 }
 
 * {
@@ -224,9 +224,7 @@ body.dark .ios-list-group {
   overflow: hidden;
 }
 body.dark .kpi-card {
-  background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
-  backdrop-filter: blur(var(--card-blur)) saturate(140%);
-  -webkit-backdrop-filter: blur(var(--card-blur)) saturate(140%);
+  background: var(--card);
 }
 .kpi-card::before {
   content: '';
@@ -318,7 +316,7 @@ body.dark .ios-input,
 body.dark input,
 body.dark textarea,
 body.dark select {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-elevated);
 }
 
 .ios-input:focus,

@@ -42,7 +42,7 @@ export default function PrivacyConsentSheet() {
       <div className="flex-shrink-0 pt-12 pb-4 px-6 text-center">
         <div className="text-5xl mb-3">✅</div>
         <h1 className="text-xl font-bold mb-1">智能待办</h1>
-        <p className="text-sm text-slate-500">v{CURRENT_VERSION} · 隐私政策与用户协议</p>
+        <p className="text-sm text-[color:var(--text-secondary)]">v{CURRENT_VERSION} · 隐私政策与用户协议</p>
       </div>
 
       <div className="flex-1 overflow-y-auto no-scrollbar px-6 pb-4">
@@ -55,9 +55,9 @@ export default function PrivacyConsentSheet() {
               className="flex items-center justify-between w-full text-left active:opacity-60"
             >
               <span className="text-[14px] font-medium">📖 隐私政策</span>
-              <span className="text-slate-400">›</span>
+              <span className="text-[color:var(--text-tertiary)]">›</span>
             </button>
-            <div className="text-[12px] text-slate-500 leading-relaxed">
+            <div className="text-[12px] text-[color:var(--text-secondary)] leading-relaxed">
               了解我们如何收集、使用和保护您的个人信息。本应用主要数据存储在本地，仅在您登录后同步到云端加密存储。
             </div>
           </div>
@@ -68,9 +68,9 @@ export default function PrivacyConsentSheet() {
               className="flex items-center justify-between w-full text-left active:opacity-60"
             >
               <span className="text-[14px] font-medium">📄 用户协议</span>
-              <span className="text-slate-400">›</span>
+              <span className="text-[color:var(--text-tertiary)]">›</span>
             </button>
-            <div className="text-[12px] text-slate-500 leading-relaxed">
+            <div className="text-[12px] text-[color:var(--text-secondary)] leading-relaxed">
               使用规则、账号管理、付费服务、知识产权、免责声明等内容。
             </div>
           </div>
@@ -89,16 +89,16 @@ export default function PrivacyConsentSheet() {
         </div>
       </div>
 
-      <div className="flex-shrink-0 px-6 py-4 border-t border-slate-100 dark:border-slate-800 space-y-2" style={{ paddingBottom: 'calc(16px + var(--safe-bottom))' }}>
+      <div className="flex-shrink-0 px-6 py-4 border-t border-[var(--border)] space-y-2" style={{ paddingBottom: 'calc(16px + var(--safe-bottom))' }}>
         <button
           onClick={handleAgree}
-          className="w-full py-3.5 bg-indigo-500 text-white rounded-xl text-[15px] font-semibold active:scale-[0.98] transition-transform"
+          className="w-full py-3.5 bg-[var(--primary)] text-[color:#ffffff] rounded-xl text-[15px] font-semibold active:scale-[0.98] transition-transform"
         >
           同意并继续
         </button>
         <button
           onClick={handleDisagree}
-          className="w-full py-2 text-slate-500 text-[13px]"
+          className="w-full py-2 text-[color:var(--text-secondary)] text-[13px]"
         >
           不同意，退出应用
         </button>

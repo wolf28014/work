@@ -132,7 +132,7 @@ export default function TaskEditor({ task, onClose }: Props) {
       <div className="flex items-center justify-between px-4 py-2 sticky top-0 bg-white dark:bg-black z-10">
         <button onClick={onClose} className="text-blue-500 text-[15px]">取消</button>
         <span className="text-[15px] font-semibold">{task ? '编辑任务' : '新建任务'}</span>
-        <button onClick={handleSave} className="text-indigo-500 dark:text-indigo-300 text-[15px] font-semibold">保存</button>
+        <button onClick={handleSave} className="text-[color:var(--primary)] dark:text-indigo-300 text-[15px] font-semibold">保存</button>
       </div>
 
         <div className="px-4 space-y-4">
@@ -148,7 +148,7 @@ export default function TaskEditor({ task, onClose }: Props) {
               <button
                 onClick={handleAIParse}
                 disabled={parsing || !title.trim()}
-                className="px-3 py-2.5 bg-indigo-500 text-white rounded-xl text-xs font-medium whitespace-nowrap disabled:opacity-50 active:scale-95 transition-transform"
+                className="px-3 py-2.5 bg-[var(--primary)] text-[color:#ffffff] rounded-xl text-xs font-medium whitespace-nowrap disabled:opacity-50 active:scale-95 transition-transform"
                 title={getAISettings() ? 'AI 解析自然语言' : '需要先在设置中配置 AI'}
               >
                 {parsing ? '解析中…' : '✨ AI'}
@@ -170,7 +170,7 @@ export default function TaskEditor({ task, onClose }: Props) {
 
           <div className="ios-list-group">
             <div className="ios-list-item">
-              <span className="text-sm text-slate-500 w-20">截止日期</span>
+              <span className="text-sm text-[color:var(--text-secondary)] w-20">截止日期</span>
               <input
                 type="date"
                 value={dueDate}
@@ -179,7 +179,7 @@ export default function TaskEditor({ task, onClose }: Props) {
               />
             </div>
             <div className="ios-list-item">
-              <span className="text-sm text-slate-500 w-20">重复</span>
+              <span className="text-sm text-[color:var(--text-secondary)] w-20">重复</span>
               <select
                 value={recurrence}
                 onChange={e => setRecurrence(e.target.value)}
@@ -194,14 +194,14 @@ export default function TaskEditor({ task, onClose }: Props) {
           </div>
 
           <div>
-            <div className="text-[13px] font-medium text-slate-500 mb-2 px-1">优先级</div>
+            <div className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-2 px-1">优先级</div>
             <div className="grid grid-cols-3 gap-2">
               {Object.entries(PRIORITY_LABELS).map(([k, v]) => (
                 <button
                   key={k}
                   onClick={() => setPriority(k as any)}
                   className={`py-2.5 rounded-xl text-sm font-medium transition-all ${
-                    priority === k ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    priority === k ? 'bg-[var(--primary)] text-[color:#ffffff]' : 'bg-slate-100 dark:bg-slate-800 text-[color:var(--text-secondary)] dark:text-[color:var(--text-quaternary)]'
                   }`}
                 >{v}</button>
               ))}
@@ -209,14 +209,14 @@ export default function TaskEditor({ task, onClose }: Props) {
           </div>
 
           <div>
-            <div className="text-[13px] font-medium text-slate-500 mb-2 px-1">状态</div>
+            <div className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-2 px-1">状态</div>
             <div className="grid grid-cols-4 gap-2">
               {STATUS_ORDER.map(k => (
                 <button
                   key={k}
                   onClick={() => setStatus(k as any)}
                   className={`py-2 rounded-xl text-xs font-medium transition-all ${
-                    status === k ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    status === k ? 'bg-[var(--primary)] text-[color:#ffffff]' : 'bg-slate-100 dark:bg-slate-800 text-[color:var(--text-secondary)] dark:text-[color:var(--text-quaternary)]'
                   }`}
                 >{STATUS_LABELS[k]}</button>
               ))}
@@ -227,11 +227,11 @@ export default function TaskEditor({ task, onClose }: Props) {
           {task && getAISettings() && (
             <div>
               <div className="flex items-center justify-between mb-2 px-1">
-                <div className="text-[13px] font-medium text-slate-500">✨ AI 任务总结</div>
+                <div className="text-[13px] font-medium text-[color:var(--text-secondary)]">✨ AI 任务总结</div>
                 <button
                   onClick={handleAISummary}
                   disabled={loadingSummary}
-                  className="text-[11px] px-2.5 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-full font-medium disabled:opacity-50 active:scale-95 transition-transform"
+                  className="text-[11px] px-2.5 py-1 bg-[var(--primary-soft)] text-indigo-700 dark:text-indigo-300 rounded-full font-medium disabled:opacity-50 active:scale-95 transition-transform"
                 >
                   {loadingSummary ? '生成中…' : summary ? '重新生成' : '生成总结'}
                 </button>
@@ -244,7 +244,7 @@ export default function TaskEditor({ task, onClose }: Props) {
                 </div>
               )}
               {!summary && !loadingSummary && (
-                <div className="text-[11px] text-slate-400 px-1">
+                <div className="text-[11px] text-[color:var(--text-tertiary)] px-1">
                   AI 会分析任务现状、风险点，给出下一步建议
                 </div>
               )}
@@ -253,7 +253,7 @@ export default function TaskEditor({ task, onClose }: Props) {
 
           {tags.length > 0 && (
             <div>
-              <div className="text-[13px] font-medium text-slate-500 mb-2 px-1">标签</div>
+              <div className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-2 px-1">标签</div>
               <div className="flex flex-wrap gap-2">
                 {tags.map(tag => (
                   <button
@@ -262,7 +262,7 @@ export default function TaskEditor({ task, onClose }: Props) {
                     className={`text-xs px-3 py-1.5 rounded-full transition-all ${
                       selectedTags.includes(tag.name)
                         ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 ring-2 ring-offset-1 ring-indigo-400'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                        : 'bg-slate-100 dark:bg-slate-800 text-[color:var(--text-secondary)]'
                     }`}
                   >#{tag.name}</button>
                 ))}
@@ -272,7 +272,7 @@ export default function TaskEditor({ task, onClose }: Props) {
 
           <div>
             <div className="flex items-center justify-between mb-2 px-1">
-              <div className="text-[13px] font-medium text-slate-500">子任务</div>
+              <div className="text-[13px] font-medium text-[color:var(--text-secondary)]">子任务</div>
               {getAISettings() && (
                 <button
                   onClick={handleAISplit}
@@ -292,11 +292,11 @@ export default function TaskEditor({ task, onClose }: Props) {
                 placeholder="输入子任务后按回车或点添加…"
                 className="ios-input flex-1"
               />
-              <button onClick={addSubtask} className="px-4 bg-indigo-500 text-white rounded-xl text-sm font-medium active:scale-95 transition-transform">添加</button>
+              <button onClick={addSubtask} className="px-4 bg-[var(--primary)] text-[color:#ffffff] rounded-xl text-sm font-medium active:scale-95 transition-transform">添加</button>
             </div>
             <div className="ios-list-group">
               {subtasks.length === 0 && (
-                <div className="px-4 py-3 text-sm text-slate-400 text-center">
+                <div className="px-4 py-3 text-sm text-[color:var(--text-tertiary)] text-center">
                   暂无子任务，在上方输入框添加
                   {getAISettings() && <span className="block text-[11px] mt-1 text-violet-500">或点右上角 ✨ 让 AI 帮你拆解</span>}
                 </div>
@@ -304,8 +304,8 @@ export default function TaskEditor({ task, onClose }: Props) {
               {subtasks.map(s => (
                 <div key={s.id} className="ios-list-item">
                   <button onClick={() => toggleSubtask(s.id)} className={`ios-checkbox ${s.done ? 'checked' : ''}`} />
-                  <span className={`flex-1 text-[14px] ${s.done ? 'line-through text-slate-400' : ''}`}>{s.title}</span>
-                  <button onClick={() => removeSubtask(s.id)} className="text-slate-400 text-lg px-2">×</button>
+                  <span className={`flex-1 text-[14px] ${s.done ? 'line-through text-[color:var(--text-tertiary)]' : ''}`}>{s.title}</span>
+                  <button onClick={() => removeSubtask(s.id)} className="text-[color:var(--text-tertiary)] text-lg px-2">×</button>
                 </div>
               ))}
             </div>

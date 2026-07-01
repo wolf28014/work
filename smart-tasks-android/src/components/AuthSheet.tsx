@@ -112,11 +112,11 @@ export default function AuthSheet({ onClose, onSuccess }: Props) {
           <div className="text-center py-8">
             <div className="text-4xl mb-3">🔧</div>
             <div className="text-base font-semibold mb-2">云服务尚未配置</div>
-            <div className="text-sm text-slate-500 leading-relaxed mb-4">
+            <div className="text-sm text-[color:var(--text-secondary)] leading-relaxed mb-4">
               此版本未配置 Supabase 后端，无法使用账号功能。<br/>
               请联系开发者或在 src/lib/supabase.ts 中配置。
             </div>
-            <button onClick={onClose} className="px-6 py-2 bg-indigo-500 text-white rounded-full text-sm">
+            <button onClick={onClose} className="px-6 py-2 bg-[var(--primary)] text-[color:#ffffff] rounded-full text-sm">
               关闭
             </button>
           </div>
@@ -148,13 +148,13 @@ export default function AuthSheet({ onClose, onSuccess }: Props) {
             <button
               onClick={() => setMethod('email')}
               className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-                method === 'email' ? 'bg-white dark:bg-slate-700 text-indigo-500 shadow-sm' : 'text-slate-500'
+                method === 'email' ? 'bg-white dark:bg-slate-700 text-[color:var(--primary)] shadow-sm' : 'text-[color:var(--text-secondary)]'
               }`}
             >📧 邮箱</button>
             <button
               onClick={() => setMethod('phone')}
               className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-                method === 'phone' ? 'bg-white dark:bg-slate-700 text-indigo-500 shadow-sm' : 'text-slate-500'
+                method === 'phone' ? 'bg-white dark:bg-slate-700 text-[color:var(--primary)] shadow-sm' : 'text-[color:var(--text-secondary)]'
               }`}
             >📱 手机号</button>
           </div>
@@ -163,7 +163,7 @@ export default function AuthSheet({ onClose, onSuccess }: Props) {
           {method === 'email' && (
             <div className="space-y-3">
               <div>
-                <label className="text-[13px] font-medium text-slate-500 mb-1.5 block">邮箱</label>
+                <label className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-1.5 block">邮箱</label>
                 <input
                   type="email"
                   value={email}
@@ -174,7 +174,7 @@ export default function AuthSheet({ onClose, onSuccess }: Props) {
                 />
               </div>
               <div>
-                <label className="text-[13px] font-medium text-slate-500 mb-1.5 block">密码</label>
+                <label className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-1.5 block">密码</label>
                 <input
                   type="password"
                   value={password}
@@ -197,7 +197,7 @@ export default function AuthSheet({ onClose, onSuccess }: Props) {
           {method === 'phone' && (
             <div className="space-y-3">
               <div>
-                <label className="text-[13px] font-medium text-slate-500 mb-1.5 block">手机号（含国家代码）</label>
+                <label className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-1.5 block">手机号（含国家代码）</label>
                 <input
                   type="tel"
                   value={phone}
@@ -214,7 +214,7 @@ export default function AuthSheet({ onClose, onSuccess }: Props) {
               ) : (
                 <>
                   <div>
-                    <label className="text-[13px] font-medium text-slate-500 mb-1.5 block">验证码</label>
+                    <label className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-1.5 block">验证码</label>
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -239,26 +239,26 @@ export default function AuthSheet({ onClose, onSuccess }: Props) {
                   </button>
                 </>
               )}
-              <div className="text-[11px] text-slate-400 leading-relaxed mt-2">
+              <div className="text-[11px] text-[color:var(--text-tertiary)] leading-relaxed mt-2">
                 💡 手机号需包含国家代码，如中国 +86、美国 +1。短信费用由 Supabase 服务商收取。
               </div>
             </div>
           )}
 
           {/* 登录/注册切换 */}
-          <div className="text-center mt-5 text-[13px] text-slate-500">
+          <div className="text-center mt-5 text-[13px] text-[color:var(--text-secondary)]">
             {mode === 'signin' ? '没有账号？' : '已有账号？'}
             <button
               onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
-              className="text-indigo-500 font-medium ml-1"
+              className="text-[color:var(--primary)] font-medium ml-1"
             >
               {mode === 'signin' ? '去注册' : '去登录'}
             </button>
           </div>
 
           {/* 协议 */}
-          <div className="text-[10px] text-slate-400 text-center mt-4 leading-relaxed">
-            登录即表示同意 <span className="text-indigo-500">《用户协议》</span> 和 <span className="text-indigo-500">《隐私政策》</span>
+          <div className="text-[10px] text-[color:var(--text-tertiary)] text-center mt-4 leading-relaxed">
+            登录即表示同意 <span className="text-[color:var(--primary)]">《用户协议》</span> 和 <span className="text-[color:var(--primary)]">《隐私政策》</span>
           </div>
         </div>
       </div>

@@ -48,7 +48,7 @@ export default function AIChatSheet({ onClose }: Props) {
 
   return (
     <SwipeableSheet onClose={onClose} fullScreen>
-        <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)] flex-shrink-0">
           <button onClick={onClose} className="text-blue-500 text-[15px]">关闭</button>
           <span className="text-[15px] font-semibold">✨ AI 助手</span>
           <span className="w-10" />
@@ -59,7 +59,7 @@ export default function AIChatSheet({ onClose }: Props) {
             <div className="text-center py-8">
               <div className="text-5xl mb-3">✨</div>
               <div className="text-sm font-medium mb-1">你好，我是你的智能助手</div>
-              <div className="text-[12px] text-slate-400 mb-4">我可以帮你分析任务、规划时间、提供建议</div>
+              <div className="text-[12px] text-[color:var(--text-tertiary)] mb-4">我可以帮你分析任务、规划时间、提供建议</div>
               <div className="space-y-2">
                 {quickPrompts.map(p => (
                   <button
@@ -74,7 +74,7 @@ export default function AIChatSheet({ onClose }: Props) {
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[80%] px-3.5 py-2.5 rounded-2xl text-[14px] leading-relaxed whitespace-pre-wrap ${
-                m.role === 'user' ? 'bg-indigo-500 text-white rounded-br-md' : 'ios-card rounded-bl-md'
+                m.role === 'user' ? 'bg-[var(--primary)] text-[color:#ffffff] rounded-br-md' : 'ios-card rounded-bl-md'
               }`}>{m.content}</div>
             </div>
           ))}
@@ -82,16 +82,16 @@ export default function AIChatSheet({ onClose }: Props) {
             <div className="flex justify-start">
               <div className="ios-card px-4 py-3 rounded-2xl rounded-bl-md">
                 <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="w-2 h-2 bg-[var(--text-tertiary)] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 bg-[var(--text-tertiary)] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 bg-[var(--text-tertiary)] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             </div>
           )}
         </div>
 
-        <div className="p-3 border-t border-slate-100 dark:border-slate-800">
+        <div className="p-3 border-t border-[var(--border)]">
           <div className="flex gap-2">
             <input
               value={input}
@@ -104,7 +104,7 @@ export default function AIChatSheet({ onClose }: Props) {
             <button
               onClick={() => send()}
               disabled={loading || !input.trim()}
-              className="w-10 h-10 bg-indigo-500 text-white rounded-xl flex items-center justify-center disabled:opacity-50 active:scale-90 transition-transform"
+              className="w-10 h-10 bg-[var(--primary)] text-[color:#ffffff] rounded-xl flex items-center justify-center disabled:opacity-50 active:scale-90 transition-transform"
             >↑</button>
           </div>
         </div>

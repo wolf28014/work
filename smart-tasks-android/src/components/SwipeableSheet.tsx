@@ -184,8 +184,8 @@ export default function SwipeableSheet({
         {/* 边缘指示器（轻量，不抢系统手势） */}
         {showEdgeIndicator && enableEdgeSwipe && (
           <>
-            <div className="fixed left-0 top-1/2 -translate-y-1/2 w-0.5 h-12 bg-slate-300/40 rounded-r-full pointer-events-none z-30" />
-            <div className="fixed right-0 top-1/2 -translate-y-1/2 w-0.5 h-12 bg-slate-300/40 rounded-l-full pointer-events-none z-30" />
+            <div className="fixed left-0 top-1/2 -translate-y-1/2 w-0.5 h-12 bg-[var(--border-strong)] rounded-r-full pointer-events-none z-30" />
+            <div className="fixed right-0 top-1/2 -translate-y-1/2 w-0.5 h-12 bg-[var(--border-strong)] rounded-l-full pointer-events-none z-30" />
           </>
         )}
 

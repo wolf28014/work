@@ -25,9 +25,9 @@ export default function Toast() {
   if (!state) return null;
 
   const colors = {
-    info: 'bg-slate-800 text-white',
-    success: 'bg-indigo-500 text-white',
-    error: 'bg-rose-500 text-white',
+    info: 'bg-[var(--card)] text-[color:#ffffff]',
+    success: 'bg-[var(--primary)] text-[color:#ffffff]',
+    error: 'bg-rose-500 text-[color:#ffffff]',
   };
 
   return (

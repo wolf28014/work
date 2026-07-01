@@ -238,7 +238,7 @@ export default function LegalSheet({ onClose, type }: Props) {
 
   return (
     <SwipeableSheet onClose={onClose} zIndex={60} showEdgeIndicator={false}>
-        <div className="flex items-center justify-between px-4 py-2 sticky top-0 bg-white dark:bg-black z-10 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between px-4 py-2 sticky top-0 bg-white dark:bg-black z-10 border-b border-[var(--border)]">
           <button onClick={onClose} className="text-blue-500 text-[15px]">返回</button>
           <span className="text-[15px] font-semibold">{title}</span>
           <span className="w-10" />
