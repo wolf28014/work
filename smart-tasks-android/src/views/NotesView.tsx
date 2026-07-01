@@ -18,6 +18,9 @@ export default function NotesView({ onOpenEditor }: Props) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  // 批量模式
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   async function refresh() {
     setLoading(true);
@@ -69,6 +72,68 @@ export default function NotesView({ onOpenEditor }: Props) {
     showToast('已删除', 'info');
   }
 
+  // ============ 批量操作 ============
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    setSelectedIds(new Set(visibleNotes.map(n => n.id)));
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  async function batchTogglePin(pin: boolean) {
+    if (selectedIds.size === 0) {
+      showToast('请先选择笔记', 'info');
+      return;
+    }
+    const targets = visibleNotes.filter(n => selectedIds.has(n.id) && n.pinned !== pin);
+    if (targets.length === 0) {
+      showToast(pin ? '所选笔记已全部置顶' : '所选笔记均未置顶', 'info');
+      return;
+    }
+    const now = Date.now();
+    await Promise.all(targets.map(async n => {
+      const updated = { ...n, pinned: pin, updatedAt: now };
+      await saveNote(updated);
+      syncNoteToCloud(updated).catch(e => console.log('Sync failed:', e));
+    }));
+    await refresh();
+    showToast(`已${pin ? '置顶' : '取消置顶'} ${targets.length} 条`, 'info');
+    clearSelection();
+  }
+
+  async function batchDelete() {
+    if (selectedIds.size === 0) {
+      showToast('请先选择笔记', 'info');
+      return;
+    }
+    if (!confirm(`确定删除选中的 ${selectedIds.size} 条笔记？`)) return;
+    const targets = visibleNotes.filter(n => selectedIds.has(n.id));
+    const now = Date.now();
+    await Promise.all(targets.map(async n => {
+      await softDeleteNote(n.id);
+      syncNoteToCloud({ ...n, deletedAt: now }).catch(e => console.log('Sync failed:', e));
+    }));
+    await refresh();
+    showToast(`已删除 ${targets.length} 条`, 'info');
+    clearSelection();
+    setBatchMode(false);
+  }
+
+  function exitBatchMode() {
+    setBatchMode(false);
+    clearSelection();
+  }
+
   const visibleNotes = filtered();
 
   function formatDate(ts: number): string {
@@ -98,22 +163,94 @@ export default function NotesView({ onOpenEditor }: Props) {
     <div className="px-4 py-3 pb-6 pc-content-wrap">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-[22px] font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>笔记</h2>
-        <button
-          onClick={handleCreate}
-          className="px-3.5 h-9 rounded-full flex items-center gap-1 active:scale-95 transition-transform"
-          style={{
-            background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))',
-            color: '#ffffff',
-            boxShadow: 'var(--shadow-fab)',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          <span className="text-[13px] font-bold">新建</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <h2 className="text-[22px] font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>笔记</h2>
+          {batchMode && (
+            <span className="text-[12px] px-2 py-0.5 rounded-full" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+              已选 {selectedIds.size}
+            </span>
+          )}
+        </div>
+        {batchMode ? (
+          <button
+            onClick={exitBatchMode}
+            className="px-3.5 h-9 rounded-full flex items-center gap-1 active:scale-95 transition-transform"
+            style={{
+              background: 'var(--bg-elevated)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            <span className="text-[13px] font-bold">完成</span>
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            {notes.length > 0 && (
+              <button
+                onClick={() => setBatchMode(true)}
+                className="px-3 h-9 rounded-full flex items-center gap-1 active:scale-95 transition-transform"
+                style={{
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                }}
+                aria-label="批量操作"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 11l3 3L22 4" />
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                </svg>
+                <span className="text-[12px] font-semibold">批量</span>
+              </button>
+            )}
+            <button
+              onClick={handleCreate}
+              className="px-3.5 h-9 rounded-full flex items-center gap-1 active:scale-95 transition-transform"
+              style={{
+                background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))',
+                color: '#ffffff',
+                boxShadow: 'var(--shadow-fab)',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              <span className="text-[13px] font-bold">新建</span>
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* 批量模式工具栏 */}
+      {batchMode && visibleNotes.length > 0 && (
+        <div className="flex items-center justify-between mb-3 px-1 fade-in">
+          <button
+            onClick={selectedIds.size === visibleNotes.length ? clearSelection : selectAll}
+            className="text-[12px] font-medium active:scale-95 transition-transform"
+            style={{ color: 'var(--primary)' }}
+          >
+            {selectedIds.size === visibleNotes.length && visibleNotes.length > 0 ? '取消全选' : '全选'}
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => batchTogglePin(true)}
+              disabled={selectedIds.size === 0}
+              className="px-3 py-1.5 rounded-full text-[12px] font-medium active:scale-95 transition-transform disabled:opacity-40"
+              style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}
+            >置顶</button>
+            <button
+              onClick={() => batchTogglePin(false)}
+              disabled={selectedIds.size === 0}
+              className="px-3 py-1.5 rounded-full text-[12px] font-medium active:scale-95 transition-transform disabled:opacity-40"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+            >取消置顶</button>
+            <button
+              onClick={batchDelete}
+              disabled={selectedIds.size === 0}
+              className="px-3 py-1.5 rounded-full text-[12px] font-medium active:scale-95 transition-transform disabled:opacity-40"
+              style={{ background: 'var(--pri-high-soft)', color: 'var(--pri-high)' }}
+            >删除</button>
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative mb-3">
@@ -167,20 +304,41 @@ export default function NotesView({ onOpenEditor }: Props) {
         <div className="notes-grid space-y-2.5">
           {visibleNotes.map(note => {
             const previewText = preview(note.content);
+            const isSelected = selectedIds.has(note.id);
             return (
               <div
                 key={note.id}
                 className="ios-card p-3.5 cursor-pointer fade-in active:scale-[0.98] transition-transform"
-                onClick={() => onOpenEditor(note)}
-                style={note.pinned ? { borderColor: 'var(--primary-border)', boxShadow: '0 2px 12px var(--primary-glow)' } : undefined}
+                onClick={() => batchMode ? toggleSelect(note.id) : onOpenEditor(note)}
+                style={{
+                  ...(note.pinned ? { borderColor: 'var(--primary-border)', boxShadow: '0 2px 12px var(--primary-glow)' } : {}),
+                  ...(batchMode && isSelected ? { borderColor: 'var(--primary)', boxShadow: '0 0 0 2px var(--primary)' } : {}),
+                }}
               >
                 <div className="flex items-start justify-between gap-2 mb-1.5">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      {note.pinned && <span style={{ color: 'var(--primary)', fontSize: 12 }}>📌</span>}
-                      <h3 className="text-[15px] font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
-                        {note.title || '无标题'}
-                      </h3>
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    {batchMode && (
+                      <div
+                        className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center transition-all"
+                        style={{
+                          background: isSelected ? 'var(--primary)' : 'transparent',
+                          border: isSelected ? '1.5px solid var(--primary)' : '1.5px solid var(--border-strong)',
+                        }}
+                      >
+                        {isSelected && (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M5 12l5 5L20 7" />
+                          </svg>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        {note.pinned && <span style={{ color: 'var(--primary)', fontSize: 12 }}>📌</span>}
+                        <h3 className="text-[15px] font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+                          {note.title || '无标题'}
+                        </h3>
+                      </div>
                     </div>
                   </div>
                   <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--text-tertiary)' }}>
@@ -194,26 +352,28 @@ export default function NotesView({ onOpenEditor }: Props) {
                 ) : (
                   <p className="text-[12px] italic" style={{ color: 'var(--text-tertiary)' }}>（空白笔记）</p>
                 )}
-                <div className="flex items-center gap-2 mt-2.5 -mb-1">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleTogglePin(note); }}
-                    className="px-2.5 py-1 rounded-full text-[11px] font-medium active:scale-95 transition-transform"
-                    style={{
-                      background: note.pinned ? 'var(--primary-soft)' : 'var(--bg-elevated)',
-                      color: note.pinned ? 'var(--primary)' : 'var(--text-secondary)',
-                    }}
-                  >
-                    {note.pinned ? '已置顶' : '置顶'}
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDelete(note); }}
-                    className="px-2.5 py-1 rounded-full text-[11px] font-medium active:scale-95 transition-transform"
-                    style={{
-                      background: 'var(--pri-high-soft)',
-                      color: 'var(--pri-high)',
-                    }}
-                  >删除</button>
-                </div>
+                {!batchMode && (
+                  <div className="flex items-center gap-2 mt-2.5 -mb-1">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleTogglePin(note); }}
+                      className="px-2.5 py-1 rounded-full text-[11px] font-medium active:scale-95 transition-transform"
+                      style={{
+                        background: note.pinned ? 'var(--primary-soft)' : 'var(--bg-elevated)',
+                        color: note.pinned ? 'var(--primary)' : 'var(--text-secondary)',
+                      }}
+                    >
+                      {note.pinned ? '已置顶' : '置顶'}
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDelete(note); }}
+                      className="px-2.5 py-1 rounded-full text-[11px] font-medium active:scale-95 transition-transform"
+                      style={{
+                        background: 'var(--pri-high-soft)',
+                        color: 'var(--pri-high)',
+                      }}
+                    >删除</button>
+                  </div>
+                )}
               </div>
             );
           })}
