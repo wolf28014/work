@@ -4,8 +4,8 @@ import { getSupabase, isSupabaseConfigured, getCurrentUser, signOut } from './su
 
 // re-export 供其他模块使用
 export { isSupabaseConfigured } from './supabase';
-import type { Task, PomodoroSession, Tag } from './db';
-import { getAllTasks, getAllPomodoros, getAllTags, saveTask, addPomodoroSession, saveTag } from './db';
+import type { Task, PomodoroSession, Tag, Note } from './db';
+import { getAllTasks, getAllPomodoros, getAllTags, saveTask, addPomodoroSession, saveTag, getAllNotes, saveNote } from './db';
 
 export interface User {
   id: string;
@@ -150,10 +150,11 @@ export async function uploadLocalToCloud() {
   const sb = getSupabase();
   if (!sb) throw new Error('云服务未配置');
 
-  const [tasks, pomodoros, tags] = await Promise.all([
+  const [tasks, pomodoros, tags, notes] = await Promise.all([
     getAllTasks(true),
     getAllPomodoros(),
     getAllTags(),
+    getAllNotes(true),
   ]);
 
   // 上传任务（upsert）
@@ -192,6 +193,23 @@ export async function uploadLocalToCloud() {
     const { error } = await sb.from('tags').upsert(rows, { onConflict: 'id' });
     if (error) throw error;
   }
+
+  // v6.0 — 上传笔记
+  await uploadNotesToCloud(notes);
+}
+
+// v6.0 — 上传笔记到云端
+async function uploadNotesToCloud(notes: Note[]) {
+  if (!currentUser || notes.length === 0) return;
+  const sb = getSupabase();
+  if (!sb) return;
+  const rows = notes.map(n => ({
+    id: n.id, user_id: currentUser!.id,
+    title: n.title, content: n.content, pinned: n.pinned,
+    created_at: n.createdAt, updated_at: n.updatedAt, deleted_at: n.deletedAt,
+  }));
+  const { error } = await sb.from('notes').upsert(rows, { onConflict: 'id' });
+  if (error) throw error;
 }
 
 // 从云端拉取数据到本地（覆盖本地）
@@ -243,6 +261,21 @@ export async function pullCloudToLocal() {
       await saveTag(tag);
     }
   }
+
+  // v6.0 — 拉取笔记
+  const { data: remoteNotes, error: e4 } = await sb.from('notes').select('*').eq('user_id', currentUser!.id);
+  if (e4) throw e4;
+  if (remoteNotes) {
+    for (const n of remoteNotes) {
+      const note: Note = {
+        id: n.id, title: n.title || '', content: n.content || '',
+        pinned: !!n.pinned,
+        createdAt: n.created_at, updatedAt: n.updated_at,
+        deletedAt: n.deleted_at,
+      };
+      await saveNote(note);
+    }
+  }
 }
 
 // 同步单条任务到云端
@@ -285,6 +318,18 @@ export async function syncTagToCloud(tag: Tag) {
   }, { onConflict: 'id' });
 }
 
+// v6.0 — 同步单条笔记到云端
+export async function syncNoteToCloud(note: Note) {
+  if (!currentUser) return;
+  const sb = getSupabase();
+  if (!sb) return;
+  await sb.from('notes').upsert({
+    id: note.id, user_id: currentUser!.id,
+    title: note.title, content: note.content, pinned: note.pinned,
+    created_at: note.createdAt, updated_at: note.updatedAt, deleted_at: note.deletedAt,
+  }, { onConflict: 'id' });
+}
+
 // 删除云端标签
 export async function deleteTagFromCloud(tagId: string) {
   if (!currentUser) return;
@@ -310,6 +355,18 @@ export async function mergeLocalToCloud() {
     const remoteUpdatedAt = remoteMap.get(t.id);
     if (!remoteUpdatedAt || remoteUpdatedAt < t.updatedAt) {
       await syncTaskToCloud(t);
+    }
+  }
+
+  // v6.0 — 上传本地笔记（同样按 updated_at 去重）
+  const { data: remoteNotes } = await sb.from('notes').select('id, updated_at').eq('user_id', currentUser!.id);
+  const remoteNotesMap = new Map<string, number>();
+  (remoteNotes || []).forEach((r: any) => remoteNotesMap.set(r.id, r.updated_at));
+  const localNotes = await getAllNotes(true);
+  for (const n of localNotes) {
+    const rUpdatedAt = remoteNotesMap.get(n.id);
+    if (!rUpdatedAt || rUpdatedAt < n.updatedAt) {
+      await syncNoteToCloud(n);
     }
   }
 

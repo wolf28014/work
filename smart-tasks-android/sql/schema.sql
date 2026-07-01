@@ -56,6 +56,21 @@ CREATE TABLE IF NOT EXISTS public.tags (
 
 CREATE INDEX IF NOT EXISTS idx_tags_user_id ON public.tags(user_id);
 
+-- ============== 笔记表 (v6.0) ==============
+CREATE TABLE IF NOT EXISTS public.notes (
+  id TEXT PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title TEXT DEFAULT '',
+  content TEXT DEFAULT '',
+  pinned BOOLEAN DEFAULT FALSE,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  deleted_at BIGINT
+);
+
+CREATE INDEX IF NOT EXISTS idx_notes_user_id ON public.notes(user_id);
+CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON public.notes(updated_at);
+
 -- ============== 用户设置表 ==============
 CREATE TABLE IF NOT EXISTS public.user_settings (
   user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -86,6 +101,7 @@ CREATE TABLE IF NOT EXISTS public.license_codes (
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pomodoro_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.license_codes ENABLE ROW LEVEL SECURITY;
 
@@ -103,6 +119,11 @@ CREATE POLICY "users_select_own_tags" ON public.tags FOR SELECT USING (auth.uid(
 CREATE POLICY "users_insert_own_tags" ON public.tags FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "users_update_own_tags" ON public.tags FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "users_delete_own_tags" ON public.tags FOR DELETE USING (auth.uid() = user_id);
+
+CREATE POLICY "users_select_own_notes" ON public.notes FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "users_insert_own_notes" ON public.notes FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "users_update_own_notes" ON public.notes FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "users_delete_own_notes" ON public.notes FOR DELETE USING (auth.uid() = user_id);
 
 CREATE POLICY "users_select_own_settings" ON public.user_settings FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "users_insert_own_settings" ON public.user_settings FOR INSERT WITH CHECK (auth.uid() = user_id);

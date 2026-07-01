@@ -1,31 +1,54 @@
 import { useState, useEffect } from 'react';
-import type { Task } from '../lib/db';
+import type { Task, SubTask } from '../lib/db';
 import { useTaskStore } from '../lib/store';
 import { PRIORITY_LABELS, STATUS_LABELS, STATUS_ORDER, todayStr } from '../lib/task-utils';
 import { parseTaskWithAI, getAISettings, aiSplitSubtasks, aiTaskSummary } from '../lib/ai-client';
 import { showToast } from './Toast';
 import SwipeableSheet from './SwipeableSheet';
+import type { TaskTemplate } from '../lib/templates';
 
 interface Props {
   task: Task | null;
   onClose: () => void;
+  template?: TaskTemplate | null;
 }
 
-export default function TaskEditor({ task, onClose }: Props) {
+export default function TaskEditor({ task, onClose, template }: Props) {
   const { createTask, updateTask, tags, ensureTag } = useTaskStore();
-  const [title, setTitle] = useState(task?.title || '');
-  const [description, setDescription] = useState(task?.description || '');
+
+  // Pre-fill state from task (edit mode) or template (new task from template)
+  const [title, setTitle] = useState(task?.title || template?.title || '');
+  const [description, setDescription] = useState(task?.description || template?.description || '');
   const [dueDate, setDueDate] = useState(task?.dueDate || '');
-  const [priority, setPriority] = useState(task?.priority || 'medium');
+  const [priority, setPriority] = useState(task?.priority || template?.priority || 'medium');
   const [status, setStatus] = useState(task?.status || 'todo');
   const [recurrence, setRecurrence] = useState(task?.recurrence || '');
-  const [selectedTags, setSelectedTags] = useState<string[]>(task?.tags || []);
-  const [subtasks, setSubtasks] = useState(task?.subtasks || []);
+  const [selectedTags, setSelectedTags] = useState<string[]>(task?.tags || template?.tags || []);
+  const [subtasks, setSubtasks] = useState<SubTask[]>(
+    task?.subtasks ||
+    (template?.subtasks || []).map((s, i) => ({
+      id: 'sub_' + Date.now() + '_' + i,
+      title: s.title,
+      done: false,
+      order: i,
+    })) ||
+    []
+  );
   const [newSubtask, setNewSubtask] = useState('');
   const [parsing, setParsing] = useState(false);
   const [splitting, setSplitting] = useState(false);
   const [summary, setSummary] = useState<string>('');
   const [loadingSummary, setLoadingSummary] = useState(false);
+
+  // Ensure template tags exist in the tag store (one-time, only when creating from template)
+  useEffect(() => {
+    if (!task && template && template.tags.length > 0) {
+      for (const t of template.tags) {
+        ensureTag(t).catch(() => {});
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleAIParse() {
     if (!title.trim()) return;

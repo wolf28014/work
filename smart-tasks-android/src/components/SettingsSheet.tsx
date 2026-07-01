@@ -15,6 +15,7 @@ import {
 } from '../lib/background';
 import { useAuth, logout, mergeLocalToCloud, pullCloudToLocal, redeemCode } from '../lib/auth';
 import { checkUpdateManual, getCachedUpdateInfo, CURRENT_VERSION } from '../lib/updater';
+import { THEMES } from '../lib/themes';
 import SwipeableSheet from './SwipeableSheet';
 
 interface Props {
@@ -24,7 +25,7 @@ interface Props {
 }
 
 export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Props) {
-  const { theme, toggleTheme, tasks, purgeTask, restoreTask, tags, ensureTag, updateTagColor, deleteTag } = useTaskStore();
+  const { theme, toggleTheme, appTheme, setAppTheme, tasks, purgeTask, restoreTask, tags, ensureTag, updateTagColor, deleteTag } = useTaskStore();
   const { user, pro, isConfigured } = useAuth();
   const [tab, setTab] = useState<'general' | 'background' | 'tags' | 'ai' | 'data' | 'trash'>('general');
   const existingAI = getAISettings();
@@ -348,6 +349,74 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                       <span className="text-xs text-[color:var(--text-tertiary)]">v{CURRENT_VERSION} ›</span>
                     )}
                   </button>
+                </div>
+              </div>
+
+              {/* v6.0 — 主题选择器 */}
+              <div>
+                <div className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-2 px-1">主题</div>
+                <div className="ios-list-group">
+                  <div className="ios-list-item flex-col items-stretch !block py-3.5">
+                    <div className="text-[12px] text-[color:var(--text-secondary)] mb-2.5">选择主题配色</div>
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      {THEMES.map(t => {
+                        const isActive = appTheme === t.id;
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => {
+                              setAppTheme(t.id);
+                              showToast(`已切换至「${t.name}」`, 'success');
+                            }}
+                            className="flex flex-col items-center gap-1 active:scale-95 transition-transform"
+                            aria-label={t.name}
+                          >
+                            <div
+                              className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
+                              style={{
+                                background: t.isDark
+                                  ? `linear-gradient(135deg, ${t.bg}, ${t.card})`
+                                  : `linear-gradient(135deg, ${t.primary}, ${t.primaryStrong})`,
+                                border: isActive
+                                  ? `3px solid ${t.primary}`
+                                  : `2px solid var(--border)`,
+                                boxShadow: isActive
+                                  ? `0 0 0 3px var(--bg), 0 0 12px ${t.primary}55`
+                                  : 'none',
+                                position: 'relative',
+                              }}
+                            >
+                              {!t.isDark && (
+                                <span style={{ color: '#ffffff', fontSize: 18, fontWeight: 700 }}>{t.emoji}</span>
+                              )}
+                              {t.isDark && (
+                                <span style={{ color: t.primary, fontSize: 18 }}>{t.emoji}</span>
+                              )}
+                              {isActive && (
+                                <div
+                                  className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center"
+                                  style={{ background: t.primary, border: '2px solid var(--card)' }}
+                                >
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M20 6 9 17l-5-5" />
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+                            <span
+                              className="text-[10px] font-medium whitespace-nowrap"
+                              style={{
+                                color: isActive ? 'var(--primary)' : 'var(--text-tertiary)',
+                              }}
+                            >{t.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="text-[11px] text-[color:var(--text-tertiary)] mt-2.5 px-1 leading-relaxed">
+                      💡 选择主题会改变全 App 配色。深色模式开关在「暗夜专业版」和上次使用的浅色主题之间切换。
+                    </div>
+                  </div>
                 </div>
               </div>
 

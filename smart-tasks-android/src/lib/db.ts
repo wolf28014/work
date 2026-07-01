@@ -1,6 +1,6 @@
-// IndexedDB 数据层 - Task / PomodoroSession / Tag
+// IndexedDB 数据层 - Task / PomodoroSession / Tag / Note
 const DB_NAME = 'smart-tasks-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export interface Task {
   id: string;
@@ -45,6 +45,17 @@ export interface Tag {
   updatedAt: number;
 }
 
+// v6.0 — 笔记 (Notes)
+export interface Note {
+  id: string;
+  title: string;
+  content: string;       // markdown content
+  pinned: boolean;       // 置顶
+  createdAt: number;
+  updatedAt: number;
+  deletedAt: number | null;
+}
+
 let dbInstance: IDBDatabase | null = null;
 
 export function genId(): string {
@@ -75,9 +86,19 @@ export function openDB(): Promise<IDBDatabase> {
         const store = db.createObjectStore('tags', { keyPath: 'id' });
         store.createIndex('name', 'name', { unique: true });
       }
+      // v6.0 — notes store (added in DB_VERSION 2)
+      if (!db.objectStoreNames.contains('notes')) {
+        const store = db.createObjectStore('notes', { keyPath: 'id' });
+        store.createIndex('updatedAt', 'updatedAt', { unique: false });
+        store.createIndex('deletedAt', 'deletedAt', { unique: false });
+      }
     };
   });
 }
+
+// v6.0 — handle DB version upgrade: when an existing DB at v1 is opened with v2,
+// `onupgradeneeded` runs and the new `notes` store gets created above.
+// We export a helper to ensure the DB is opened (and upgraded) before use.
 
 async function tx<T>(store: string, mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest): Promise<T> {
   const db = await openDB();
@@ -129,22 +150,62 @@ export async function deleteTag(id: string): Promise<void> {
   await tx('tags', 'readwrite', s => s.delete(id));
 }
 
+// ============================================================
+// v6.0 — Notes CRUD
+// ============================================================
+
+export async function getAllNotes(includeDeleted = false): Promise<Note[]> {
+  const notes = await tx<Note[]>('notes', 'readonly', s => s.getAll());
+  const filtered = includeDeleted ? notes : notes.filter(n => !n.deletedAt);
+  // Sort: pinned first, then by updatedAt desc
+  return filtered.sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    return b.updatedAt - a.updatedAt;
+  });
+}
+
+export async function getNoteById(id: string): Promise<Note | null> {
+  const n = await tx<Note | null>('notes', 'readonly', s => s.get(id));
+  return n || null;
+}
+
+export async function saveNote(note: Note): Promise<void> {
+  note.updatedAt = Date.now();
+  await tx('notes', 'readwrite', s => s.put(note));
+}
+
+export async function deleteNotePermanent(id: string): Promise<void> {
+  await tx('notes', 'readwrite', s => s.delete(id));
+}
+
+export async function softDeleteNote(id: string): Promise<void> {
+  const existing = await getNoteById(id);
+  if (!existing) return;
+  const updated = { ...existing, deletedAt: Date.now(), updatedAt: Date.now() };
+  await saveNote(updated);
+}
+
 export async function exportAllData() {
-  const [tasks, pomodoros, tags] = await Promise.all([getAllTasks(true), getAllPomodoros(), getAllTags()]);
-  return { tasks, pomodoros, tags, exportedAt: new Date().toISOString(), version: DB_VERSION };
+  const [tasks, pomodoros, tags, notes] = await Promise.all([
+    getAllTasks(true), getAllPomodoros(), getAllTags(), getAllNotes(true),
+  ]);
+  return { tasks, pomodoros, tags, notes, exportedAt: new Date().toISOString(), version: DB_VERSION };
 }
 
 export async function importAllData(data: any, replace = false) {
   const db = await openDB();
-  const t = db.transaction(['tasks', 'pomodoros', 'tags'], 'readwrite');
+  const stores = ['tasks', 'pomodoros', 'tags', 'notes'];
+  const t = db.transaction(stores, 'readwrite');
   if (replace) {
     t.objectStore('tasks').clear();
     t.objectStore('pomodoros').clear();
     t.objectStore('tags').clear();
+    t.objectStore('notes').clear();
   }
   if (data.tasks) data.tasks.forEach((x: Task) => t.objectStore('tasks').put(x));
   if (data.pomodoros) data.pomodoros.forEach((x: PomodoroSession) => t.objectStore('pomodoros').put(x));
   if (data.tags) data.tags.forEach((x: Tag) => t.objectStore('tags').put(x));
+  if (data.notes) data.notes.forEach((x: Note) => t.objectStore('notes').put(x));
   return new Promise<void>((resolve, reject) => {
     t.oncomplete = () => resolve();
     t.onerror = () => reject(t.error);

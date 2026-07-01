@@ -4,6 +4,7 @@ import { getAllTasks, saveTask, deleteTaskPermanent, getAllPomodoros, addPomodor
 import { genId } from './db';
 import { generateNextRecurrence } from './task-utils';
 import { syncTaskToCloud, syncPomodoroToCloud, syncTagToCloud, deleteTagFromCloud } from './auth';
+import { applyTheme, getLastLightThemeId, THEMES } from './themes';
 
 interface State {
   tasks: Task[];
@@ -11,6 +12,8 @@ interface State {
   tags: Tag[];
   loading: boolean;
   theme: 'light' | 'dark';
+  // v6.0 — global app theme (5 themes: 4 light + 1 dark)
+  appTheme: string;
 }
 
 type Action =
@@ -23,12 +26,30 @@ type Action =
   | { type: 'ADD_POMODORO'; session: PomodoroSession; taskId: string }
   | { type: 'ADD_TAG'; tag: Tag }
   | { type: 'DELETE_TAG'; id: string }
-  | { type: 'SET_THEME'; theme: 'light' | 'dark' };
+  | { type: 'SET_THEME'; theme: 'light' | 'dark' }
+  | { type: 'SET_APP_THEME'; appTheme: string };
+
+const initialAppTheme: string = (() => {
+  try {
+    // If user had `theme=dark` from before v6.0 (and no app-theme stored yet),
+    // migrate them to dark-pro to preserve their dark mode preference.
+    const storedAppTheme = localStorage.getItem('app-theme');
+    if (storedAppTheme && THEMES.some(t => t.id === storedAppTheme)) {
+      return storedAppTheme;
+    }
+    const legacyTheme = localStorage.getItem('theme');
+    if (legacyTheme === 'dark') return 'dark-pro';
+    return 'ocean-blue';
+  } catch { return 'ocean-blue'; }
+})();
 
 const initialState: State = {
   tasks: [], pomodoros: [], tags: [], loading: true,
-  // v4.0 — default to LIGHT theme (revert from v3 dark)
-  theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'light',
+  // v6.0 — `theme` is derived from `appTheme` (dark-pro → dark, else → light).
+  // Kept in sync by the SET_APP_THEME reducer case.
+  theme: initialAppTheme === 'dark-pro' ? 'dark' : 'light',
+  // v6.0 — current theme palette (ocean-blue / sunset-orange / forest-green / royal-purple / dark-pro)
+  appTheme: initialAppTheme,
 };
 
 function reducer(state: State, action: Action): State {
@@ -47,6 +68,10 @@ function reducer(state: State, action: Action): State {
     case 'ADD_TAG': if (state.tags.some(t => t.name === action.tag.name)) return state; return { ...state, tags: [...state.tags, action.tag] };
     case 'DELETE_TAG': return { ...state, tags: state.tags.filter(t => t.id !== action.id) };
     case 'SET_THEME': return { ...state, theme: action.theme };
+    case 'SET_APP_THEME': {
+      const isDark = action.appTheme === 'dark-pro';
+      return { ...state, appTheme: action.appTheme, theme: isDark ? 'dark' : 'light' };
+    }
     default: return state;
   }
 }
@@ -64,6 +89,7 @@ interface ContextValue extends State {
   updateTagColor: (id: string, color: string) => Promise<void>;
   deleteTag: (id: string) => Promise<void>;
   toggleTheme: () => void;
+  setAppTheme: (themeId: string) => void;
 }
 
 const TaskContext = createContext<ContextValue | null>(null);
@@ -85,9 +111,11 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    document.body.classList.toggle('dark', state.theme === 'dark');
+    // v6.0 — applyTheme handles both CSS variables and the `dark` class on body.
+    // The legacy `theme` state is kept in sync with `appTheme` (dark-pro → dark).
+    applyTheme(state.appTheme);
     localStorage.setItem('theme', state.theme);
-  }, [state.theme]);
+  }, [state.appTheme, state.theme]);
 
   useEffect(() => {
     if (state.tasks.length === 0) return;
@@ -246,7 +274,20 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       deleteTagFromCloud(id).catch(e => console.log('Sync failed:', e));
     },
     toggleTheme() {
-      dispatch({ type: 'SET_THEME', theme: state.theme === 'light' ? 'dark' : 'light' });
+      // v6.0 — toggle between dark-pro and the last-used light theme
+      if (state.theme === 'dark') {
+        const lastLight = getLastLightThemeId();
+        dispatch({ type: 'SET_APP_THEME', appTheme: lastLight });
+      } else {
+        // remember current light theme before switching to dark
+        if (state.appTheme !== 'dark-pro') {
+          localStorage.setItem('last-light-theme', state.appTheme);
+        }
+        dispatch({ type: 'SET_APP_THEME', appTheme: 'dark-pro' });
+      }
+    },
+    setAppTheme(themeId: string) {
+      dispatch({ type: 'SET_APP_THEME', appTheme: themeId });
     },
   };
 

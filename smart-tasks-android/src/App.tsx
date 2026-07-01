@@ -7,7 +7,9 @@ import KanbanView from './views/KanbanView';
 import CalendarView from './views/CalendarView';
 import PomodoroView from './views/PomodoroView';
 import DashboardView from './views/DashboardView';
+import NotesView, { NoteEditor } from './views/NotesView';
 import TaskEditor from './components/TaskEditor';
+import TemplatePicker from './components/TemplatePicker';
 import SettingsSheet from './components/SettingsSheet';
 import AIChatSheet from './components/AIChatSheet';
 import AuthSheet from './components/AuthSheet';
@@ -24,19 +26,23 @@ import {
 import { initAuth, useAuth, mergeLocalToCloud } from './lib/auth';
 import { checkUpdateOnLaunch, getCachedUpdateInfo } from './lib/updater';
 import { todayStr, isOverdue } from './lib/task-utils';
+import { getThemeById } from './lib/themes';
+import type { TaskTemplate } from './lib/templates';
+import type { Note } from './lib/db';
 
 // 启动时配置状态栏，匹配当前主题
-async function setupStatusBar(isDark: boolean) {
+async function setupStatusBar(themeId: string) {
   try {
+    const theme = getThemeById(themeId);
     await StatusBar.setOverlaysWebView({ overlay: false });
-    await StatusBar.setBackgroundColor({ color: isDark ? '#0f0f1a' : '#f5f5f7' });
-    await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
+    await StatusBar.setBackgroundColor({ color: theme.statusBarBg });
+    await StatusBar.setStyle({ style: theme.isDark ? Style.Dark : Style.Light });
   } catch (e) {
     console.log('StatusBar not available:', e);
   }
 }
 
-type Tab = 'list' | 'kanban' | 'calendar' | 'pomodoro' | 'dashboard';
+type Tab = 'list' | 'kanban' | 'calendar' | 'pomodoro' | 'dashboard' | 'notes';
 
 const TABS: { id: Tab; label: string; glyph: string }[] = [
   { id: 'list',      label: '任务',  glyph: 'M4 6h16M4 12h10M4 18h7' },
@@ -44,6 +50,7 @@ const TABS: { id: Tab; label: string; glyph: string }[] = [
   { id: 'calendar',  label: '日历',  glyph: 'M4 6h16v14H4zM4 10h16M8 4v4M16 4v4' },
   { id: 'pomodoro',  label: '专注',  glyph: 'M12 4a8 8 0 1 0 8 8M12 12l5-3' },
   { id: 'dashboard', label: '统计',  glyph: 'M4 19V9M10 19V5M16 19v-7M22 19H2' },
+  { id: 'notes',     label: '笔记',  glyph: 'M4 4h16v16H4zM8 4v16M4 8h4M4 12h4M4 16h4' },
 ];
 
 function getGreeting(d = new Date()): { title: string; sub: string } {
@@ -76,13 +83,18 @@ function Shell() {
   const [updateBanner, setUpdateBanner] = useState(getCachedUpdateInfo());
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorTask, setEditorTask] = useState<any>(null);
+  const [editorTemplate, setEditorTemplate] = useState<TaskTemplate | null>(null);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [noteEditorOpen, setNoteEditorOpen] = useState(false);
+  const [noteEditing, setNoteEditing] = useState<Note | null>(null);
+  const [notesRefreshSignal, setNotesRefreshSignal] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aiOpen, setAIOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [proOpen, setProOpen] = useState(false);
   const [legalOpen, setLegalOpen] = useState<null | 'privacy' | 'agreement' | 'about' | 'permissions'>(null);
   const [privacyAgreed, setPrivacyAgreed] = useState(true); // 默认跳过隐私政策
-  const { loading, tasks, theme } = useTaskStore();
+  const { loading, tasks, theme, appTheme } = useTaskStore();
   const { user, pro, isConfigured } = useAuth();
 
   // 背景设置（全局生效）
@@ -90,7 +102,7 @@ function Shell() {
   const [customImage, setCustomImage] = useState<string | null>(null);
 
   useEffect(() => {
-    setupStatusBar(theme === 'dark');
+    setupStatusBar(appTheme);
     getCustomImage().then(setCustomImage).catch(() => {});
     const handler = () => {
       setBgSettings(getBackgroundSettings());
@@ -105,10 +117,10 @@ function Shell() {
     };
   }, []);
 
-  // theme 变化时重新设置状态栏
+  // theme 变化时重新设置状态栏（v6.0 — based on appTheme palette)
   useEffect(() => {
-    setupStatusBar(theme === 'dark');
-  }, [theme]);
+    setupStatusBar(appTheme);
+  }, [appTheme, theme]);
 
   useEffect(() => {
     if (privacyAgreed) {
@@ -132,8 +144,22 @@ function Shell() {
     } catch (e) { console.log('Merge failed:', e); }
   }
 
-  function openNewTask() { setEditorTask(null); setEditorOpen(true); }
-  function openEditTask(task: any) { setEditorTask(task); setEditorOpen(true); }
+  function openNewTask() {
+    // v6.0 — show template picker first, then open TaskEditor with selected template (or null for blank)
+    setTemplatePickerOpen(true);
+  }
+  function openEditTask(task: any) { setEditorTask(task); setEditorTemplate(null); setEditorOpen(true); }
+
+  function handleTemplatePicked(tpl: TaskTemplate | null) {
+    setEditorTemplate(tpl);
+    setEditorTask(null);
+    setEditorOpen(true);
+  }
+
+  function openNoteEditor(note: Note | null) {
+    setNoteEditing(note);
+    setNoteEditorOpen(true);
+  }
 
   function switchTab(newTab: Tab) {
     const currentIdx = TABS.findIndex(x => x.id === tab);
@@ -169,8 +195,9 @@ function Shell() {
   }, [hasCustomBg, theme]);
 
   // 有自定义/预设背景时，顶栏和底栏改为半透明毛玻璃
+  const isDark = appTheme === 'dark-pro';
   const barStyle = hasCustomBg
-    ? { background: theme === 'dark' ? 'rgba(15,15,26,0.65)' : 'rgba(255,255,255,0.65)', backdropFilter: 'blur(16px) saturate(140%)', WebkitBackdropFilter: 'blur(16px) saturate(140%)' }
+    ? { background: isDark ? 'rgba(15,15,26,0.65)' : 'rgba(255,255,255,0.65)', backdropFilter: 'blur(16px) saturate(140%)', WebkitBackdropFilter: 'blur(16px) saturate(140%)' }
     : undefined;
 
   return (
@@ -301,12 +328,13 @@ function Shell() {
             {tab === 'calendar' && <CalendarView onEdit={openEditTask} onNew={openNewTask} />}
             {tab === 'pomodoro' && <PomodoroView onEdit={openEditTask} initialTaskId={pomodoroTaskId} />}
             {tab === 'dashboard' && <DashboardView onOpenPro={() => setProOpen(true)} />}
+            {tab === 'notes' && <NotesView key={notesRefreshSignal} onOpenEditor={openNoteEditor} />}
           </div>
         )}
       </main>
 
-      {/* 新建任务浮动按钮（右下角） */}
-      {tab !== 'pomodoro' && tab !== 'dashboard' && (
+      {/* 新建任务浮动按钮（右下角） — 笔记页有自己的新建按钮 */}
+      {tab !== 'pomodoro' && tab !== 'dashboard' && tab !== 'notes' && (
         <button
           onClick={openNewTask}
           className="absolute right-4 z-40 w-14 h-14 rounded-full flex items-center justify-center active:scale-90 transition-transform"
@@ -365,7 +393,20 @@ function Shell() {
         </button>
       )}
 
-      {editorOpen && (<TaskEditor task={editorTask} onClose={() => setEditorOpen(false)} />)}
+      {editorOpen && (<TaskEditor task={editorTask} template={editorTemplate} onClose={() => setEditorOpen(false)} />)}
+      {templatePickerOpen && (
+        <TemplatePicker
+          onClose={() => setTemplatePickerOpen(false)}
+          onPick={handleTemplatePicked}
+        />
+      )}
+      {noteEditorOpen && (
+        <NoteEditor
+          note={noteEditing}
+          onClose={() => setNoteEditorOpen(false)}
+          onSaved={() => setNotesRefreshSignal(n => n + 1)}
+        />
+      )}
       {settingsOpen && (
         <SettingsSheet
           onClose={() => setSettingsOpen(false)}
