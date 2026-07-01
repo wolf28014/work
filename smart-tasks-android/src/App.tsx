@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { App as CapacitorApp } from '@capacitor/app';
 import { TaskProvider, useTaskStore } from './lib/store';
@@ -25,11 +25,11 @@ import { initAuth, useAuth, mergeLocalToCloud } from './lib/auth';
 import { checkUpdateOnLaunch, getCachedUpdateInfo } from './lib/updater';
 import { todayStr, isOverdue } from './lib/task-utils';
 
-// 启动时配置状态栏，匹配深色玻璃设计
+// 启动时配置状态栏，匹配当前主题
 async function setupStatusBar(isDark: boolean) {
   try {
     await StatusBar.setOverlaysWebView({ overlay: false });
-    await StatusBar.setBackgroundColor({ color: isDark ? '#0B0F0E' : '#F5F5F7' });
+    await StatusBar.setBackgroundColor({ color: isDark ? '#000000' : '#f5f5f7' });
     await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
     const info = await StatusBar.getInfo();
     if (info && typeof info.height === 'number') {
@@ -42,12 +42,12 @@ async function setupStatusBar(isDark: boolean) {
 
 type Tab = 'list' | 'kanban' | 'calendar' | 'pomodoro' | 'dashboard';
 
-const TABS: { id: Tab; label: string; icon: string; glyph: string }[] = [
-  { id: 'list',      label: '任务',  icon: '✦',  glyph: 'M4 6h16M4 12h10M4 18h7' },
-  { id: 'kanban',    label: '看板',  icon: '▦',  glyph: 'M4 5h6v14H4zM14 5h6v8h-6zM14 15h6v4h-6z' },
-  { id: 'calendar',  label: '日历',  icon: '◔',  glyph: 'M4 6h16v14H4zM4 10h16M8 4v4M16 4v4' },
-  { id: 'pomodoro',  label: '专注',  icon: '◉',  glyph: 'M12 4a8 8 0 1 0 8 8M12 12l5-3' },
-  { id: 'dashboard', label: '统计',  icon: '◢',  glyph: 'M4 19V9M10 19V5M16 19v-7M22 19H2' },
+const TABS: { id: Tab; label: string; glyph: string }[] = [
+  { id: 'list',      label: '任务',  glyph: 'M4 6h16M4 12h10M4 18h7' },
+  { id: 'kanban',    label: '看板',  glyph: 'M4 5h6v14H4zM14 5h6v8h-6zM14 15h6v4h-6z' },
+  { id: 'calendar',  label: '日历',  glyph: 'M4 6h16v14H4zM4 10h16M8 4v4M16 4v4' },
+  { id: 'pomodoro',  label: '专注',  glyph: 'M12 4a8 8 0 1 0 8 8M12 12l5-3' },
+  { id: 'dashboard', label: '统计',  glyph: 'M4 19V9M10 19V5M16 19v-7M22 19H2' },
 ];
 
 function getGreeting(d = new Date()): { title: string; sub: string } {
@@ -60,15 +60,15 @@ function getGreeting(d = new Date()): { title: string; sub: string } {
   return { title, sub: '今天也要保持专注' };
 }
 
-function TabIcon({ tab, active }: { tab: { glyph: string }; active: boolean }) {
+function TabIcon({ glyph, active }: { glyph: string; active: boolean }) {
   return (
     <svg
-      width="22" height="22" viewBox="0 0 24 24" fill="none"
+      width="24" height="24" viewBox="0 0 24 24" fill="none"
       stroke={active ? 'var(--primary)' : 'var(--text-secondary)'}
       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      style={{ transition: 'stroke 0.2s, transform 0.2s', transform: active ? 'translateY(-1px) scale(1.05)' : 'none' }}
+      style={{ transition: 'stroke 0.2s' }}
     >
-      <path d={tab.glyph} />
+      <path d={glyph} />
     </svg>
   );
 }
@@ -89,13 +89,9 @@ function Shell() {
   const { loading, tasks, theme } = useTaskStore();
   const { user, pro, isConfigured } = useAuth();
 
-  // 背景设置（仅在用户自定义图片时作为底层叠加；v3 默认使用深色玻璃）
+  // 背景设置（全局生效）
   const [bgSettings, setBgSettings] = useState(getBackgroundSettings);
   const [customImage, setCustomImage] = useState<string | null>(null);
-
-  const touchStartX = useRef<number | null>(null);
-  const touchStartY = useRef<number | null>(null);
-  const touchStartTime = useRef<number>(0);
 
   useEffect(() => {
     setupStatusBar(theme === 'dark');
@@ -128,6 +124,7 @@ function Shell() {
     }
   }, [privacyAgreed]);
 
+  // 系统返回键监听（无活动 Sheet 时退出 App）
   useEffect(() => {
     const handleBackButton = ({ canGoBack }: { canGoBack: boolean }) => {
       if (hasActiveSheet()) return;
@@ -139,24 +136,25 @@ function Shell() {
 
   async function handleAuthSuccess() {
     try {
-      // 登录成功后自动合并本地数据到云端
       await mergeLocalToCloud();
-      // 后续每次创建/编辑/删除任务，store 里已经自动调用 syncTaskToCloud
-      // 实时同步无需额外处理
     } catch (e) { console.log('Merge failed:', e); }
   }
 
   function openNewTask() { setEditorTask(null); setEditorOpen(true); }
   function openEditTask(task: any) { setEditorTask(task); setEditorOpen(true); }
 
-  // 取消左右滑切换 Tab（与任务卡片滑动手势冲突）
-  // Tab 切换只通过点击底部 Tab Bar
+  function switchTab(newTab: Tab) {
+    const currentIdx = TABS.findIndex(x => x.id === tab);
+    const newIdx = TABS.findIndex(x => x.id === newTab);
+    setTabDirection(newIdx > currentIdx ? 'left' : 'right');
+    setTab(newTab);
+  }
 
   if (!privacyAgreed) {
     return <PrivacyConsentSheet />;
   }
 
-  // 顶部问候 + 今日任务摘要
+  // 顶部问候
   const greeting = getGreeting();
   const today = todayStr();
   const todayTasks = tasks.filter(t => !t.deletedAt && t.dueDate === today && t.status !== 'done' && t.status !== 'cancelled');
@@ -171,11 +169,14 @@ function Shell() {
 
   // 有自定义/预设背景时，顶栏和底栏改为高度透明的毛玻璃，让背景透出
   const barStyle = hasCustomBg
-    ? { background: 'rgba(0,0,0,0.25)', backdropFilter: 'blur(16px) saturate(120%)', WebkitBackdropFilter: 'blur(16px) saturate(120%)' }
+    ? { background: theme === 'dark' ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.65)', backdropFilter: 'blur(16px) saturate(140%)', WebkitBackdropFilter: 'blur(16px) saturate(140%)' }
     : undefined;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden relative" style={showPresetBg ? { background: bgResolved!.css } : showCustomBg ? {} : {}}>
+    <div
+      className="flex flex-col h-screen overflow-hidden relative"
+      style={showPresetBg ? { background: bgResolved!.css } : showCustomBg ? {} : {}}
+    >
       {/* 底层：用户自定义图片（全局覆盖） */}
       {showCustomBg && (
         <div
@@ -184,43 +185,60 @@ function Shell() {
         />
       )}
 
+      {/* iOS-style 顶栏：AI 按钮（左）+ 标题（中）+ 设置/Pro（右） */}
       <header className="app-header sticky top-0 z-30" style={{ paddingTop: 'var(--safe-top)', ...(barStyle || {}) }}>
-        <div className="px-5 pt-2 pb-3">
-          <div className="flex items-start justify-between">
-            <div className="min-w-0 flex-1">
-              <div className="text-[12px] font-medium" style={{ color: 'var(--text-secondary)' }}>
+        <div className="px-4 pt-2 pb-2.5">
+          <div className="flex items-center justify-between gap-3">
+            {/* 左侧：AI 按钮 */}
+            <button
+              onClick={() => setAIOpen(true)}
+              className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform flex-shrink-0"
+              style={{
+                background: 'var(--primary-soft)',
+                border: '1px solid var(--primary-border)',
+              }}
+              aria-label="AI 助手"
+            >
+              <span style={{ fontSize: 16, color: 'var(--primary)', fontWeight: 700 }}>✦</span>
+            </button>
+
+            {/* 中间：问候 + 日期 */}
+            <div className="flex-1 min-w-0 text-center">
+              <div className="text-[11px] font-medium truncate" style={{ color: 'var(--text-secondary)' }}>
                 {new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })}
               </div>
-              <div className="flex items-baseline gap-2 mt-0.5">
-                <h1 className="text-[22px] font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+              <div className="flex items-baseline justify-center gap-1.5 mt-0.5">
+                <h1 className="text-[17px] font-bold tracking-tight truncate" style={{ color: 'var(--text-primary)' }}>
                   {greeting.title}
                 </h1>
-                <span className="text-[13px]" style={{ color: 'var(--text-tertiary)' }}>· {greeting.sub}</span>
+                <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>· {greeting.sub}</span>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+
+            {/* 右侧：Pro + 设置 */}
+            <div className="flex items-center gap-2 flex-shrink-0">
               {pro?.isPro ? (
                 <button
                   onClick={() => setProOpen(true)}
-                  className="flex items-center gap-1 px-3 h-9 rounded-full active:scale-95 transition-transform"
-                  style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))', color: '#06140F', boxShadow: '0 4px 14px var(--primary-glow)' }}
+                  className="flex items-center gap-1 px-2.5 h-9 rounded-full active:scale-95 transition-transform"
+                  style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))', color: '#ffffff', boxShadow: '0 4px 12px var(--primary-glow)' }}
                 >
-                  <span className="text-[12px] font-bold">PRO</span>
+                  <span className="text-[11px] font-bold">PRO</span>
                 </button>
               ) : (
                 <button
                   onClick={() => setProOpen(true)}
-                  className="flex items-center gap-1 px-3 h-9 rounded-full active:scale-95 transition-transform"
+                  className="flex items-center gap-1 px-2.5 h-9 rounded-full active:scale-95 transition-transform"
                   style={{ background: 'var(--primary-soft)', border: '1px solid var(--primary-border)', color: 'var(--primary)' }}
                 >
-                  <span className="text-[12px]">✦</span>
-                  <span className="text-[12px] font-bold">升级</span>
+                  <span className="text-[11px]">✦</span>
+                  <span className="text-[11px] font-bold">升级</span>
                 </button>
               )}
               <button
                 onClick={() => setSettingsOpen(true)}
                 className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform"
-                style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
                 aria-label="设置"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-secondary)' }}>
@@ -232,21 +250,21 @@ function Shell() {
           </div>
 
           {/* 今日摘要条 */}
-          <div className="flex items-center gap-2 mt-3 -mx-1 overflow-x-auto no-scrollbar">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-full mx-1" style={{ background: 'rgba(46,230,166,0.10)', border: '1px solid var(--primary-border)' }}>
-              <span className="text-[11px] font-semibold" style={{ color: 'var(--primary)' }}>今日</span>
-              <span className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>{todayTasks.length}</span>
+          <div className="flex items-center gap-2 mt-2 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: 'var(--primary-soft)', border: '1px solid var(--primary-border)' }}>
+              <span className="text-[10px] font-semibold" style={{ color: 'var(--primary)' }}>今日</span>
+              <span className="text-[12px] font-bold" style={{ color: 'var(--text-primary)' }}>{todayTasks.length}</span>
             </div>
             {overdueCount > 0 && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-full mx-1" style={{ background: 'rgba(255,110,127,0.10)', border: '1px solid rgba(255,110,127,0.3)' }}>
-                <span className="text-[11px] font-semibold" style={{ color: 'var(--pri-high)' }}>逾期</span>
-                <span className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>{overdueCount}</span>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: 'var(--pri-high-soft)', border: '1px solid var(--pri-high)' + '40' }}>
+                <span className="text-[10px] font-semibold" style={{ color: 'var(--pri-high)' }}>逾期</span>
+                <span className="text-[12px] font-bold" style={{ color: 'var(--text-primary)' }}>{overdueCount}</span>
               </div>
             )}
             {completedToday > 0 && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-full mx-1" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-                <span className="text-[11px] font-semibold" style={{ color: 'var(--text-secondary)' }}>已完成</span>
-                <span className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>{completedToday}</span>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                <span className="text-[10px] font-semibold" style={{ color: 'var(--text-secondary)' }}>已完成</span>
+                <span className="text-[12px] font-bold" style={{ color: 'var(--text-primary)' }}>{completedToday}</span>
               </div>
             )}
           </div>
@@ -255,9 +273,9 @@ function Shell() {
 
       {/* 更新提醒横幅 */}
       {updateBanner && (
-        <div className="mx-4 mt-2 v3-card p-3 fade-in flex items-center gap-3">
+        <div className="mx-4 mt-2 ios-card p-3 fade-in flex items-center gap-3">
           <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
-            <span style={{ color: 'var(--primary)' }}>✦</span>
+            <span style={{ color: 'var(--primary)', fontSize: 16, fontWeight: 700 }}>✦</span>
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>
@@ -273,19 +291,17 @@ function Shell() {
               showToast('正在跳转浏览器下载…', 'info');
             }}
             className="px-3 py-1.5 rounded-full text-[12px] font-bold active:scale-95 transition-transform"
-            style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))', color: '#06140F' }}
+            style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))', color: '#ffffff' }}
           >下载</button>
           <button
             onClick={() => setUpdateBanner(null)}
             className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: 'var(--card)', color: 'var(--text-secondary)' }}
+            style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
           >×</button>
         </div>
       )}
 
-      <main
-        className="flex-1 overflow-y-auto no-scrollbar"
-      >
+      <main className="flex-1 overflow-y-auto no-scrollbar">
         {loading ? (
           <div className="flex flex-col items-center justify-center h-full gap-3">
             <div className="w-10 h-10 rounded-full border-2 border-transparent" style={{ borderTopColor: 'var(--primary)', animation: 'spinSlow 1s linear infinite' }} />
@@ -298,37 +314,18 @@ function Shell() {
           >
             {tab === 'list' && <ListView onEdit={openEditTask} onNew={openNewTask} onStartPomodoro={(t) => {
               setPomodoroTaskId(t.id);
-              setTabDirection('left');
-              setTab('pomodoro');
+              switchTab('pomodoro');
             }} />}
             {tab === 'kanban' && <KanbanView onEdit={openEditTask} onNew={openNewTask} onStartPomodoro={(t) => {
               setPomodoroTaskId(t.id);
-              setTabDirection('left');
-              setTab('pomodoro');
+              switchTab('pomodoro');
             }} />}
             {tab === 'calendar' && <CalendarView onEdit={openEditTask} onNew={openNewTask} />}
             {tab === 'pomodoro' && <PomodoroView onEdit={openEditTask} initialTaskId={pomodoroTaskId} />}
-            {tab === 'dashboard' && <DashboardView />}
+            {tab === 'dashboard' && <DashboardView onOpenPro={() => setProOpen(true)} />}
           </div>
         )}
       </main>
-
-      {/* 浮动 AI 按钮（左下角，与新建任务按钮分开） */}
-      <button
-        onClick={() => setAIOpen(true)}
-        className="absolute left-4 z-40 w-12 h-12 rounded-full flex items-center justify-center active:scale-90 transition-transform float-y"
-        style={{
-          bottom: `calc(76px + var(--safe-bottom))`,
-          background: 'rgba(139, 124, 255, 0.16)',
-          border: '1px solid rgba(139, 124, 255, 0.35)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          boxShadow: '0 8px 24px rgba(139, 124, 255, 0.25)',
-        }}
-        aria-label="AI 助手"
-      >
-        <span style={{ fontSize: 20, background: 'linear-gradient(135deg, var(--accent-violet), var(--primary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>✦</span>
-      </button>
 
       {/* 新建任务浮动按钮（右下角） */}
       {tab !== 'pomodoro' && tab !== 'dashboard' && (
@@ -338,7 +335,7 @@ function Shell() {
           style={{
             bottom: `calc(72px + var(--safe-bottom))`,
             background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))',
-            color: '#06140F',
+            color: '#ffffff',
             boxShadow: 'var(--shadow-fab)',
           }}
           aria-label="新建任务"
@@ -349,33 +346,19 @@ function Shell() {
         </button>
       )}
 
-      {/* 新版浮动 Tab 栏 */}
+      {/* iOS 风格底部 Tab Bar */}
       <nav className="tab-bar z-30" style={barStyle || {}}>
-        <div className="flex items-center justify-around px-3 h-16">
-          {TABS.map((t, idx) => {
-            const currentIdx = TABS.findIndex(x => x.id === tab);
+        <div className="flex items-center justify-around px-2" style={{ height: 56 }}>
+          {TABS.map(t => {
             const isActive = tab === t.id;
             return (
               <button
                 key={t.id}
-                onClick={() => {
-                  setTabDirection(idx > currentIdx ? 'left' : 'right');
-                  setTab(t.id);
-                }}
-                className="flex flex-col items-center justify-center gap-1 flex-1 h-full transition-all relative"
+                onClick={() => switchTab(t.id)}
+                className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full active:scale-95 transition-transform"
                 style={{ opacity: isActive ? 1 : 0.55 }}
               >
-                <div
-                  className="flex items-center justify-center rounded-full transition-all"
-                  style={{
-                    width: isActive ? 44 : 32,
-                    height: isActive ? 44 : 32,
-                    background: isActive ? 'var(--primary-soft)' : 'transparent',
-                    border: isActive ? '1px solid var(--primary-border)' : '1px solid transparent',
-                  }}
-                >
-                  <TabIcon tab={t} active={isActive} />
-                </div>
+                <TabIcon glyph={t.glyph} active={isActive} />
                 <span
                   className="text-[10px] font-semibold transition-colors"
                   style={{ color: isActive ? 'var(--primary)' : 'var(--text-secondary)' }}

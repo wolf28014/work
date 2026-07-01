@@ -148,7 +148,7 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
               <button
                 onClick={() => setQuery('')}
                 className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center z-10"
-                style={{ background: 'rgba(255,255,255,0.1)', color: 'var(--text-secondary)' }}
+                style={{ background: 'var(--bg-sunken)', color: 'var(--text-secondary)' }}
               >×</button>
             )}
           </div>
@@ -241,7 +241,7 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
                 onClick={() => setFilter(tab.id)}
                 className="px-3.5 py-1.5 rounded-full text-[13px] font-bold whitespace-nowrap transition-all active:scale-95"
                 style={{
-                  background: isActive ? 'var(--primary-soft)' : 'rgba(255,255,255,0.04)',
+                  background: isActive ? 'var(--primary-soft)' : 'var(--bg-elevated)',
                   border: `1px solid ${isActive ? 'var(--primary-border)' : 'var(--border)'}`,
                   color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
                 }}
@@ -345,7 +345,7 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
                     onClick={() => { setSortMode(opt.id); setSortAsc(false); setShowSortSheet(false); }}
                     className="w-full flex items-center gap-3 p-3.5 rounded-xl transition-all active:scale-[0.98]"
                     style={{
-                      background: isCurrent ? 'var(--primary-soft)' : 'rgba(255,255,255,0.04)',
+                      background: isCurrent ? 'var(--primary-soft)' : 'var(--bg-elevated)',
                       border: `1px solid ${isCurrent ? 'var(--primary-border)' : 'var(--border)'}`,
                     }}
                   >
@@ -363,7 +363,7 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
               <button
                 onClick={() => setSortAsc(!sortAsc)}
                 className="w-full flex items-center justify-between p-3.5 rounded-xl active:scale-[0.98] transition-transform"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)' }}
+                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
               >
                 <span className="text-[15px] font-medium" style={{ color: 'var(--text-primary)' }}>方向</span>
                 <span className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>

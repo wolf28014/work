@@ -27,7 +27,8 @@ type Action =
 
 const initialState: State = {
   tasks: [], pomodoros: [], tags: [], loading: true,
-  theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'dark',
+  // v4.0 — default to LIGHT theme (revert from v3 dark)
+  theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'light',
 };
 
 function reducer(state: State, action: Action): State {

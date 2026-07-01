@@ -188,7 +188,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
                 onDrop={() => handleDropToColumn(status)}
                 className="relative w-full flex flex-col items-center justify-center py-3 px-1 rounded-2xl transition-all active:scale-95"
                 style={{
-                  background: isActive ? 'var(--primary-soft)' : isDragOver ? 'var(--primary-soft)' : 'rgba(255,255,255,0.03)',
+                  background: isActive ? 'var(--primary-soft)' : isDragOver ? 'var(--primary-soft)' : 'var(--bg-elevated)',
                   border: `1px solid ${isActive ? 'var(--primary-border)' : isDragOver ? 'var(--primary-border)' : 'var(--border)'}`,
                   boxShadow: isActive ? '0 4px 14px var(--primary-glow)' : 'none',
                 }}
@@ -257,7 +257,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
               <div className="text-center py-16">
                 <div
                   className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-3"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)' }}
+                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
                 >
                   <span style={{ fontSize: 22, color: 'var(--text-tertiary)' }}>📂</span>
                 </div>
@@ -327,7 +327,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
                     onClick={() => handleStatusChange(s)}
                     className="w-full flex items-center gap-3 p-3.5 rounded-xl transition-all active:scale-[0.98]"
                     style={{
-                      background: isCurrent ? 'var(--primary-soft)' : 'rgba(255,255,255,0.04)',
+                      background: isCurrent ? 'var(--primary-soft)' : 'var(--bg-elevated)',
                       border: `1px solid ${isCurrent ? 'var(--primary-border)' : 'var(--border)'}`,
                     }}
                   >
@@ -367,7 +367,7 @@ export default function KanbanView({ onEdit, onStartPomodoro }: Props) {
                     onClick={() => { setSelectedStatus(s); setShowCategorySheet(false); }}
                     className="w-full flex items-center gap-3 p-3.5 rounded-xl transition-all active:scale-[0.98]"
                     style={{
-                      background: isCurrent ? 'var(--primary-soft)' : 'rgba(255,255,255,0.04)',
+                      background: isCurrent ? 'var(--primary-soft)' : 'var(--bg-elevated)',
                       border: `1px solid ${isCurrent ? 'var(--primary-border)' : 'var(--border)'}`,
                     }}
                   >
@@ -473,7 +473,7 @@ function KanbanCard({ task, tagColorDot, onClick, onDragStart, onDragEnd, onLong
             <span
               key={t}
               className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
             >
               <span style={{ color: tagColorDot(t) }}>#</span>{t}
             </span>

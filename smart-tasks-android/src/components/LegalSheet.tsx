@@ -1,3 +1,5 @@
+import { CURRENT_VERSION } from '../lib/updater';
+
 interface Props {
   onClose: () => void;
   type: 'privacy' | 'agreement' | 'about' | 'permissions';
@@ -187,7 +189,7 @@ const ABOUT_INFO = `
 
 ## 应用信息
 - 名称：智能待办
-- 版本：v1.9.0
+- 版本：v${CURRENT_VERSION}
 - 包名：com.smarttasks.android
 - 支持系统：Android 7.0+
 

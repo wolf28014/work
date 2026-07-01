@@ -29,6 +29,10 @@ export default function TaskEditor({ task, onClose }: Props) {
 
   async function handleAIParse() {
     if (!title.trim()) return;
+    if (!getAISettings()) {
+      showToast('请先在设置中配置 AI API', 'error');
+      return;
+    }
     setParsing(true);
     try {
       const parsed = await parseTaskWithAI(title, todayStr());
@@ -141,17 +145,16 @@ export default function TaskEditor({ task, onClose }: Props) {
                 className="ios-input flex-1 font-medium"
                 autoFocus={!task}
               />
-              {getAISettings() && (
-                <button
-                  onClick={handleAIParse}
-                  disabled={parsing || !title.trim()}
-                  className="px-3 py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-medium whitespace-nowrap disabled:opacity-50"
-                >
-                  {parsing ? '解析中…' : '✨ AI'}
-                </button>
-              )}
+              <button
+                onClick={handleAIParse}
+                disabled={parsing || !title.trim()}
+                className="px-3 py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-medium whitespace-nowrap disabled:opacity-50 active:scale-95 transition-transform"
+                title={getAISettings() ? 'AI 解析自然语言' : '需要先在设置中配置 AI'}
+              >
+                {parsing ? '解析中…' : '✨ AI'}
+              </button>
             </div>
-            {!getAISettings() && title.length > 5 && (
+            {!getAISettings() && (
               <div className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
                 💡 在设置中配置 AI 后，可用自然语言自动解析（如"明天下午3点开会"）
               </div>

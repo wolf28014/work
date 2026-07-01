@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import LegalSheet from './LegalSheet';
+import { CURRENT_VERSION } from '../lib/updater';
 
 const STORAGE_KEY = 'privacy-agreed-v1';
 
@@ -41,7 +42,7 @@ export default function PrivacyConsentSheet() {
       <div className="flex-shrink-0 pt-12 pb-4 px-6 text-center">
         <div className="text-5xl mb-3">✅</div>
         <h1 className="text-xl font-bold mb-1">智能待办</h1>
-        <p className="text-sm text-slate-500">v1.9.0 · 隐私政策与用户协议</p>
+        <p className="text-sm text-slate-500">v{CURRENT_VERSION} · 隐私政策与用户协议</p>
       </div>
 
       <div className="flex-1 overflow-y-auto no-scrollbar px-6 pb-4">

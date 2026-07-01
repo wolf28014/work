@@ -113,7 +113,7 @@ export default function PomodoroView({ onEdit, initialTaskId }: Props) {
       {/* 模式切换 */}
       <div
         className="flex p-1 mb-6 rounded-full"
-        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)' }}
+        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
       >
         <button
           onClick={() => { if (mode !== 'work') { setMode('work'); setSecondsLeft(WORK_MINUTES * 60); setRunning(false); } }}

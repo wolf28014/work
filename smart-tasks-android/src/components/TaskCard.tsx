@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import type { Task } from '../lib/db';
 import { useTaskStore } from '../lib/store';
 import {
-  PRIORITY_LABELS, STATUS_LABELS, STATUS_ORDER, formatDate, isOverdue, todayStr,
+  PRIORITY_LABELS, STATUS_LABELS, STATUS_ORDER, formatDate, isOverdue,
 } from '../lib/task-utils';
 import { showToast } from './Toast';
 import SwipeableSheet from './SwipeableSheet';
@@ -14,17 +14,17 @@ interface Props {
   compact?: boolean;
 }
 
-// v3 design tokens (mirror of CSS variables for inline use)
+// v4 design tokens (mirror of CSS variables for inline use)
 const PRI_VAR: Record<Task['priority'], { bar: string; soft: string; text: string }> = {
   high:   { bar: 'var(--pri-high)',    soft: 'var(--pri-high-soft)',    text: 'var(--pri-high)' },
   medium: { bar: 'var(--pri-medium)',  soft: 'var(--pri-medium-soft)',  text: 'var(--pri-medium)' },
   low:    { bar: 'var(--pri-low)',     soft: 'var(--pri-low-soft)',     text: 'var(--pri-low)' },
 };
 const STATUS_VAR: Record<string, { soft: string; text: string; dot: string }> = {
-  todo:        { soft: 'rgba(91,200,255,0.14)',  text: 'var(--accent-sky)',  dot: 'var(--stat-todo)' },
-  in_progress: { soft: 'rgba(245,181,68,0.14)',  text: 'var(--accent-amber)', dot: 'var(--stat-progress)' },
-  done:        { soft: 'var(--primary-soft)',    text: 'var(--primary)',     dot: 'var(--stat-done)' },
-  cancelled:   { soft: 'var(--card-hover)', text: 'var(--text-secondary)', dot: 'var(--stat-cancelled)' },
+  todo:        { soft: 'var(--pri-low-soft)',     text: 'var(--pri-low)',     dot: 'var(--stat-todo)' },
+  in_progress: { soft: 'var(--pri-medium-soft)',  text: 'var(--pri-medium)',  dot: 'var(--stat-progress)' },
+  done:        { soft: 'var(--primary-soft)',     text: 'var(--primary)',     dot: 'var(--stat-done)' },
+  cancelled:   { soft: 'var(--bg-elevated)',      text: 'var(--text-secondary)', dot: 'var(--stat-cancelled)' },
 };
 
 const SWIPE_THRESHOLD = 88;
@@ -90,7 +90,7 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
     }
     if (isHorizontal.current === true) {
       if (e.cancelable) e.preventDefault();
-      // 仅允许向左拖动揭示删除；向右拖动揭示完成
+      // 左滑揭示删除；右滑揭示完成
       const clamped = Math.max(-140, Math.min(140, dx));
       setDragX(clamped);
     }
@@ -100,14 +100,13 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
     if (touchStartX.current === null) return;
     setDragging(false);
     if (isHorizontal.current === true) {
-      // 滑动超过阈值后保持揭示状态，显示确认按钮
-      // 不直接执行，需要用户点击确认按钮
+      // 超过阈值后保持揭示，等待用户点击确认按钮
       if (dragX <= -SWIPE_THRESHOLD) {
-        setDragX(-88); // 保持删除按钮揭示
+        setDragX(-88);
       } else if (dragX >= SWIPE_THRESHOLD) {
-        setDragX(88); // 保持完成按钮揭示
+        setDragX(88);
       } else {
-        setDragX(0); // 回弹
+        setDragX(0);
       }
     } else {
       setDragX(0);
@@ -133,14 +132,20 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
         {/* 左侧揭示：完成确认按钮 */}
         <button
           className="absolute inset-y-0 left-0 flex items-center justify-center"
-          style={{ width: 88, transform: dragX > 0 ? `translateX(${dragX - 88}px)` : 'translateX(-88px)', transition: dragging ? 'none' : 'transform 0.25s', background: 'var(--primary)', border: 'none' }}
+          style={{
+            width: 88,
+            transform: dragX > 0 ? `translateX(${dragX - 88}px)` : 'translateX(-88px)',
+            transition: dragging ? 'none' : 'transform 0.25s',
+            background: 'var(--primary)',
+            border: 'none',
+          }}
           onClick={(e) => {
             e.stopPropagation();
             setDragX(0);
             handleCheck();
           }}
         >
-          <div className="flex flex-col items-center" style={{ color: 'var(--bg)' }}>
+          <div className="flex flex-col items-center" style={{ color: '#ffffff' }}>
             <span style={{ fontSize: 22 }}>{isDone ? '↺' : '✓'}</span>
             <span style={{ fontSize: 11, fontWeight: 600 }}>{isDone ? '恢复' : '完成'}</span>
           </div>
@@ -149,7 +154,13 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
         {/* 右侧揭示：删除确认按钮 */}
         <button
           className="absolute inset-y-0 right-0 flex items-center justify-center"
-          style={{ width: 88, transform: dragX < 0 ? `translateX(${dragX + 88}px)` : 'translateX(88px)', transition: dragging ? 'none' : 'transform 0.25s', background: 'var(--pri-high)', border: 'none' }}
+          style={{
+            width: 88,
+            transform: dragX < 0 ? `translateX(${dragX + 88}px)` : 'translateX(88px)',
+            transition: dragging ? 'none' : 'transform 0.25s',
+            background: 'var(--pri-high)',
+            border: 'none',
+          }}
           onClick={(e) => {
             e.stopPropagation();
             setDragX(0);
@@ -157,15 +168,15 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
             showToast('已移入回收站', 'info');
           }}
         >
-          <div className="flex flex-col items-center" style={{ color: 'var(--bg)' }}>
+          <div className="flex flex-col items-center" style={{ color: '#ffffff' }}>
             <span style={{ fontSize: 22 }}>🗑</span>
             <span style={{ fontSize: 11, fontWeight: 600 }}>删除</span>
           </div>
         </button>
 
-        {/* 卡片本体 */}
+        {/* 卡片本体 — 白色卡片 + 左侧优先级色条 */}
         <div
-          className="v3-card relative"
+          className="ios-card relative"
           style={{
             transform: `translateX(${dragX}px)`,
             transition: dragging ? 'none' : 'transform 0.25s cubic-bezier(0.32,0.72,0,1)',
@@ -180,7 +191,7 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
             {/* 左侧优先级色条 */}
             <div
               className="priority-bar"
-              style={{ background: pri.bar, boxShadow: `0 0 12px ${pri.bar}`, margin: '12px 0 12px 14px', width: 4, borderRadius: 4 }}
+              style={{ background: pri.bar, margin: '12px 0 12px 14px', width: 4, borderRadius: 4 }}
             />
             <div className="flex-1 p-3.5">
               <div className="flex items-start gap-2.5">
@@ -219,7 +230,7 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
                       key={tagName}
                       className="text-[11px] px-2 py-0.5 rounded-full font-medium"
                       style={{
-                        background: 'var(--card)',
+                        background: 'var(--bg-elevated)',
                         border: '1px solid var(--border)',
                         color: 'var(--text-secondary)',
                       }}
@@ -230,7 +241,7 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
                 </div>
               )}
 
-              <div className="flex items-center gap-2 mt-2 ml-8 text-[11px]">
+              <div className="flex items-center gap-2 mt-2 ml-8 text-[11px] flex-wrap">
                 <button
                   onClick={(e) => { e.stopPropagation(); setShowStatusSheet(true); }}
                   className="px-2 py-0.5 rounded-full font-bold active:scale-95 transition-transform"
@@ -257,7 +268,7 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
                     onClick={(e) => { e.stopPropagation(); setShowSubtasks(!showSubtasks); }}
                     className="px-2 py-0.5 rounded-full font-bold active:scale-95 transition-transform"
                     style={{
-                      background: subtaskDone === subtaskTotal ? 'var(--primary-soft)' : 'var(--card)',
+                      background: subtaskDone === subtaskTotal ? 'var(--primary-soft)' : 'var(--bg-elevated)',
                       color: subtaskDone === subtaskTotal ? 'var(--primary)' : 'var(--text-secondary)',
                       border: '1px solid var(--border)',
                     }}
@@ -277,9 +288,9 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
                     }}
                     className="px-2 py-0.5 rounded-full font-bold active:scale-95 transition-transform"
                     style={{
-                      background: 'rgba(255,110,127,0.12)',
+                      background: 'var(--pri-high-soft)',
                       color: 'var(--pri-high)',
-                      border: '1px solid rgba(255,110,127,0.3)',
+                      border: '1px solid var(--pri-high)40',
                     }}
                     title="点击开始番茄钟"
                   >🍅 {task.pomodoros}</button>
@@ -363,7 +374,7 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
                     onClick={() => handleStatusChange(s)}
                     className="w-full flex items-center gap-3 p-3.5 rounded-xl transition-all active:scale-[0.98]"
                     style={{
-                      background: isCurrent ? 'var(--primary-soft)' : 'rgba(255,255,255,0.04)',
+                      background: isCurrent ? 'var(--primary-soft)' : 'var(--bg-elevated)',
                       border: `1px solid ${isCurrent ? 'var(--primary-border)' : 'var(--border)'}`,
                     }}
                   >
@@ -380,7 +391,7 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
               <button
                 onClick={() => setShowStatusSheet(false)}
                 className="w-full py-3 rounded-xl text-[15px] font-medium"
-                style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
               >取消</button>
             </div>
         </SwipeableSheet>

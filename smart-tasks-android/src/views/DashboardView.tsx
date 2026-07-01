@@ -4,6 +4,7 @@ import {
   STATUS_LABELS, STATUS_ORDER, PRIORITY_LABELS, todayStr,
 } from '../lib/task-utils';
 import { generateWeeklyReport, getAISettings } from '../lib/ai-client';
+import { useAuth } from '../lib/auth';
 import { showToast } from '../components/Toast';
 
 // 状态 → 设计 token
@@ -40,8 +41,13 @@ function AnimatedNumber({ value, duration = 700 }: { value: number; duration?: n
   return <span className="count-up">{display}</span>;
 }
 
-export default function DashboardView() {
+interface Props {
+  onOpenPro?: () => void;
+}
+
+export default function DashboardView({ onOpenPro }: Props) {
   const { tasks, pomodoros, tags } = useTaskStore();
+  const { pro } = useAuth();
   const [report, setReport] = useState<string>('');
   const [generating, setGenerating] = useState(false);
 
@@ -111,6 +117,33 @@ export default function DashboardView() {
 
   return (
     <div className="px-4 py-4 space-y-4 pb-4">
+      {/* Pro 升级入口（仅非 Pro 显示） */}
+      {onOpenPro && !pro?.isPro && (
+        <button
+          onClick={onOpenPro}
+          className="w-full ios-card p-4 flex items-center gap-3 active:scale-[0.99] transition-transform fade-in"
+          style={{ background: 'linear-gradient(135deg, var(--primary-soft), rgba(139,124,255,0.10))', borderColor: 'var(--primary-border)' }}
+        >
+          <div
+            className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))', color: '#ffffff' }}
+          >
+            <span style={{ fontSize: 20, fontWeight: 900 }}>✦</span>
+          </div>
+          <div className="flex-1 text-left min-w-0">
+            <div className="text-[14px] font-bold" style={{ color: 'var(--text-primary)' }}>
+              升级 Pro，解锁全部高级功能
+            </div>
+            <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+              AI 无限对话 · 看板解锁 · 云同步扩容
+            </div>
+          </div>
+          <span className="text-[12px] font-bold px-3 py-1 rounded-full" style={{ background: 'var(--primary)', color: '#ffffff' }}>
+            查看
+          </span>
+        </button>
+      )}
+
       {/* KPI 卡片网格 */}
       <div className="grid grid-cols-2 gap-3">
         {kpis.map((k, i) => (
@@ -303,7 +336,7 @@ export default function DashboardView() {
       )}
 
       {/* AI 周报 */}
-      <div className="v3-card p-4" style={{ background: 'linear-gradient(180deg, rgba(139,124,255,0.10), rgba(255,255,255,0.03))' }}>
+      <div className="ios-card p-4" style={{ background: 'linear-gradient(180deg, rgba(139,124,255,0.08), var(--card))', borderColor: 'rgba(139,124,255,0.25)' }}>
         <div className="flex items-center justify-between mb-3">
           <div className="text-[13px] font-bold flex items-center gap-1.5" style={{ color: 'var(--accent-violet)' }}>
             <span>✦</span>
@@ -313,7 +346,7 @@ export default function DashboardView() {
             onClick={handleGenerateReport}
             disabled={generating}
             className="text-[12px] px-3 py-1.5 rounded-full font-bold active:scale-95 transition-transform disabled:opacity-50"
-            style={{ background: 'rgba(139,124,255,0.18)', border: '1px solid rgba(139,124,255,0.4)', color: 'var(--accent-violet)' }}
+            style={{ background: 'rgba(139,124,255,0.12)', border: '1px solid rgba(139,124,255,0.35)', color: 'var(--accent-violet)' }}
           >
             {generating ? '生成中…' : '生成周报'}
           </button>

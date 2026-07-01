@@ -137,7 +137,7 @@ export default function ProSheet({ onClose }: Props) {
                 onClick={() => setSelectedPlan(p.id)}
                 className="relative p-3 rounded-2xl transition-all active:scale-[0.97]"
                 style={{
-                  background: isSelected ? 'var(--primary-soft)' : 'rgba(255,255,255,0.04)',
+                  background: isSelected ? 'var(--primary-soft)' : 'var(--bg-elevated)',
                   border: `1.5px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
                 }}
               >
