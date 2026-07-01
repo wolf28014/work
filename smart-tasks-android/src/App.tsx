@@ -161,12 +161,11 @@ function Shell() {
   const overdueCount = tasks.filter(t => !t.deletedAt && isOverdue(t)).length;
   const completedToday = tasks.filter(t => !t.deletedAt && t.completedAt && new Date(t.completedAt).toDateString() === new Date().toDateString()).length;
 
-  // 解析背景设置
+  // 解析背景设置 — 深色模式时不显示背景颜色
   const bgResolved = resolveBackgroundCss(bgSettings, customImage);
-  const showCustomBg = bgSettings.type === 'custom' && customImage;
-  const showPresetBg = bgSettings.type === 'preset' && bgResolved;
-  // 深色模式时不显示背景颜色，只有浅色模式才显示
-  const hasCustomBg = (showCustomBg || showPresetBg) && theme !== 'dark';
+  const showCustomBg = bgSettings.type === 'custom' && customImage && theme !== 'dark';
+  const showPresetBg = bgSettings.type === 'preset' && bgResolved && theme !== 'dark';
+  const hasCustomBg = showCustomBg || showPresetBg;
 
   // 有自定义/预设背景时，动态设置 body 背景为透明，让根 div 的背景显示
   useEffect(() => {
