@@ -169,9 +169,9 @@ function Shell() {
   const showPresetBg = bgSettings.type === 'preset' && bgResolved;
   const hasCustomBg = showCustomBg || showPresetBg;
 
-  // 有自定义/预设背景时，顶栏和底栏改为更透明的毛玻璃
+  // 有自定义/预设背景时，顶栏和底栏改为高度透明的毛玻璃，让背景透出
   const barStyle = hasCustomBg
-    ? { background: 'var(--bar-bg)', backdropFilter: 'blur(20px) saturate(150%)', WebkitBackdropFilter: 'blur(20px) saturate(150%)' }
+    ? { background: 'rgba(0,0,0,0.25)', backdropFilter: 'blur(16px) saturate(120%)', WebkitBackdropFilter: 'blur(16px) saturate(120%)' }
     : undefined;
 
   return (
