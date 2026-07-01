@@ -29,12 +29,8 @@ import { todayStr, isOverdue } from './lib/task-utils';
 async function setupStatusBar(isDark: boolean) {
   try {
     await StatusBar.setOverlaysWebView({ overlay: false });
-    await StatusBar.setBackgroundColor({ color: isDark ? '#1a1a2e' : '#f5f5f7' });
+    await StatusBar.setBackgroundColor({ color: isDark ? '#0f0f1a' : '#f5f5f7' });
     await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
-    const info = await StatusBar.getInfo();
-    if (info && typeof info.height === 'number') {
-      document.documentElement.style.setProperty('--safe-top', `${Math.ceil(info.height)}px`);
-    }
   } catch (e) {
     console.log('StatusBar not available:', e);
   }
@@ -346,12 +342,12 @@ function Shell() {
           <nav className="pc-nav">
             {TABS.map(t => (
               <button key={t.id} onClick={() => switchTab(t.id)} className={`pc-nav-item ${tab === t.id ? 'active' : ''}`}>
-                <span className="pc-nav-icon">{t.glyph}</span>
+                <TabIcon glyph={t.glyph} active={tab === t.id} />
                 <span>{t.label}</span>
               </button>
             ))}
             <button onClick={() => setAIOpen(true)} className="pc-nav-item">
-              <span className="pc-nav-icon">✦</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z"/></svg>
               <span>AI 助手</span>
             </button>
           </nav>
@@ -372,20 +368,23 @@ function Shell() {
             <div className="flex items-center gap-2 px-3">
               {pro?.isPro ? (
                 <button onClick={() => setProOpen(true)} className="pc-nav-item flex-1" style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-strong))', color: '#fff' }}>
-                  <span className="pc-nav-icon">★</span><span>PRO 已激活</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z"/></svg>
+                  <span>PRO 已激活</span>
                 </button>
               ) : (
                 <button onClick={() => setProOpen(true)} className="pc-nav-item flex-1">
-                  <span className="pc-nav-icon">✦</span><span>升级 Pro</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z"/></svg>
+                  <span>升级 Pro</span>
                 </button>
               )}
               <button onClick={() => setSettingsOpen(true)} className="pc-nav-item" style={{ flex: '0 0 auto' }}>
-                <span className="pc-nav-icon">⚙</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               </button>
             </div>
             {!user && isConfigured && (
               <button onClick={() => setAuthOpen(true)} className="pc-nav-item" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
-                <span className="pc-nav-icon">👤</span><span>登录同步</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
+                <span>登录同步</span>
               </button>
             )}
           </div>
