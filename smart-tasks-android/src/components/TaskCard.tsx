@@ -75,7 +75,8 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
     const lastDoneDate = new Date(lastDone);
     const lastDoneStr = `${lastDoneDate.getMonth() + 1}月${lastDoneDate.getDate()}日`;
 
-    if (task.recurrence === 'daily') {
+    if (task.recurrence === 'daily' || task.recurrence === 'weekdays') {
+      // daily 和 weekdays 都是"今天是否完成"的打卡式任务
       const todayCompleted = todayDone.length > 0;
       return {
         text: todayCompleted ? `${lastDoneStr}已完成` : '今日未完成',
@@ -322,7 +323,7 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
                     color: recurrenceInfo?.completed ? 'var(--stat-done, #10B981)' : 'var(--text-tertiary)',
                     fontWeight: recurrenceInfo?.completed ? 600 : 400,
                   }}>
-                    ↻ {task.recurrence === 'daily' ? '每日' : task.recurrence === 'weekly' ? '每周' : '每月'}
+                    ↻ {task.recurrence === 'daily' ? '每日' : task.recurrence === 'weekdays' ? '工作日' : task.recurrence === 'weekly' ? '每周' : '每月'}
                     {recurrenceInfo && ` · ${recurrenceInfo.text} · ${recurrenceInfo.count}`}
                   </span>
                 )}

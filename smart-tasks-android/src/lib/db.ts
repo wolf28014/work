@@ -13,7 +13,7 @@ export interface Task {
   startDate: string | null;
   priority: 'low' | 'medium' | 'high';
   status: 'todo' | 'in_progress' | 'done' | 'cancelled';
-  recurrence: 'daily' | 'weekly' | 'monthly' | null;
+  recurrence: 'daily' | 'weekly' | 'monthly' | 'weekdays' | null;
   tags: string[];
   subtasks: SubTask[];
   dependsOn: string[];

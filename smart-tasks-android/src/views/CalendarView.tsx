@@ -94,6 +94,10 @@ export default function CalendarView({ onEdit }: Props) {
         let match = false;
         if (t.recurrence === 'daily') {
           match = true;
+        } else if (t.recurrence === 'weekdays') {
+          // v6.5.3 — 工作日循环：周一到周五显示，周六日不显示
+          const day = d.getDay();
+          match = day >= 1 && day <= 5;
         } else if (t.recurrence === 'weekly') {
           match = d.getDay() === anchor.getDay();
         } else if (t.recurrence === 'monthly') {

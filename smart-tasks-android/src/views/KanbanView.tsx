@@ -431,7 +431,7 @@ function KanbanCard({ task, tagColorDot, onClick, onDragStart, onDragEnd, onLong
     const lastDone = completed.reduce((max, t) => t.completedAt! > max ? t.completedAt! : max, 0);
     const lastDoneDate = new Date(lastDone);
     const lastDoneStr = `${lastDoneDate.getMonth() + 1}月${lastDoneDate.getDate()}日`;
-    if (task.recurrence === 'daily') {
+    if (task.recurrence === 'daily' || task.recurrence === 'weekdays') {
       const todayDone = completed.filter(t => t.completedAt! >= todayStart);
       return { text: todayDone.length > 0 ? `${lastDoneStr}已完成` : '今日未完成', count: `本周${completed.filter(t => t.completedAt! >= weekStart).length}次`, done: todayDone.length > 0 };
     } else if (task.recurrence === 'weekly') {
@@ -528,7 +528,7 @@ function KanbanCard({ task, tagColorDot, onClick, onDragStart, onDragEnd, onLong
           )}
           {task.recurrence && (
             <span style={{ color: recurrenceInfo?.done ? 'var(--stat-done, #10B981)' : 'var(--text-tertiary)', fontWeight: recurrenceInfo?.done ? 600 : 400 }}>
-              ↻ {task.recurrence === 'daily' ? '日' : task.recurrence === 'weekly' ? '周' : '月'}
+              ↻ {task.recurrence === 'daily' ? '日' : task.recurrence === 'weekdays' ? '工作日' : task.recurrence === 'weekly' ? '周' : '月'}
               {recurrenceInfo && ` · ${recurrenceInfo.text} · ${recurrenceInfo.count}`}
             </span>
           )}

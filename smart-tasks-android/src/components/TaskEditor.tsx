@@ -129,7 +129,7 @@ export default function TaskEditor({ task, onClose, template }: Props) {
       // v6.5 — 重复任务不支持区间，强制 startDate=null
       startDate: recurrence ? null : (startDate || null),
       priority, status,
-      recurrence: (recurrence || null) as 'daily' | 'weekly' | 'monthly' | null,
+      recurrence: (recurrence || null) as 'daily' | 'weekly' | 'monthly' | 'weekdays' | null,
       tags: selectedTags, subtasks,
     };
     if (task) { await updateTask(task.id, data); showToast('已保存', 'success'); }
@@ -283,6 +283,7 @@ export default function TaskEditor({ task, onClose, template }: Props) {
               >
                 <option value="">不重复</option>
                 <option value="daily">每天</option>
+                <option value="weekdays">工作日（周一到周五）</option>
                 <option value="weekly">每周</option>
                 <option value="monthly">每月</option>
               </select>

@@ -133,8 +133,20 @@ export function tasksToCSV(tasks: Task[]): string {
 export function generateNextRecurrence(task: Task): Partial<Task> | null {
   if (!task.recurrence || !task.dueDate) return null;
   const d = new Date(task.dueDate);
-  if (task.recurrence === 'daily') d.setDate(d.getDate() + 1);
-  else if (task.recurrence === 'weekly') d.setDate(d.getDate() + 7);
-  else if (task.recurrence === 'monthly') d.setMonth(d.getMonth() + 1);
+  if (task.recurrence === 'daily') {
+    d.setDate(d.getDate() + 1);
+  } else if (task.recurrence === 'weekly') {
+    d.setDate(d.getDate() + 7);
+  } else if (task.recurrence === 'monthly') {
+    d.setMonth(d.getMonth() + 1);
+  } else if (task.recurrence === 'weekdays') {
+    // 工作日循环：跳到下一个工作日（周一到周五）
+    // 如果今天是周五，下一个是周一（+3天）；如果是周六，下一个是周一（+2天）；
+    // 如果是周日，下一个是周一（+1天）；其他工作日 +1 天
+    const day = d.getDay(); // 0=周日, 1=周一, ..., 6=周六
+    if (day === 5) d.setDate(d.getDate() + 3);      // 周五 → 周一
+    else if (day === 6) d.setDate(d.getDate() + 2); // 周六 → 周一
+    else d.setDate(d.getDate() + 1);                // 周日/周一-周四 → 下一天
+  }
   return { dueDate: d.toISOString().slice(0, 10) };
 }
