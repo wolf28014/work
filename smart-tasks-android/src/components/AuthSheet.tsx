@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  signInWithEmail, signUpWithEmail, sendOtp, verifyOtp,
+  signInWithEmail, signUpWithEmail,
   isSupabaseConfigured, useAuth,
 } from '../lib/auth';
 import { showToast } from './Toast';
@@ -11,31 +11,15 @@ interface Props {
 }
 
 type Mode = 'signin' | 'signup';
-type Method = 'email' | 'phone';
 
 export default function AuthSheet({ onClose, onSuccess }: Props) {
   const { isConfigured } = useAuth();
   const [mode, setMode] = useState<Mode>('signin');
-  const [method, setMethod] = useState<Method>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [countdown, setCountdown] = useState(0);
 
-  function startCountdown() {
-    setCountdown(60);
-    const timer = setInterval(() => {
-      setCountdown(c => {
-        if (c <= 1) { clearInterval(timer); return 0; }
-        return c - 1;
-      });
-    }, 1000);
-  }
-
-  async function handleEmailSubmit() {
+  async function handleSubmit() {
     if (!email.trim() || !password) {
       showToast('请填写邮箱和密码', 'error');
       return;
@@ -57,46 +41,6 @@ export default function AuthSheet({ onClose, onSuccess }: Props) {
       }
     } catch (e: any) {
       showToast(e.message || '操作失败', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSendOtp() {
-    if (!phone.trim()) {
-      showToast('请填写手机号', 'error');
-      return;
-    }
-    if (!phone.startsWith('+')) {
-      showToast('手机号需包含国家代码，如 +86138...', 'error');
-      return;
-    }
-    setLoading(true);
-    try {
-      await sendOtp(phone.trim());
-      setOtpSent(true);
-      startCountdown();
-      showToast('验证码已发送', 'success');
-    } catch (e: any) {
-      showToast(e.message || '发送失败', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleVerifyOtp() {
-    if (!otp.trim()) {
-      showToast('请填写验证码', 'error');
-      return;
-    }
-    setLoading(true);
-    try {
-      await verifyOtp(phone.trim(), otp.trim());
-      showToast('登录成功', 'success');
-      onSuccess?.();
-      onClose();
-    } catch (e: any) {
-      showToast(e.message || '验证失败', 'error');
     } finally {
       setLoading(false);
     }
@@ -143,107 +87,38 @@ export default function AuthSheet({ onClose, onSuccess }: Props) {
         </div>
 
         <div className="px-6 pb-6">
-          {/* 方式切换 */}
-          <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1 mb-5">
+          <div className="space-y-3">
+            <div>
+              <label className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-1.5 block">邮箱</label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="ios-input"
+                autoCapitalize="none"
+                onKeyDown={e => { if (e.key === 'Enter' && !loading) handleSubmit(); }}
+              />
+            </div>
+            <div>
+              <label className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-1.5 block">密码</label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="至少 6 位"
+                className="ios-input"
+                onKeyDown={e => { if (e.key === 'Enter' && !loading) handleSubmit(); }}
+              />
+            </div>
             <button
-              onClick={() => setMethod('email')}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-                method === 'email' ? 'bg-white dark:bg-slate-700 text-[color:var(--primary)] shadow-sm' : 'text-[color:var(--text-secondary)]'
-              }`}
-            >📧 邮箱</button>
-            <button
-              onClick={() => setMethod('phone')}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-                method === 'phone' ? 'bg-white dark:bg-slate-700 text-[color:var(--primary)] shadow-sm' : 'text-[color:var(--text-secondary)]'
-              }`}
-            >📱 手机号</button>
+              onClick={handleSubmit}
+              disabled={loading}
+              className="btn-primary w-full mt-2"
+            >
+              {loading ? '处理中…' : (mode === 'signin' ? '登录' : '注册')}
+            </button>
           </div>
-
-          {/* 邮箱方式 */}
-          {method === 'email' && (
-            <div className="space-y-3">
-              <div>
-                <label className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-1.5 block">邮箱</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  className="ios-input"
-                  autoCapitalize="none"
-                />
-              </div>
-              <div>
-                <label className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-1.5 block">密码</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="至少 6 位"
-                  className="ios-input"
-                />
-              </div>
-              <button
-                onClick={handleEmailSubmit}
-                disabled={loading}
-                className="btn-primary w-full mt-2"
-              >
-                {loading ? '处理中…' : (mode === 'signin' ? '登录' : '注册')}
-              </button>
-            </div>
-          )}
-
-          {/* 手机号方式 */}
-          {method === 'phone' && (
-            <div className="space-y-3">
-              <div>
-                <label className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-1.5 block">手机号（含国家代码）</label>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={e => setPhone(e.target.value)}
-                  placeholder="+8613800138000"
-                  className="ios-input"
-                  autoCapitalize="none"
-                />
-              </div>
-              {!otpSent ? (
-                <button onClick={handleSendOtp} disabled={loading} className="btn-primary w-full mt-2">
-                  {loading ? '发送中…' : '发送验证码'}
-                </button>
-              ) : (
-                <>
-                  <div>
-                    <label className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-1.5 block">验证码</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={otp}
-                        onChange={e => setOtp(e.target.value)}
-                        placeholder="6 位数字"
-                        className="ios-input flex-1"
-                        maxLength={6}
-                        inputMode="numeric"
-                      />
-                      <button
-                        onClick={handleSendOtp}
-                        disabled={countdown > 0}
-                        className="px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-medium disabled:opacity-50"
-                      >
-                        {countdown > 0 ? `${countdown}s` : '重发'}
-                      </button>
-                    </div>
-                  </div>
-                  <button onClick={handleVerifyOtp} disabled={loading} className="btn-primary w-full mt-2">
-                    {loading ? '验证中…' : '登录'}
-                  </button>
-                </>
-              )}
-              <div className="text-[11px] text-[color:var(--text-tertiary)] leading-relaxed mt-2">
-                💡 手机号需包含国家代码，如中国 +86、美国 +1。短信费用由 Supabase 服务商收取。
-              </div>
-            </div>
-          )}
 
           {/* 登录/注册切换 */}
           <div className="text-center mt-5 text-[13px] text-[color:var(--text-secondary)]">
