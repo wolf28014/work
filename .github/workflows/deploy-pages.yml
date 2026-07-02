@@ -1,0 +1,51 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: smart-tasks-android/package-lock.json
+
+      - name: Install dependencies
+        working-directory: smart-tasks-android
+        run: npm ci
+
+      - name: Build
+        working-directory: smart-tasks-android
+        run: npm run build
+
+      - name: Add nojekyll
+        run: touch smart-tasks-android/dist/.nojekyll
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: smart-tasks-android/dist
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
