@@ -31,8 +31,18 @@ export default function AuthSheet({ onClose, onSuccess }: Props) {
     setLoading(true);
     try {
       if (mode === 'signup') {
-        await signUpWithEmail(email.trim(), password);
-        showToast('注册成功！请去邮箱确认', 'success');
+        const user = await signUpWithEmail(email.trim(), password);
+        // v6.6 — 修复 #25：注册成功后检查 session
+        // 如果 Supabase 配置了"邮箱验证"，session 为 null，需要提示用户去邮箱确认
+        // 如果没配置邮箱验证，session 已建立，直接登录成功
+        if (user) {
+          showToast('注册成功！欢迎加入', 'success');
+          onSuccess?.();
+          onClose();
+        } else {
+          showToast('注册成功！请去邮箱确认', 'success');
+          setMode('signin');
+        }
       } else {
         await signInWithEmail(email.trim(), password);
         showToast('登录成功', 'success');

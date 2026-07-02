@@ -92,7 +92,7 @@ function Shell() {
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [noteEditorOpen, setNoteEditorOpen] = useState(false);
   const [noteEditing, setNoteEditing] = useState<Note | null>(null);
-  const [notesRefreshSignal, setNotesRefreshSignal] = useState(0);
+  // v6.6 — 移除 notesRefreshSignal，改用 window event 通知 NotesView 刷新
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aiOpen, setAIOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
@@ -177,10 +177,30 @@ function Shell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // 系统返回键监听（无活动 Sheet 时退出 App）
-  // 暂时禁用 backButton listener（排查黑屏问题）
+  // v6.6 — 修复 #42：恢复 backButton listener
+  // Android 物理返回键：有 sheet 时关闭 sheet，无 sheet 时退出 App
   useEffect(() => {
-    // do nothing
+    let listener: any;
+    (async () => {
+      try {
+        const { App: CapacitorApp } = await import('@capacitor/app');
+        listener = await CapacitorApp.addListener('backButton', () => {
+          // 检查是否有 sheet 打开（任何 z-50 的 fixed 元素）
+          const openSheets = document.querySelectorAll('[class*="fixed"][class*="z-50"]');
+          if (openSheets.length > 0) {
+            // 模拟点击 mask 关闭
+            const mask = openSheets[openSheets.length - 1] as HTMLElement;
+            if (mask.onClick) mask.onClick({} as any);
+            else mask.click();
+          } else {
+            CapacitorApp.exitApp();
+          }
+        });
+      } catch (e) {
+        console.log('backButton not available:', e);
+      }
+    })();
+    return () => { if (listener) listener.remove(); };
   }, []);
 
   async function handleAuthSuccess() {
@@ -600,7 +620,7 @@ function Shell() {
               {tab === 'calendar' && <CalendarView onEdit={openEditTask} onNew={openNewTask} />}
               {tab === 'pomodoro' && <PomodoroView onEdit={openEditTask} initialTaskId={pomodoroTaskId} />}
               {tab === 'dashboard' && <DashboardView onOpenPro={() => setProOpen(true)} />}
-              {tab === 'notes' && <NotesView key={notesRefreshSignal} onOpenEditor={openNoteEditor} />}
+              {tab === 'notes' && <NotesView onOpenEditor={openNoteEditor} />}
             </div>
           )}
         </main>
@@ -677,7 +697,10 @@ function Shell() {
         <NoteEditor
           note={noteEditing}
           onClose={() => setNoteEditorOpen(false)}
-          onSaved={() => setNotesRefreshSignal(n => n + 1)}
+          onSaved={() => {
+            // v6.6 — 修复 #20：用 window event 通知 NotesView 刷新，不用 key 强制重挂载
+            window.dispatchEvent(new CustomEvent('notes-realtime-change', { detail: { source: 'editor-saved' } }));
+          }}
         />
       )}
       {settingsOpen && (

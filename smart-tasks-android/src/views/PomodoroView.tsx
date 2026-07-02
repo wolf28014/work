@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Task } from '../lib/db';
 import { useTaskStore } from '../lib/store';
 import { STATUS_LABELS, formatDate } from '../lib/task-utils';
@@ -33,7 +33,8 @@ export default function PomodoroView({ onEdit, initialTaskId }: Props) {
   const totalSeconds = mode === 'work' ? WORK_MINUTES * 60 : BREAK_MINUTES * 60;
   const progress = 1 - secondsLeft / totalSeconds;
 
-  const availableTasks = tasks.filter(t => !t.deletedAt && t.status !== 'done' && t.status !== 'cancelled');
+  // v6.6 — #30 memoize availableTasks
+  const availableTasks = useMemo(() => tasks.filter(t => !t.deletedAt && t.status !== 'done' && t.status !== 'cancelled'), [tasks]);
 
   const handleComplete = useCallback(async () => {
     setRunning(false);
@@ -78,16 +79,30 @@ export default function PomodoroView({ onEdit, initialTaskId }: Props) {
     }
   }, [mode, selectedTaskId, recordPomodoro]);
 
+  // v6.6 — 修复 #3 StrictMode 双调用 + #23 effect 频繁重建
+  // 用 ref 存 handleComplete 的最新引用，effect 只依赖 running
+  // 完成逻辑通过监听 secondsLeft === 0 触发，避免在 setSecondsLeft updater 内调副作用
+  const handleCompleteRef = useRef(handleComplete);
+  handleCompleteRef.current = handleComplete;
+  const completingRef = useRef(false);  // 防止重复触发
+
   useEffect(() => {
     if (!running) return;
     intervalRef.current = window.setInterval(() => {
-      setSecondsLeft(s => {
-        if (s <= 1) { handleComplete(); return 0; }
-        return s - 1;
-      });
+      setSecondsLeft(s => Math.max(0, s - 1));
     }, 1000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [running, mode, handleComplete]);
+  }, [running]);
+
+  // v6.6 — 监听 secondsLeft 归零，单独触发完成逻辑（纯 effect，避免 updater 内副作用）
+  useEffect(() => {
+    if (secondsLeft === 0 && running && !completingRef.current) {
+      completingRef.current = true;
+      handleCompleteRef.current().finally(() => {
+        completingRef.current = false;
+      });
+    }
+  }, [secondsLeft, running]);
 
   // v6.2 — listen for the 'pomodoro-toggle' window event dispatched by the
   // PC keyboard shortcut (Space). Allows starting/pausing without clicking.
@@ -106,7 +121,17 @@ export default function PomodoroView({ onEdit, initialTaskId }: Props) {
     setRunning(r => !r);
   }
   function reset() { setRunning(false); setSecondsLeft(totalSeconds); }
-  function skip() { setRunning(false); setSecondsLeft(0); handleComplete(); }
+  function skip() {
+    setRunning(false);
+    setSecondsLeft(0);
+    // 直接调 handleCompleteRef，不依赖 effect 触发（因为 running 已 false）
+    if (!completingRef.current) {
+      completingRef.current = true;
+      handleCompleteRef.current().finally(() => {
+        completingRef.current = false;
+      });
+    }
+  }
 
   const mm = String(Math.floor(secondsLeft / 60)).padStart(2, '0');
   const ss = String(secondsLeft % 60).padStart(2, '0');

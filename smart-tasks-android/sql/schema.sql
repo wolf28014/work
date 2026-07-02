@@ -140,6 +140,8 @@ DECLARE
   code_record RECORD;
   new_expires_at BIGINT;
 BEGIN
+  -- v6.6 — 修复 #48：长度校验，防止 DOS
+  IF length(code_input) > 64 THEN RAISE EXCEPTION '兑换码格式错误'; END IF;
   SELECT * INTO code_record FROM public.license_codes WHERE code = code_input FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION '兑换码不存在'; END IF;
   IF code_record.is_used THEN RAISE EXCEPTION '兑换码已被使用'; END IF;
@@ -171,12 +173,13 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 INSERT INTO storage.buckets (id, name, public) VALUES ('backgrounds', 'backgrounds', false)
 ON CONFLICT (id) DO NOTHING;
 
+-- v6.6 — 修复 #49：加 name NOT LIKE '%..%' 防御路径逃逸
 CREATE POLICY "users_upload_own_background" ON storage.objects
-  FOR INSERT WITH CHECK (bucket_id = 'backgrounds' AND (storage.foldername(name))[1] = auth.uid()::text);
+  FOR INSERT WITH CHECK (bucket_id = 'backgrounds' AND (storage.foldername(name))[1] = auth.uid()::text AND name NOT LIKE '%..%');
 CREATE POLICY "users_read_own_background" ON storage.objects
-  FOR SELECT USING (bucket_id = 'backgrounds' AND (storage.foldername(name))[1] = auth.uid()::text);
+  FOR SELECT USING (bucket_id = 'backgrounds' AND (storage.foldername(name))[1] = auth.uid()::text AND name NOT LIKE '%..%');
 CREATE POLICY "users_delete_own_background" ON storage.objects
-  FOR DELETE USING (bucket_id = 'backgrounds' AND (storage.foldername(name))[1] = auth.uid()::text);
+  FOR DELETE USING (bucket_id = 'backgrounds' AND (storage.foldername(name))[1] = auth.uid()::text AND name NOT LIKE '%..%');
 
 -- ============== 触发器：新用户注册时自动创建 user_settings ==============
 CREATE OR REPLACE FUNCTION public.handle_new_user()

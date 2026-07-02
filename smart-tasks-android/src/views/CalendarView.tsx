@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import type { Task } from '../lib/db';
 import { useTaskStore } from '../lib/store';
-import { STATUS_LABELS, STATUS_ORDER, todayStr } from '../lib/task-utils';
+import { STATUS_LABELS, STATUS_ORDER, todayStr, useToday } from '../lib/task-utils';
 
 interface Props {
   onEdit: (t: Task) => void;
@@ -24,8 +24,13 @@ const PRI_BAR: Record<string, string> = {
   low: 'var(--pri-low)',
 };
 
+// v6.6 — 修复 #43：复用空 Set，避免每个日期格子每次 render 创建新 Set
+const EMPTY_SET = new Set<string>();
+
 export default function CalendarView({ onEdit }: Props) {
   const { tasks } = useTaskStore();
+  // v6.6 — 修复 #15：跨午夜 today 自动刷新
+  const tStr = useToday();
   const [current, setCurrent] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -47,13 +52,15 @@ export default function CalendarView({ onEdit }: Props) {
       }
     });
 
-    // 1. 普通任务（非重复、未完成、有 dueDate）：按 dueDate 直接映射
-    //    区间任务（有 startDate）：startDate 到 dueDate 之间每天都显示
-    tasks.filter(t => !t.deletedAt && t.status !== 'done' && t.status !== 'cancelled' && !t.recurrence && t.dueDate).forEach(t => {
-      if (t.startDate) {
-        // v6.5 — 区间任务：startDate 到 dueDate 之间每天都显示
+    // 1. 普通任务（非重复、未完成）
+    //    - 有 dueDate + startDate：区间任务，startDate 到 dueDate 之间每天都显示
+    //    - 有 dueDate 无 startDate：单点任务，仅 dueDate 显示
+    //    - v6.6 — 修复 #19：有 startDate 无 dueDate 的任务当作单点任务在 startDate 显示
+    tasks.filter(t => !t.deletedAt && t.status !== 'done' && t.status !== 'cancelled' && !t.recurrence && (t.dueDate || t.startDate)).forEach(t => {
+      if (t.startDate && t.dueDate) {
+        // 区间任务：startDate 到 dueDate 之间每天都显示
         const start = new Date(t.startDate);
-        const end = new Date(t.dueDate!);
+        const end = new Date(t.dueDate);
         if (start > end) return; // 数据异常，跳过
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
           const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -61,9 +68,10 @@ export default function CalendarView({ onEdit }: Props) {
           if (!map.get(dateStr)!.some(x => x.id === t.id)) map.get(dateStr)!.push(t);
         }
       } else {
-        // 单点任务：仅 dueDate 显示
-        if (!map.has(t.dueDate!)) map.set(t.dueDate!, []);
-        if (!map.get(t.dueDate!)!.some(x => x.id === t.id)) map.get(t.dueDate!)!.push(t);
+        // 单点任务：仅 dueDate 显示（或 startDate-only 任务在 startDate 显示）
+        const dateStr = t.dueDate || t.startDate!;
+        if (!map.has(dateStr)) map.set(dateStr, []);
+        if (!map.get(dateStr)!.some(x => x.id === t.id)) map.get(dateStr)!.push(t);
       }
     });
 
@@ -80,11 +88,10 @@ export default function CalendarView({ onEdit }: Props) {
       const createdDate = new Date(t.createdAt);
       const start = createdDate > monthStart ? createdDate : monthStart;
 
-      let end = monthEnd;
-      if (t.dueDate) {
-        const due = new Date(t.dueDate);
-        end = due < monthEnd ? due : monthEnd;
-      }
+      // v6.6 — 修复 #14：重复任务的展开范围不受 dueDate 限制
+      // dueDate 只是当期截止日，未来日期也要显示（重复任务会一直循环）
+      // end 直接用 monthEnd
+      const end = monthEnd;
       if (start > end) return;
 
       // 锚点：weekly/monthly 用 dueDate 的星期几/几号；没 dueDate 用 createdAt
@@ -154,10 +161,26 @@ export default function CalendarView({ onEdit }: Props) {
   }, [current]);
 
   function prevMonth() {
-    setCurrent(c => c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 });
+    setCurrent(c => {
+      const newC = c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 };
+      // v6.6 — 修复 #17：切月后如果 selectedDate 不在新月份，置 null
+      if (selectedDate) {
+        const [y, m] = selectedDate.split('-').map(Number);
+        if (y !== newC.year || m - 1 !== newC.month) setSelectedDate(null);
+      }
+      return newC;
+    });
   }
   function nextMonth() {
-    setCurrent(c => c.month === 11 ? { year: c.year + 1, month: 0 } : { year: c.year, month: c.month + 1 });
+    setCurrent(c => {
+      const newC = c.month === 11 ? { year: c.year + 1, month: 0 } : { year: c.year, month: c.month + 1 };
+      // v6.6 — 修复 #17
+      if (selectedDate) {
+        const [y, m] = selectedDate.split('-').map(Number);
+        if (y !== newC.year || m - 1 !== newC.month) setSelectedDate(null);
+      }
+      return newC;
+    });
   }
   function goToday() {
     const d = new Date();
@@ -166,7 +189,7 @@ export default function CalendarView({ onEdit }: Props) {
   }
 
   const selectedTasks = selectedDate ? (tasksByDate.get(selectedDate) || []) : [];
-  const tStr = todayStr();
+  // tStr 已从 useToday() 获取（顶部），跨午夜自动刷新
 
   return (
     <div className="pb-4 pc-content-wrap">
@@ -206,7 +229,7 @@ export default function CalendarView({ onEdit }: Props) {
         {days.map((d, i) => {
           if (!d) return <div key={i} />;
           const dayTasks = tasksByDate.get(d.date) || [];
-          const completedToday = completedByDate.get(d.date) || new Set<string>();
+          const completedToday = completedByDate.get(d.date) || EMPTY_SET;
           const isToday = d.date === tStr;
           const isSelected = d.date === selectedDate;
           const hasOverdue = dayTasks.some(t => t.status !== 'done' && t.status !== 'cancelled' && t.dueDate! < tStr);

@@ -52,10 +52,11 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
   // 计算重复任务的完成频次
   const recurrenceInfo = useMemo(() => {
     if (!task.recurrence) return null;
-    // 找所有同标题的已完成任务（包括当前任务）
+    // v6.6 — 修复 #16：用 title + recurrence 组合匹配，避免同名不同类型任务合并统计
     const completed = allTasks.filter(t =>
       !t.deletedAt &&
       t.title === task.title &&
+      t.recurrence === task.recurrence &&
       t.status === 'done' &&
       t.completedAt
     );
@@ -237,7 +238,14 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
             transition: dragging ? 'none' : 'transform 0.25s cubic-bezier(0.32,0.72,0,1)',
             opacity: isDone ? 0.6 : 1,
           }}
-          onClick={() => onEdit(task)}
+          // v6.6 — 修复 #39：滑动揭示后点击卡片空白处关闭揭示，而非打开编辑器
+          onClick={() => {
+            if (dragX !== 0) {
+              setDragX(0);
+              return;
+            }
+            onEdit(task);
+          }}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}

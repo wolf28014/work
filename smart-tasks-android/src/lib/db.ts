@@ -63,6 +63,10 @@ export interface Note {
 let dbInstance: IDBDatabase | null = null;
 
 export function genId(): string {
+  // v6.6 — 修复 #41：优先用 crypto.randomUUID，回退到 Date.now + Math.random
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return 'c' + crypto.randomUUID();
+  }
   return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 }
 
@@ -111,6 +115,8 @@ async function tx<T>(store: string, mode: IDBTransactionMode, fn: (s: IDBObjectS
     const req = fn(t.objectStore(store));
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+    // v6.6 — 修复 #36：处理 transaction abort（如 quota exceeded）
+    t.onabort = () => reject(t.error || new Error('Transaction aborted'));
   });
 }
 
@@ -196,6 +202,42 @@ export async function exportAllData() {
   return { tasks, pomodoros, tags, notes, exportedAt: new Date().toISOString(), version: DB_VERSION };
 }
 
+// v6.6 — 修复 #22：导入数据校验函数，缺字段填默认值
+function sanitizeTask(x: any): Task | null {
+  if (!x || typeof x.id !== 'string') return null;
+  return {
+    id: x.id,
+    title: typeof x.title === 'string' ? x.title : '无标题',
+    description: typeof x.description === 'string' ? x.description : '',
+    dueDate: typeof x.dueDate === 'string' || x.dueDate === null ? x.dueDate : null,
+    startDate: typeof x.startDate === 'string' || x.startDate === null ? (x.startDate ?? null) : null,
+    priority: ['low', 'medium', 'high'].includes(x.priority) ? x.priority : 'medium',
+    status: ['todo', 'in_progress', 'done', 'cancelled'].includes(x.status) ? x.status : 'todo',
+    recurrence: ['daily', 'weekly', 'monthly', 'weekdays', null].includes(x.recurrence) ? x.recurrence : null,
+    tags: Array.isArray(x.tags) ? x.tags : [],
+    subtasks: Array.isArray(x.subtasks) ? x.subtasks : [],
+    dependsOn: Array.isArray(x.dependsOn) ? x.dependsOn : [],
+    pomodoros: typeof x.pomodoros === 'number' ? x.pomodoros : 0,
+    noteMarkdown: typeof x.noteMarkdown === 'string' || x.noteMarkdown === null ? x.noteMarkdown : null,
+    createdAt: typeof x.createdAt === 'number' ? x.createdAt : Date.now(),
+    updatedAt: typeof x.updatedAt === 'number' ? x.updatedAt : Date.now(),
+    completedAt: typeof x.completedAt === 'number' || x.completedAt === null ? x.completedAt : null,
+    deletedAt: typeof x.deletedAt === 'number' || x.deletedAt === null ? x.deletedAt : null,
+  };
+}
+function sanitizeNote(x: any): Note | null {
+  if (!x || typeof x.id !== 'string') return null;
+  return {
+    id: x.id,
+    title: typeof x.title === 'string' ? x.title : '',
+    content: typeof x.content === 'string' ? x.content : '',
+    pinned: typeof x.pinned === 'boolean' ? x.pinned : false,
+    createdAt: typeof x.createdAt === 'number' ? x.createdAt : Date.now(),
+    updatedAt: typeof x.updatedAt === 'number' ? x.updatedAt : Date.now(),
+    deletedAt: typeof x.deletedAt === 'number' || x.deletedAt === null ? x.deletedAt : null,
+  };
+}
+
 export async function importAllData(data: any, replace = false) {
   const db = await openDB();
   const stores = ['tasks', 'pomodoros', 'tags', 'notes'];
@@ -206,10 +248,17 @@ export async function importAllData(data: any, replace = false) {
     t.objectStore('tags').clear();
     t.objectStore('notes').clear();
   }
-  if (data.tasks) data.tasks.forEach((x: Task) => t.objectStore('tasks').put(x));
-  if (data.pomodoros) data.pomodoros.forEach((x: PomodoroSession) => t.objectStore('pomodoros').put(x));
-  if (data.tags) data.tags.forEach((x: Tag) => t.objectStore('tags').put(x));
-  if (data.notes) data.notes.forEach((x: Note) => t.objectStore('notes').put(x));
+  // v6.6 — 修复 #22：导入前 sanitize，跳过无效记录
+  if (data.tasks) data.tasks.forEach((x: any) => {
+    const sanitized = sanitizeTask(x);
+    if (sanitized) t.objectStore('tasks').put(sanitized);
+  });
+  if (data.pomodoros) data.pomodoros.forEach((x: PomodoroSession) => { if (x && x.id) t.objectStore('pomodoros').put(x); });
+  if (data.tags) data.tags.forEach((x: Tag) => { if (x && x.id) t.objectStore('tags').put(x); });
+  if (data.notes) data.notes.forEach((x: any) => {
+    const sanitized = sanitizeNote(x);
+    if (sanitized) t.objectStore('notes').put(sanitized);
+  });
   return new Promise<void>((resolve, reject) => {
     t.oncomplete = () => resolve();
     t.onerror = () => reject(t.error);

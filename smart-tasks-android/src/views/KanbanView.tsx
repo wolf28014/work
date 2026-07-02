@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import type { Task } from '../lib/db';
 import { useTaskStore } from '../lib/store';
 import {
@@ -414,6 +414,8 @@ function KanbanCard({ task, tagColorDot, onClick, onDragStart, onDragEnd, onLong
   const pri = PRI_TOKEN[task.priority];
   const overdue = isOverdue(task);
   const [pressTimer, setPressTimer] = useState<number | null>(null);
+  // v6.6 — 修复 #6：长按触发后抑制 click，避免状态 sheet 和编辑器同时打开
+  const longPressFiredRef = useRef(false);
   const [showSubtasks, setShowSubtasks] = useState(false);
   const { updateTask, tasks: allTasks } = useTaskStore();
   const subtaskDone = task.subtasks.filter(s => s.done).length;
@@ -422,7 +424,8 @@ function KanbanCard({ task, tagColorDot, onClick, onDragStart, onDragEnd, onLong
   // 重复任务完成频次
   const recurrenceInfo = useMemo(() => {
     if (!task.recurrence) return null;
-    const completed = allTasks.filter(t => !t.deletedAt && t.title === task.title && t.status === 'done' && t.completedAt);
+    // v6.6 — 修复 #16：用 title + recurrence 组合匹配
+    const completed = allTasks.filter(t => !t.deletedAt && t.title === task.title && t.recurrence === task.recurrence && t.status === 'done' && t.completedAt);
     if (completed.length === 0) return null;
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -444,7 +447,9 @@ function KanbanCard({ task, tagColorDot, onClick, onDragStart, onDragEnd, onLong
   }, [task, allTasks]);
 
   function handleTouchStart() {
+    longPressFiredRef.current = false;
     const timer = window.setTimeout(() => {
+      longPressFiredRef.current = true;
       onLongPress();
     }, 500);
     setPressTimer(timer);
@@ -457,12 +462,21 @@ function KanbanCard({ task, tagColorDot, onClick, onDragStart, onDragEnd, onLong
     }
   }
 
+  function handleClick() {
+    // v6.6 — 修复 #6：长按已触发则抑制 click
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false;
+      return;
+    }
+    onClick();
+  }
+
   return (
     <div
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      onClick={onClick}
+      onClick={handleClick}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchEnd}

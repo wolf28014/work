@@ -75,10 +75,37 @@ export function isNewerVersion(remote: string, current: string): boolean {
   return false;
 }
 
+// v6.6 — 修复 #35：缓存检查结果 1 小时，避免 GitHub API 60 次/小时限制
+const CHECK_CACHE_KEY = 'update-check-cache';
+const CHECK_CACHE_TTL = 3600000;  // 1 小时
+
 // 启动时检查更新（后台静默）
 export async function checkUpdateOnLaunch() {
+  // v6.6 — 1 小时内已检查过则跳过
+  try {
+    const cached = localStorage.getItem(CHECK_CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Date.now() - parsed.checkedAt < CHECK_CACHE_TTL) {
+        // 仍用上次的检查结果，但重新评估是否比当前版本新
+        const latest = parsed.latest;
+        if (latest && isNewerVersion(latest.version, CURRENT_VERSION)) {
+          localStorage.setItem('update-available', JSON.stringify({
+            ...latest, checkedAt: Date.now(),
+          }));
+        } else {
+          localStorage.removeItem('update-available');
+        }
+        return;
+      }
+    }
+  } catch {}
   try {
     const latest = await checkLatestVersion();
+    // 缓存检查结果
+    localStorage.setItem(CHECK_CACHE_KEY, JSON.stringify({
+      latest, checkedAt: Date.now(),
+    }));
     if (latest && isNewerVersion(latest.version, CURRENT_VERSION)) {
       localStorage.setItem('update-available', JSON.stringify({
         version: latest.version,

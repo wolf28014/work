@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import type { Note } from '../lib/db';
-import { getAllNotes, saveNote, deleteNotePermanent, softDeleteNote, genId } from '../lib/db';
+import { getAllNotes, saveNote, deleteNotePermanent, softDeleteNote, genId, getNoteById } from '../lib/db';
 import { syncNoteToCloud } from '../lib/auth';
 import { showToast } from '../components/Toast';
 import SwipeableSheet from '../components/SwipeableSheet';
@@ -135,6 +135,13 @@ export default function NotesView({ onOpenEditor }: Props) {
   }
 
   const visibleNotes = filtered();
+
+  // v6.6 — 修复 #29：缓存所有笔记的 preview，避免每次 render 在 map 内跑多轮 regex
+  const previewMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const n of visibleNotes) m.set(n.id, preview(n.content));
+    return m;
+  }, [visibleNotes]);
 
   function formatDate(ts: number): string {
     const d = new Date(ts);
@@ -303,7 +310,7 @@ export default function NotesView({ onOpenEditor }: Props) {
       ) : (
         <div className="notes-grid space-y-2.5">
           {visibleNotes.map(note => {
-            const previewText = preview(note.content);
+            const previewText = previewMap.get(note.id) || '';
             const isSelected = selectedIds.has(note.id);
             return (
               <div
@@ -403,6 +410,8 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
   // 后续 persist 复用这个 ID（变成 update 而不是 create），
   // 避免每次自动保存都创建一条新笔记。
   const [createdNoteId, setCreatedNoteId] = useState<string | null>(null);
+  // v6.6 — 记录新建笔记的首次创建时间，避免每次自动保存把 createdAt 覆盖成当前时间
+  const [createdNoteAt, setCreatedNoteAt] = useState<number | null>(null);
 
   useEffect(() => {
     // Auto-focus title for new notes
@@ -417,16 +426,30 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
       const now = Date.now();
       const existingId = note?.id || createdNoteId;
 
+      // v6.6 — 修复 #13：编辑现有笔记时，如果远端已删除（deletedAt 不为 null），不覆盖
+      if (existingId) {
+        const current = await getNoteById(existingId);
+        if (current && current.deletedAt !== null) {
+          showToast('该笔记已被删除', 'info');
+          onSaved();
+          onClose();
+          return;
+        }
+      }
+
       if (existingId) {
         // Update existing note (either editing an old one, or re-saving a newly created one)
+        // v6.6 — 修复 createdAt 覆盖 bug：新建笔记用 createdNoteAt，编辑笔记用 note.createdAt
+        // v6.6 — 修复 #13：保留 existing.deletedAt 而非强制 null
+        const current = await getNoteById(existingId);
         const updated: Note = {
           id: existingId,
           title: t,
           content: c,
           pinned: p,
-          createdAt: note?.createdAt || now,
+          createdAt: note?.createdAt || createdNoteAt || now,
           updatedAt: now,
-          deletedAt: null,
+          deletedAt: current?.deletedAt ?? null,
         };
         await saveNote(updated);
         syncNoteToCloud(updated).catch(e => console.log('Sync failed:', e));
@@ -443,6 +466,7 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
           deletedAt: null,
         };
         setCreatedNoteId(newId);
+        setCreatedNoteAt(now);
         await saveNote(created);
         syncNoteToCloud(created).catch(e => console.log('Sync failed:', e));
       }
@@ -485,11 +509,15 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
   }
 
   async function handleDelete() {
-    if (!note) { onClose(); return; }
+    // v6.6 — 修复 #12：新建笔记（已自动保存到 IndexedDB）也要能删除
+    const idToDelete = note?.id || createdNoteId;
+    if (!idToDelete) { onClose(); return; }
     if (!confirm('确定删除此笔记？')) return;
     if (saveTimer) clearTimeout(saveTimer);
-    await softDeleteNote(note.id);
-    syncNoteToCloud({ ...note, deletedAt: Date.now() }).catch(e => console.log('Sync failed:', e));
+    await softDeleteNote(idToDelete);
+    const now = Date.now();
+    syncNoteToCloud({ ...(note || {}), id: idToDelete, title, content, pinned, createdAt: note?.createdAt || createdNoteAt || now, updatedAt: now, deletedAt: now } as Note)
+      .catch(e => console.log('Sync failed:', e));
     showToast('已删除', 'info');
     onSaved();
     onClose();

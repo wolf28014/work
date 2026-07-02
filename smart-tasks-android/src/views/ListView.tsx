@@ -3,7 +3,7 @@ import type { Task } from '../lib/db';
 import { useTaskStore } from '../lib/store';
 import TaskCard from '../components/TaskCard';
 import SwipeableSheet from '../components/SwipeableSheet';
-import { tfidfSearch, todayStr, isOverdue } from '../lib/task-utils';
+import { tfidfSearch, todayStr, isOverdue, useToday } from '../lib/task-utils';
 
 interface Props {
   onEdit: (t: Task) => void;
@@ -38,6 +38,8 @@ const TAG_DOT: Record<string, string> = {
 
 export default function ListView({ onEdit, onStartPomodoro }: Props) {
   const { tasks, tags, softDeleteTask } = useTaskStore();
+  // v6.6 — 修复 #15：用 useToday 跨午夜自动刷新
+  const today = useToday();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterTab>('all');
   const [groupByTag, setGroupByTag] = useState(false);
@@ -51,7 +53,7 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
 
   const filtered = useMemo(() => {
     let result = activeTasks;
-    const today = todayStr();
+    // v6.6 — 修复 #15：用 useToday 的 today，跨午夜自动刷新
     if (filter === 'today') {
       result = result.filter(t => t.dueDate === today && t.status !== 'done' && t.status !== 'cancelled');
     } else if (filter === 'overdue') {
@@ -62,7 +64,7 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
       result = result.filter(t => t.status !== 'done' && t.status !== 'cancelled');
     }
     return result;
-  }, [activeTasks, filter]);
+  }, [activeTasks, filter, today]);
 
   const searchResults = useMemo(() => {
     if (!query.trim()) return filtered.map(t => ({ task: t, matchedFields: [] as string[] }));
@@ -114,10 +116,10 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
 
   const counts = useMemo(() => ({
     all: activeTasks.filter(t => t.status !== 'done' && t.status !== 'cancelled').length,
-    today: activeTasks.filter(t => t.dueDate === todayStr() && t.status !== 'done' && t.status !== 'cancelled').length,
+    today: activeTasks.filter(t => t.dueDate === today && t.status !== 'done' && t.status !== 'cancelled').length,
     overdue: activeTasks.filter(t => isOverdue(t)).length,
     done: activeTasks.filter(t => t.status === 'done').length,
-  }), [activeTasks]);
+  }), [activeTasks, today]);
 
   const filterTabs: { id: FilterTab; label: string; count: number }[] = [
     { id: 'all',     label: '全部',   count: counts.all },

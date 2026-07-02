@@ -1,10 +1,11 @@
 // Supabase 客户端
-// 用户需在 supabase.com 创建项目后，把 URL 和 anon key 填入这里
+// v6.6 — 修复 #46：支持环境变量配置，保留默认值兼容现有部署
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-// ⚠️ 用户配置区：把下面两个值换成你自己的 Supabase 项目
-const SUPABASE_URL = 'https://zxasxqnfohubugynkjyi.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable__HcWaSS2mOmWBb1w1YMlSw_WyklcDOY';
+// 优先用 Vite 环境变量（import.meta.env.VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY），
+// 没配置则用默认值（保持现有部署兼容）
+const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://zxasxqnfohubugynkjyi.supabase.co';
+const SUPABASE_ANON_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'sb_publishable__HcWaSS2mOmWBb1w1YMlSw_WyklcDOY';
 
 let client: SupabaseClient | null = null;
 

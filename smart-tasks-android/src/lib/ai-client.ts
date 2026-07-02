@@ -49,7 +49,15 @@ export async function parseTaskWithAI(input: string, todayISO: string): Promise<
   const resp = await aiChat([{ role: 'system', content: system }, { role: 'user', content: input }]);
   const match = resp.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('AI 响应格式错误');
-  return JSON.parse(match[0]);
+  // v6.6 — 修复 #52：白名单校验，防止 prototype pollution
+  const parsed = JSON.parse(match[0]);
+  return {
+    title: typeof parsed.title === 'string' ? parsed.title : '',
+    description: typeof parsed.description === 'string' ? parsed.description : '',
+    dueDate: typeof parsed.dueDate === 'string' || parsed.dueDate === null ? parsed.dueDate : null,
+    priority: ['low', 'medium', 'high'].includes(parsed.priority) ? parsed.priority : 'medium',
+    tags: Array.isArray(parsed.tags) ? parsed.tags.filter((t: any) => typeof t === 'string').slice(0, 3) : [],
+  };
 }
 
 export async function generateWeeklyReport(tasks: any[], pomodoros: any[]): Promise<string> {

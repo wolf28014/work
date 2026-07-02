@@ -1,4 +1,5 @@
 import type { Task } from './db';
+import { useState, useEffect } from 'react';
 
 export const PRIORITY_LABELS: Record<string, string> = { low: '低', medium: '中', high: '高' };
 export const PRIORITY_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
@@ -28,6 +29,29 @@ export const TAG_COLOR_NAMES = Object.keys(TAG_COLORS);
 
 export function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+// v6.6 — 修复 #15：跨午夜 today 刷新 hook
+// App 启动时调 useToday()，组件用返回的 today 字符串作为 dep
+// 每 60 秒检查一次日期是否变化，变化时更新（触发依赖 today 的 useMemo 重算）
+export function useToday(): string {
+  const [today, setToday] = useState(todayStr());
+  useEffect(() => {
+    const check = () => {
+      const newToday = todayStr();
+      setToday(prev => prev !== newToday ? newToday : prev);
+    };
+    // 每 60 秒检查一次（足够及时，CPU 开销小）
+    const interval = setInterval(check, 60000);
+    // 页面重新可见时也检查（从后台切回前台可能跨午夜）
+    const onVisibility = () => { if (!document.hidden) check(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
+  return today;
 }
 
 export function formatDate(dateStr: string | null): string {

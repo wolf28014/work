@@ -1,9 +1,9 @@
-import { createContext, useContext, useEffect, useReducer, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useReducer, useRef, type ReactNode } from 'react';
 import type { Task, PomodoroSession, Tag } from './db';
 import { getAllTasks, saveTask, deleteTaskPermanent, getAllPomodoros, addPomodoroSession, getAllTags, saveTag, deleteTag as deleteTagDB } from './db';
 import { genId } from './db';
 import { generateNextRecurrence } from './task-utils';
-import { syncTaskToCloud, syncPomodoroToCloud, syncTagToCloud, deleteTagFromCloud, useAuth, subscribeRealtime, unsubscribeRealtime } from './auth';
+import { syncTaskToCloud, syncPomodoroToCloud, syncTagToCloud, deleteTagFromCloud, deleteTaskFromCloud, useAuth, subscribeRealtime, unsubscribeRealtime } from './auth';
 import { applyTheme, getLastLightThemeId, THEMES, isDarkTheme } from './themes';
 
 interface State {
@@ -117,7 +117,7 @@ interface ContextValue extends State {
   restoreTask: (id: string) => Promise<void>;
   purgeTask: (id: string) => Promise<void>;
   recordPomodoro: (taskId: string, duration: number) => Promise<void>;
-  ensureTag: (name: string, color?: string) => Promise<Tag>;
+  ensureTag: (name: string, color?: string) => Promise<Tag | null>;
   updateTagColor: (id: string, color: string) => Promise<void>;
   deleteTag: (id: string) => Promise<void>;
   toggleTheme: () => void;
@@ -166,10 +166,18 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         const [tasks, pomodoros, tags] = await Promise.all([getAllTasks(true), getAllPomodoros(), getAllTags()]);
         dispatch({ type: 'LOAD', tasks, pomodoros, tags });
         if (tasks.length === 0) {
-          await seedDemoData();
+          // v6.6 — 修复 #8：只有从未 seed 过的设备才 seed，避免用户清空后重启又出现 demo
+          if (!localStorage.getItem('smart-tasks-seeded')) {
+            await seedDemoData();
+            localStorage.setItem('smart-tasks-seeded', '1');
+          }
         } else {
-          // v6.5.1 — 老用户升级后，自动更新"欢迎使用智能待办"任务的内容
-          await maybeUpgradeWelcomeTask(tasks);
+          // v6.6 — 修复 #26：用 localStorage 标记而不是字符串嗅探
+          // 老用户升级后，如果 welcome 任务存在且未升级到 v6.5.1 版本，自动升级
+          if (!localStorage.getItem('welcome-upgraded-v651')) {
+            await maybeUpgradeWelcomeTask(tasks);
+            localStorage.setItem('welcome-upgraded-v651', '1');
+          }
         }
       } catch (e) {
         console.error('Load failed', e);
@@ -204,15 +212,21 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('theme', state.theme);
   }, [state.appTheme, state.theme]);
 
+  // v6.6 — 修复 #32：30 天清理节流，每小时跑一次而不是每次 tasks 变化都跑
+  const lastPurgeRef = useRef(0);
   useEffect(() => {
     if (state.tasks.length === 0) return;
-    const cutoff = Date.now() - 30 * 86400000;
+    const now = Date.now();
+    if (now - lastPurgeRef.current < 3600000) return;  // 1 小时内已跑过
+    lastPurgeRef.current = now;
+    const cutoff = now - 30 * 86400000;
     state.tasks.forEach(async t => {
       if (t.deletedAt && t.deletedAt < cutoff) {
         await deleteTaskPermanent(t.id);
         dispatch({ type: 'PURGE_TASK', id: t.id });
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.tasks]);
 
   // v6.5.1 — 老用户升级后，把"欢迎使用智能待办"任务的旧短文本升级成详细使用说明
@@ -285,7 +299,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         description: partial.description || '',
         dueDate: partial.dueDate || null,
         // v6.5 — startDate; if recurrence is set, force startDate=null (重复任务不支持区间)
-        startDate: partial.recurrence ? null : (partial.startDate || null),
+        // v6.6 — 修复 #45：用 ?? 代替 ||，避免 '' 误判
+        startDate: partial.recurrence ? null : (partial.startDate ?? null),
         priority: partial.priority || 'medium',
         status: partial.status || 'todo',
         recurrence: partial.recurrence || null,
@@ -323,9 +338,18 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       if (existing.recurrence && existing.dueDate) {
         const next = generateNextRecurrence(existing);
         if (next) {
+          // v6.6 — 修复子任务未重置 bug：新实例的子任务要全部重置为未完成，并重新生成 id 避免云端冲突
           const newInstance: Task = {
-            ...existing, id: genId(), status: 'todo', completedAt: null, deletedAt: null,
-            createdAt: Date.now(), updatedAt: Date.now(), pomodoros: 0, ...next,
+            ...existing,
+            id: genId(),
+            status: 'todo',
+            completedAt: null,
+            deletedAt: null,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            pomodoros: 0,
+            subtasks: existing.subtasks.map(s => ({ ...s, id: genId(), done: false })),
+            ...next,
           };
           await saveTask(newInstance);
           dispatch({ type: 'ADD_TASK', task: newInstance });
@@ -339,10 +363,11 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     async softDeleteTask(id) {
       const existing = state.tasks.find(t => t.id === id);
       if (!existing) return;
-      const updated = { ...existing, deletedAt: Date.now(), updatedAt: Date.now() };
+      // v6.6 — 修复 deletedAt 不一致：用同一个 timestamp，只 dispatch 一次 UPDATE_TASK
+      const now = Date.now();
+      const updated = { ...existing, deletedAt: now, updatedAt: now };
       await saveTask(updated);
       dispatch({ type: 'UPDATE_TASK', task: updated });
-      dispatch({ type: 'DELETE_TASK', id });
       syncTaskToCloud(updated).catch(e => console.log('Sync failed:', e));
     },
     async restoreTask(id) {
@@ -351,12 +376,13 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       const updated = { ...existing, deletedAt: null, updatedAt: Date.now() };
       await saveTask(updated);
       dispatch({ type: 'UPDATE_TASK', task: updated });
-      dispatch({ type: 'RESTORE_TASK', id });
       syncTaskToCloud(updated).catch(e => console.log('Sync failed:', e));
     },
     async purgeTask(id) {
+      // v6.6 — 修复回收站复活 bug：彻底删除时同时删云端，否则下次 syncFromCloud 会拉回来
       await deleteTaskPermanent(id);
       dispatch({ type: 'PURGE_TASK', id });
+      deleteTaskFromCloud(id).catch(e => console.log('Cloud delete failed:', e));
     },
     async recordPomodoro(taskId, duration) {
       const session: PomodoroSession = {
@@ -368,7 +394,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     },
     async ensureTag(name, color = 'violet') {
       const cleaned = name.replace(/^#/, '').trim();
-      if (!cleaned) return state.tags[0];
+      // v6.6 — 修复 #21：空名返回 null 而不是 state.tags[0]（可能 undefined）
+      if (!cleaned) return null;
       const existing = state.tags.find(t => t.name === cleaned);
       if (existing) return existing;
       const tag: Tag = { id: genId(), name: cleaned, color, createdAt: Date.now(), updatedAt: Date.now() };
@@ -388,32 +415,31 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     async deleteTag(id) {
       const tag = state.tags.find(t => t.id === id);
       if (!tag) return;
-      // 同时从所有任务的 tags 数组中移除该标签
-      for (const t of state.tasks) {
-        if (t.deletedAt) continue;
-        if (t.tags.includes(tag.name)) {
-          const newTags = t.tags.filter(tn => tn !== tag.name);
-          const updated = { ...t, tags: newTags, updatedAt: Date.now() };
-          await saveTask(updated);
-          dispatch({ type: 'UPDATE_TASK', task: updated });
-          syncTaskToCloud(updated).catch(e => console.log('Sync failed:', e));
-        }
-      }
+      // v6.6 — 修复 #33：并行处理任务的 tag 移除（之前串行 await）
+      const tasksToUpdate = state.tasks
+        .filter(t => !t.deletedAt && t.tags.includes(tag.name))
+        .map(t => {
+          const updated = { ...t, tags: t.tags.filter(tn => tn !== tag.name), updatedAt: Date.now() };
+          return updated;
+        });
+      await Promise.all(tasksToUpdate.map(async updated => {
+        await saveTask(updated);
+        dispatch({ type: 'UPDATE_TASK', task: updated });
+        syncTaskToCloud(updated).catch(e => console.log('Sync failed:', e));
+      }));
       await deleteTagDB(id);
       dispatch({ type: 'DELETE_TAG', id });
       deleteTagFromCloud(id).catch(e => console.log('Sync failed:', e));
     },
     toggleTheme() {
       // v6.1 — toggle between the current dark theme and the last-used light theme.
-      // Works with any dark theme (dark-pro or midnight).
+      // v6.6 — 修复 #34：删除冗余的 if (!isDarkTheme) 判断（else 分支必然不是 dark）
       if (isDarkTheme(state.appTheme)) {
         const lastLight = getLastLightThemeId();
         dispatch({ type: 'SET_APP_THEME', appTheme: lastLight });
       } else {
         // remember current light theme before switching to dark
-        if (!isDarkTheme(state.appTheme)) {
-          localStorage.setItem('last-light-theme', state.appTheme);
-        }
+        localStorage.setItem('last-light-theme', state.appTheme);
         // Default dark theme is dark-pro (user can pick midnight from theme picker)
         dispatch({ type: 'SET_APP_THEME', appTheme: 'dark-pro' });
       }

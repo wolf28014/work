@@ -123,6 +123,11 @@ export default function TaskEditor({ task, onClose, template }: Props) {
 
   async function handleSave() {
     if (!title.trim()) { showToast('请填写任务标题', 'error'); return; }
+    // v6.6 — 修复 #9：校验 startDate <= dueDate
+    if (startDate && dueDate && startDate > dueDate) {
+      showToast('起始日不能晚于截止日', 'error');
+      return;
+    }
     const data = {
       title: title.trim(), description: description.trim(),
       dueDate: dueDate || null,
@@ -265,7 +270,13 @@ export default function TaskEditor({ task, onClose, template }: Props) {
               <input
                 type="date"
                 value={dueDate}
-                onChange={e => setDueDate(e.target.value)}
+                onChange={e => {
+                  const v = e.target.value;
+                  setDueDate(v);
+                  // v6.6 — 修复 #18：如果截止日晚于起始日... 实际是起始日不能晚于截止日
+                  // 这里如果 dueDate 改到 startDate 之前，清空 startDate
+                  if (startDate && v && v < startDate) setStartDate('');
+                }}
                 className="flex-1 bg-transparent text-right text-[15px] outline-none"
               />
             </div>

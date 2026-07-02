@@ -6,7 +6,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 // re-export 供其他模块使用
 export { isSupabaseConfigured } from './supabase';
 import type { Task, PomodoroSession, Tag, Note } from './db';
-import { getAllTasks, getAllPomodoros, getAllTags, saveTask, addPomodoroSession, saveTag, getAllNotes, saveNote } from './db';
+import { getAllTasks, getAllPomodoros, getAllTags, saveTask, addPomodoroSession, saveTag, getAllNotes, saveNote, getTaskById, getNoteById } from './db';
 
 export interface User {
   id: string;
@@ -230,8 +230,9 @@ export async function pullCloudToLocal() {
   // 拉取任务
   const { data: remoteTasks, error: e1 } = await sb.from('tasks').select('*').eq('user_id', currentUser!.id);
   if (e1) throw e1;
+  // v6.6 — 修复 #31：并行 saveTask（之前串行 await 慢）
   if (remoteTasks) {
-    for (const t of remoteTasks) {
+    await Promise.all(remoteTasks.map(async t => {
       const task: Task = {
         id: t.id, title: t.title, description: t.description || '',
         dueDate: t.due_date, startDate: t.start_date || null, priority: t.priority, status: t.status,
@@ -242,7 +243,7 @@ export async function pullCloudToLocal() {
         completedAt: t.completed_at, deletedAt: t.deleted_at,
       };
       await saveTask(task);
-    }
+    }));
   }
 
   // 拉取番茄钟
@@ -385,9 +386,9 @@ export async function syncFromCloud(): Promise<number> {
     .gt('updated_at', sinceTasks);
   if (!error && remoteTasks) {
     if (remoteTasks.length === 0) {
-      // No changes since last sync — advance the watermark to "now" so the next
-      // poll's query stays narrow even if writes happened that we already had.
-      setLastSyncTime(Date.now());
+      // v6.6 — 修复 #5 时钟偏移漏拉：不推进 watermark 到本机 Date.now()
+      // 保持原值不变，下次 poll 仍用旧 watermark 查询，避免快时钟漏拉其他设备的更新
+      // （其他设备的 updated_at 用的是它们自己的本机时间，可能小于本机 now()）
     } else {
       const localTasks = await getAllTasks(true);
       const localMap = new Map(localTasks.map(t => [t.id, t]));
@@ -426,7 +427,7 @@ export async function syncFromCloud(): Promise<number> {
     .gt('updated_at', sinceNotes);
   if (!notesError && remoteNotes) {
     if (remoteNotes.length === 0) {
-      setLastSyncNotesTime(Date.now());
+      // v6.6 — 修复 #5 时钟偏移：notes 同样不推进 watermark
     } else {
       const localNotes = await getAllNotes(true);
       const localNotesMap = new Map(localNotes.map(n => [n.id, n]));
@@ -506,9 +507,14 @@ export async function syncNoteToCloud(note: Note) {
     console.warn('[syncNote] Supabase 未配置，跳过同步');
     return;
   }
+  // v6.6 — 修复 #50：限制 content 大小，防止 DOS 云端 DB
+  const MAX_CONTENT = 100000;
+  const content = note.content.length > MAX_CONTENT
+    ? note.content.slice(0, MAX_CONTENT) + '\n\n[内容过长已截断]'
+    : note.content;
   const { error } = await sb.from('notes').upsert({
     id: note.id, user_id: currentUser!.id,
-    title: note.title, content: note.content, pinned: note.pinned,
+    title: note.title, content, pinned: note.pinned,
     created_at: note.createdAt, updated_at: note.updatedAt, deleted_at: note.deletedAt,
   }, { onConflict: 'id' });
   if (error) {
@@ -522,6 +528,15 @@ export async function deleteTagFromCloud(tagId: string) {
   const sb = getSupabase();
   if (!sb) return;
   await sb.from('tags').delete().eq('id', tagId);
+}
+
+// v6.6 — 彻底删除云端任务（purgeTask 调用，避免回收站复活）
+export async function deleteTaskFromCloud(taskId: string) {
+  if (!currentUser) return;
+  const sb = getSupabase();
+  if (!sb) return;
+  const { error } = await sb.from('tasks').delete().eq('id', taskId);
+  if (error) console.error('[deleteTaskFromCloud] failed:', error.message);
 }
 
 // 首次登录：合并本地数据到云端（去重）
@@ -553,6 +568,29 @@ export async function mergeLocalToCloud() {
     const rUpdatedAt = remoteNotesMap.get(n.id);
     if (!rUpdatedAt || rUpdatedAt < n.updatedAt) {
       await syncNoteToCloud(n);
+    }
+  }
+
+  // v6.6 — 修复 #10：上传本地番茄钟记录和标签（之前完全漏了）
+  // 番茄钟：直接全部上传（无 updated_at 字段，按 id 去重）
+  const { data: remotePomodoros } = await sb.from('pomodoro_sessions').select('id').eq('user_id', currentUser!.id);
+  const remotePomodoroIds = new Set((remotePomodoros || []).map((r: any) => r.id));
+  const localPomodoros = await getAllPomodoros();
+  for (const p of localPomodoros) {
+    if (!remotePomodoroIds.has(p.id)) {
+      await syncPomodoroToCloud(p);
+    }
+  }
+
+  // 标签：按 updated_at 去重
+  const { data: remoteTags } = await sb.from('tags').select('id, updated_at').eq('user_id', currentUser!.id);
+  const remoteTagsMap = new Map<string, number>();
+  (remoteTags || []).forEach((r: any) => remoteTagsMap.set(r.id, r.updated_at));
+  const localTags = await getAllTags();
+  for (const tg of localTags) {
+    const rUpdatedAt = remoteTagsMap.get(tg.id);
+    if (!rUpdatedAt || rUpdatedAt < tg.updatedAt) {
+      await syncTagToCloud(tg);
     }
   }
 
@@ -613,9 +651,16 @@ export function subscribeRealtime(userId: string, handlers: RealtimeHandlers) {
             createdAt: t.created_at, updatedAt: t.updated_at,
             completedAt: t.completed_at, deletedAt: t.deleted_at,
           };
-          // Persist to IndexedDB so local cache stays in sync
-          saveTask(task).catch(e => console.log('[realtime] saveTask failed:', e));
-          handlers.onTaskInsert(task);
+          // v6.6 — 修复 #7：realtime 无条件覆盖。先对比 updatedAt，避免用旧远端事件覆盖本地新编辑
+          (async () => {
+            try {
+              const local = await getTaskById(task.id);
+              if (!local || task.updatedAt > local.updatedAt) {
+                await saveTask(task);
+                handlers.onTaskInsert(task);
+              }
+            } catch (e) { console.log('[realtime] saveTask failed:', e); }
+          })();
         } catch (e) { console.log('[realtime] task INSERT parse failed:', e); }
       })
     .on('postgres_changes',
@@ -633,8 +678,16 @@ export function subscribeRealtime(userId: string, handlers: RealtimeHandlers) {
             createdAt: t.created_at, updatedAt: t.updated_at,
             completedAt: t.completed_at, deletedAt: t.deleted_at,
           };
-          saveTask(task).catch(e => console.log('[realtime] saveTask failed:', e));
-          handlers.onTaskUpdate(task);
+          // v6.6 — 修复 #7：realtime 无条件覆盖。先对比 updatedAt
+          (async () => {
+            try {
+              const local = await getTaskById(task.id);
+              if (!local || task.updatedAt > local.updatedAt) {
+                await saveTask(task);
+                handlers.onTaskUpdate(task);
+              }
+            } catch (e) { console.log('[realtime] saveTask failed:', e); }
+          })();
         } catch (e) { console.log('[realtime] task UPDATE parse failed:', e); }
       })
     .on('postgres_changes',
