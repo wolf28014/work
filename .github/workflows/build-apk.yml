@@ -1,0 +1,139 @@
+name: Build Android APK
+
+# 当发布 Release 时自动触发，也可以手动触发
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 需要完整历史来恢复 keystore
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: smart-tasks-android/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+
+      - name: Restore keystore from git history
+        working-directory: smart-tasks-android/android
+        run: |
+          # keystore 文件在初始提交 bbb1786 里，从历史恢复
+          git checkout bbb1786 -- smart-tasks.keystore
+          # 验证
+          ls -la smart-tasks.keystore
+          file smart-tasks.keystore
+
+      - name: Write local.properties
+        working-directory: smart-tasks-android/android
+        run: |
+          cat > local.properties <<EOF
+          keystore_path=smart-tasks.keystore
+          keystore_password=smarttasks123
+          key_alias=smart-tasks
+          key_password=smarttasks123
+          sdk.dir=$ANDROID_HOME
+          EOF
+          # local.properties 必须用 java properties 格式（不能有前导空格）
+          sed -i 's/^ *//' local.properties
+          cat local.properties
+
+      - name: Install dependencies
+        working-directory: smart-tasks-android
+        run: npm ci
+
+      - name: Build web
+        working-directory: smart-tasks-android
+        run: npm run build
+
+      - name: Sync to Android
+        working-directory: smart-tasks-android
+        run: npx cap sync android
+
+      - name: Build APK
+        working-directory: smart-tasks-android/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Verify version in APK
+        working-directory: smart-tasks-android
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          VERSION=${VERSION:-unknown}
+          echo "Release version: $VERSION"
+          # 检查 APK 里的 JS 文件包含正确版本号
+          mkdir -p /tmp/apk-check
+          cd /tmp/apk-check
+          unzip -q $OLDPWD/android/app/build/outputs/apk/release/app-release.apk -d .
+          JS_FILE=$(find assets/public/assets -name "index-*.js" | head -1)
+          echo "JS file: $JS_FILE"
+          echo "Version strings found:"
+          grep -oE "[0-9]+\.[0-9]+\.[0-9]+" "$JS_FILE" | sort | uniq -c | head -10
+          # 验证版本号在 APK 里
+          if grep -q "$VERSION" "$JS_FILE"; then
+            echo "✓ Version $VERSION is correctly embedded in APK"
+          else
+            echo "⚠ Warning: version $VERSION not found in APK JS"
+          fi
+
+      - name: Rename APK
+        id: apk
+        working-directory: smart-tasks-android
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          VERSION=${VERSION:-dev}
+          APK_NAME="Smart-Tasks-${VERSION}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "$APK_NAME"
+          ls -la "$APK_NAME"
+          echo "apk_name=$APK_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate QR Code
+        working-directory: smart-tasks-android
+        run: |
+          pip install qrcode[pil]
+          python3 -c "
+          import qrcode
+          url = f'https://github.com/wolf28014/work/releases/download/${{ steps.apk.outputs.version }}/Smart-Tasks-${{ steps.apk.outputs.version }}.apk'
+          qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
+          qr.add_data(url)
+          qr.make(fit=True)
+          qr.make_image(fill_color='black', back_color='white').save('qr-download-${{ steps.apk.outputs.version }}.png')
+          print(f'QR generated for {url}')
+          "
+
+      - name: Upload APK to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            smart-tasks-android/Smart-Tasks-${{ steps.apk.outputs.version }}.apk
+            smart-tasks-android/qr-download-${{ steps.apk.outputs.version }}.png
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload build artifacts (for debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            smart-tasks-android/android/app/build/reports/
+            smart-tasks-android/android/build/reports/
+          retention-days: 7
