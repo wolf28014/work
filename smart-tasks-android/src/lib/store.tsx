@@ -165,7 +165,12 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       try {
         const [tasks, pomodoros, tags] = await Promise.all([getAllTasks(true), getAllPomodoros(), getAllTags()]);
         dispatch({ type: 'LOAD', tasks, pomodoros, tags });
-        if (tasks.length === 0) await seedDemoData();
+        if (tasks.length === 0) {
+          await seedDemoData();
+        } else {
+          // v6.5.1 — 老用户升级后，自动更新"欢迎使用智能待办"任务的内容
+          await maybeUpgradeWelcomeTask(tasks);
+        }
       } catch (e) {
         console.error('Load failed', e);
         dispatch({ type: 'LOAD', tasks: [], pomodoros: [], tags: [] });
@@ -210,9 +215,45 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     });
   }, [state.tasks]);
 
+  // v6.5.1 — 老用户升级后，把"欢迎使用智能待办"任务的旧短文本升级成详细使用说明
+  // 判断条件：title 是"欢迎使用智能待办"且 description 不是新版本（不含"## 📋 任务管理"）
+  // 同时确保它有 6 个引导子任务
+  const WELCOME_NEW_DESC = '这是一款集任务管理、番茄钟、笔记、AI 助手于一体的效率工具。下面按模块介绍使用方法。\n\n## 📋 任务管理（任务页）\n\n- **创建任务**：点击右上角 +，先选模板（空白/工作/学习/生活），再填写标题、描述、日期、优先级\n- **日期模式**（v6.5 新功能）：\n  - 「那天完成」—— 单点任务，只在截止日显示\n  - 「那天之前完成」—— 区间任务，起始日到截止日每天都显示在日历上\n- **重复任务**：每天/每周/每月自动循环，完成后自动生成下一期\n- **子任务**：在任务详情里添加子任务，支持勾选\n- **状态切换**：待办 / 进行中 / 已完成 / 已取消\n- **操作**：左滑快速完成，长按编辑，右滑删除\n\n## 📅 日历视图\n\n- 普通任务在截止日显示圆点\n- 区间任务在起止区间内每天显示\n- 重复任务按规则展开（每日/每周/每月）\n- 已完成任务在完成日显示绿色打卡点\n- 红色右上角点 = 逾期未完成\n\n## 🍅 番茄钟\n\n- 选择一个任务，开始专注 25 分钟\n- 完成自动记录到任务，可累积统计\n- 支持长休息、短休息\n\n## 📝 笔记（v6.0）\n\n- 独立的笔记功能，支持 Markdown 语法\n- 可置顶、搜索、批量操作\n- 登录后多端实时同步\n\n## 🤖 AI 助手\n\n- 自然语言创建任务：「明天下午 3 点开会」AI 自动解析\n- 智能拆解任务为子任务\n- 需在设置里配置 API Key\n\n## ☁️ 多端同步\n\n- 设置 → 登录账号\n- 任务、笔记、番茄钟、标签全量同步\n- 支持 Web 端（wolf28014.github.io/work）和 Android App\n- 实时同步 + 30 秒轮询兜底\n\n## 💡 小技巧\n\n- PC 端有侧边栏，支持键盘快捷键\n- 长按任务卡有快捷操作菜单\n- 设置里有 10 套主题可切换\n\n---\n\n这条任务本身就是一个子任务演示，可以勾选下面的子任务逐个体验：';
+  const WELCOME_NEW_SUBTASKS = [
+    { title: '点右上角 + 创建第一个任务', order: 0 },
+    { title: '切到日历页看看任务展示', order: 1 },
+    { title: '试试番茄钟专注 25 分钟', order: 2 },
+    { title: '在笔记页新建一条笔记', order: 3 },
+    { title: '设置里登录账号开启同步', order: 4 },
+    { title: '把这条任务标记为已完成', order: 5 },
+  ];
+
+  async function maybeUpgradeWelcomeTask(existingTasks: Task[]) {
+    const welcome = existingTasks.find(t => !t.deletedAt && t.title === '欢迎使用智能待办');
+    if (!welcome) return;
+    // 判断是否需要升级：description 不含新版本标识
+    const needsUpgrade = !welcome.description.includes('## 📋 任务管理');
+    if (!needsUpgrade) return;
+    const updated: Task = {
+      ...welcome,
+      description: WELCOME_NEW_DESC,
+      // 保留用户已勾选的子任务状态，但补充缺失的子任务
+      subtasks: WELCOME_NEW_SUBTASKS.map(s => {
+        const existing = welcome.subtasks.find(st => st.title === s.title);
+        return existing || { id: genId(), title: s.title, done: false, order: s.order };
+      }),
+      priority: 'high',
+      status: welcome.status === 'done' ? 'done' : 'in_progress',
+      updatedAt: Date.now(),
+    };
+    await saveTask(updated);
+    dispatch({ type: 'UPDATE_TASK', task: updated });
+    syncTaskToCloud(updated).catch(e => console.log('Sync failed:', e));
+  }
+
   async function seedDemoData() {
     const demoTasks: Task[] = [
-      { id: genId(), title: '欢迎使用智能待办', description: '点击右上角 + 创建任务，长按任务可编辑或删除', dueDate: null, startDate: null, priority: 'medium', status: 'todo', recurrence: null, tags: ['入门'], subtasks: [], dependsOn: [], pomodoros: 0, noteMarkdown: null, createdAt: Date.now(), updatedAt: Date.now(), completedAt: null, deletedAt: null },
+      { id: genId(), title: '欢迎使用智能待办', description: WELCOME_NEW_DESC, dueDate: null, startDate: null, priority: 'high', status: 'in_progress', recurrence: null, tags: ['入门'], subtasks: WELCOME_NEW_SUBTASKS.map(s => ({ id: genId(), title: s.title, done: false, order: s.order })), dependsOn: [], pomodoros: 0, noteMarkdown: null, createdAt: Date.now(), updatedAt: Date.now(), completedAt: null, deletedAt: null },
       { id: genId(), title: '完成产品需求文档', description: '梳理 V2.0 版本核心功能模块', dueDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10), startDate: new Date().toISOString().slice(0, 10), priority: 'high', status: 'in_progress', recurrence: null, tags: ['工作', '产品'], subtasks: [{ id: genId(), title: '竞品分析', done: true, order: 0 }, { id: genId(), title: '功能列表', done: false, order: 1 }, { id: genId(), title: '原型评审', done: false, order: 2 }], dependsOn: [], pomodoros: 3, noteMarkdown: null, createdAt: Date.now() - 86400000, updatedAt: Date.now(), completedAt: null, deletedAt: null },
       { id: genId(), title: '每日阅读 30 分钟', description: '', dueDate: new Date().toISOString().slice(0, 10), startDate: null, priority: 'low', status: 'todo', recurrence: 'daily', tags: ['学习'], subtasks: [], dependsOn: [], pomodoros: 0, noteMarkdown: null, createdAt: Date.now() - 86400000, updatedAt: Date.now(), completedAt: null, deletedAt: null },
       { id: genId(), title: '健身房训练', description: '腿日：深蹲 + 硬拉', dueDate: new Date().toISOString().slice(0, 10), startDate: null, priority: 'medium', status: 'todo', recurrence: 'weekly', tags: ['健康'], subtasks: [], dependsOn: [], pomodoros: 1, noteMarkdown: null, createdAt: Date.now() - 2 * 86400000, updatedAt: Date.now(), completedAt: null, deletedAt: null },
