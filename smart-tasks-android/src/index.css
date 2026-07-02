@@ -9,8 +9,13 @@
    ============================================================ */
 
 :root {
-  /* Safe-area insets */
-  --safe-top: max(env(safe-area-inset-top), 24px);
+  /* Safe-area insets
+   * v6.5.5 — 把 --safe-top 最小值从 24px 提到 32px
+   * 原因：StatusBar overlay:false 模式下 env(safe-area-inset-top) 返回 0，
+   * 导致 --safe-top 只有 24px，App 顶部内容贴系统状态栏太近。
+   * 提到 32px 给顶部更多呼吸空间。
+   */
+  --safe-top: max(env(safe-area-inset-top), 32px);
   --safe-bottom: max(env(safe-area-inset-bottom), 8px);
 
   /* === Color palette — LIGHT (default) === */
