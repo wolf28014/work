@@ -1,5 +1,32 @@
 apply plugin: 'com.android.application'
 
+// v6.5.3 — versionName 和 versionCode 从 git tag 自动推导
+// versionName: 取最近 git tag（如 v6.5.3 → "6.5.3"）
+// versionCode: 把版本号转成整数（6.5.3 → 60503），确保每次发版都递增
+//              规则：major*10000 + minor*100 + patch
+//              这样 v6.5.3 = 60503, v6.5.10 = 60510, v6.6.0 = 60600
+def getVersionNameFromGit = { ->
+    try {
+        def tag = "git describe --tags --abbrev=0".execute().text.trim()
+        return tag.startsWith("v") ? tag.substring(1) : tag
+    } catch (Exception e) {
+        return "0.0.0"
+    }
+}
+def getVersionCodeFromGit = { ->
+    try {
+        def tag = "git describe --tags --abbrev=0".execute().text.trim()
+        def v = tag.startsWith("v") ? tag.substring(1) : tag
+        def parts = v.split("\\.")
+        def major = parts.length > 0 ? parts[0].toInteger() : 0
+        def minor = parts.length > 1 ? parts[1].toInteger() : 0
+        def patch = parts.length > 2 ? parts[2].toInteger() : 0
+        return major * 10000 + minor * 100 + patch
+    } catch (Exception e) {
+        return 1
+    }
+}
+
 android {
     namespace = "com.smarttasks.android"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +34,8 @@ android {
         applicationId "com.smarttasks.android"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 55
-        versionName "5.5"
+        versionCode getVersionCodeFromGit()
+        versionName getVersionNameFromGit()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
