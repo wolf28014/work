@@ -93,38 +93,40 @@ jobs:
             echo "⚠ Warning: version $VERSION not found in APK JS"
           fi
 
-      - name: Rename APK
+      - name: Rename APK and generate QR
         id: apk
         working-directory: smart-tasks-android
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
+          # 手动触发时 GITHUB_REF 不是 tag，用 git describe 拿最近 tag
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
           VERSION=${VERSION:-dev}
+          echo "Version: $VERSION"
           APK_NAME="Smart-Tasks-${VERSION}.apk"
           cp android/app/build/outputs/apk/release/app-release.apk "$APK_NAME"
           ls -la "$APK_NAME"
-          echo "apk_name=$APK_NAME" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Generate QR Code
-        working-directory: smart-tasks-android
-        run: |
           pip install qrcode[pil]
-          python3 -c "
+          python3 << PYEOF
           import qrcode
-          url = f'https://github.com/wolf28014/work/releases/download/${{ steps.apk.outputs.version }}/Smart-Tasks-${{ steps.apk.outputs.version }}.apk'
+          url = f'https://github.com/wolf28014/work/releases/download/v${VERSION}/Smart-Tasks-${VERSION}.apk'
+          print(f'QR URL: {url}')
           qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
           qr.add_data(url)
           qr.make(fit=True)
-          qr.make_image(fill_color='black', back_color='white').save('qr-download-${{ steps.apk.outputs.version }}.png')
-          print(f'QR generated for {url}')
-          "
+          qr.make_image(fill_color='black', back_color='white').save('qr-download-v${VERSION}.png')
+          PYEOF
 
-      - name: Upload APK to Release
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "apk_name=$APK_NAME" >> $GITHUB_OUTPUT
+          echo "qr_name=qr-download-v${VERSION}.png" >> $GITHUB_OUTPUT
+
+      - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.apk.outputs.version }}
           files: |
-            smart-tasks-android/Smart-Tasks-${{ steps.apk.outputs.version }}.apk
-            smart-tasks-android/qr-download-${{ steps.apk.outputs.version }}.png
+            smart-tasks-android/${{ steps.apk.outputs.apk_name }}
+            smart-tasks-android/${{ steps.apk.outputs.qr_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
