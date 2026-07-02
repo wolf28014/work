@@ -309,7 +309,12 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
                     style={{ color: overdue ? 'var(--pri-high)' : 'var(--text-secondary)' }}
                   >
                     <span>{overdue ? '⚠' : '◷'}</span>
-                    <span>{formatDate(task.dueDate)}</span>
+                    {/* v6.5 — 区间任务显示 startDate → dueDate */}
+                    {task.startDate && task.startDate !== task.dueDate ? (
+                      <span>{formatDate(task.startDate)} → {formatDate(task.dueDate)}</span>
+                    ) : (
+                      <span>{formatDate(task.dueDate)}</span>
+                    )}
                   </span>
                 )}
                 {task.recurrence && (

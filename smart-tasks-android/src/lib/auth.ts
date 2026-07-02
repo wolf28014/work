@@ -234,7 +234,7 @@ export async function pullCloudToLocal() {
     for (const t of remoteTasks) {
       const task: Task = {
         id: t.id, title: t.title, description: t.description || '',
-        dueDate: t.due_date, priority: t.priority, status: t.status,
+        dueDate: t.due_date, startDate: t.start_date || null, priority: t.priority, status: t.status,
         recurrence: t.recurrence, tags: t.tags || [],
         subtasks: t.subtasks || [], dependsOn: t.depends_on || [],
         pomodoros: t.pomodoros || 0, noteMarkdown: t.note_markdown,
@@ -295,7 +295,8 @@ export async function syncTaskToCloud(task: Task) {
   await sb.from('tasks').upsert({
     id: task.id, user_id: currentUser!.id,
     title: task.title, description: task.description,
-    due_date: task.dueDate, priority: task.priority, status: task.status,
+    due_date: task.dueDate, start_date: task.startDate, // v6.5 — start_date
+    priority: task.priority, status: task.status,
     recurrence: task.recurrence, tags: task.tags, subtasks: task.subtasks,
     depends_on: task.dependsOn, pomodoros: task.pomodoros,
     note_markdown: task.noteMarkdown,
@@ -395,7 +396,7 @@ export async function syncFromCloud(): Promise<number> {
       for (const t of remoteTasks) {
         const remoteTask: Task = {
           id: t.id, title: t.title, description: t.description || '',
-          dueDate: t.due_date, priority: t.priority, status: t.status,
+          dueDate: t.due_date, startDate: t.start_date || null, priority: t.priority, status: t.status,
           recurrence: t.recurrence, tags: t.tags || [],
           subtasks: t.subtasks || [], dependsOn: t.depends_on || [],
           pomodoros: t.pomodoros || 0, noteMarkdown: t.note_markdown,
@@ -605,7 +606,7 @@ export function subscribeRealtime(userId: string, handlers: RealtimeHandlers) {
           if (!t) return;
           const task: Task = {
             id: t.id, title: t.title, description: t.description || '',
-            dueDate: t.due_date, priority: t.priority, status: t.status,
+            dueDate: t.due_date, startDate: t.start_date || null, priority: t.priority, status: t.status,
             recurrence: t.recurrence, tags: t.tags || [],
             subtasks: t.subtasks || [], dependsOn: t.depends_on || [],
             pomodoros: t.pomodoros || 0, noteMarkdown: t.note_markdown,
@@ -625,7 +626,7 @@ export function subscribeRealtime(userId: string, handlers: RealtimeHandlers) {
           if (!t) return;
           const task: Task = {
             id: t.id, title: t.title, description: t.description || '',
-            dueDate: t.due_date, priority: t.priority, status: t.status,
+            dueDate: t.due_date, startDate: t.start_date || null, priority: t.priority, status: t.status,
             recurrence: t.recurrence, tags: t.tags || [],
             subtasks: t.subtasks || [], dependsOn: t.depends_on || [],
             pomodoros: t.pomodoros || 0, noteMarkdown: t.note_markdown,

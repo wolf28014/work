@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS public.tasks (
   title TEXT NOT NULL,
   description TEXT DEFAULT '',
   due_date TEXT,
+  start_date TEXT, -- v6.5 — 起始日（可选）。设了则任务在 start_date ~ due_date 区间显示
   priority TEXT DEFAULT 'medium',
   status TEXT DEFAULT 'todo',
   recurrence TEXT,
@@ -29,6 +30,7 @@ CREATE TABLE IF NOT EXISTS public.tasks (
 CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON public.tasks(user_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_updated_at ON public.tasks(updated_at);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON public.tasks(status);
+CREATE INDEX IF NOT EXISTS idx_tasks_start_date ON public.tasks(start_date);
 
 -- ============== 番茄钟会话表 ==============
 CREATE TABLE IF NOT EXISTS public.pomodoro_sessions (

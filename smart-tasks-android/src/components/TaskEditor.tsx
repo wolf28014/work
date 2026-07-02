@@ -20,6 +20,8 @@ export default function TaskEditor({ task, onClose, template }: Props) {
   const [title, setTitle] = useState(task?.title || template?.title || '');
   const [description, setDescription] = useState(task?.description || template?.description || '');
   const [dueDate, setDueDate] = useState(task?.dueDate || '');
+  // v6.5 — startDate: 区间任务的起始日。null/空 = 单点任务
+  const [startDate, setStartDate] = useState(task?.startDate || '');
   const [priority, setPriority] = useState(task?.priority || template?.priority || 'medium');
   const [status, setStatus] = useState(task?.status || 'todo');
   const [recurrence, setRecurrence] = useState(task?.recurrence || '');
@@ -123,7 +125,10 @@ export default function TaskEditor({ task, onClose, template }: Props) {
     if (!title.trim()) { showToast('请填写任务标题', 'error'); return; }
     const data = {
       title: title.trim(), description: description.trim(),
-      dueDate: dueDate || null, priority, status,
+      dueDate: dueDate || null,
+      // v6.5 — 重复任务不支持区间，强制 startDate=null
+      startDate: recurrence ? null : (startDate || null),
+      priority, status,
       recurrence: (recurrence || null) as 'daily' | 'weekly' | 'monthly' | null,
       tags: selectedTags, subtasks,
     };
@@ -205,8 +210,58 @@ export default function TaskEditor({ task, onClose, template }: Props) {
           />
 
           <div className="ios-list-group">
+            {/* v6.5 — 日期模式：单点 / 区间 */}
             <div className="ios-list-item">
-              <span className="text-sm text-[color:var(--text-secondary)] w-20">截止日期</span>
+              <span className="text-sm text-[color:var(--text-secondary)] w-20">日期</span>
+              <div className="flex-1 flex justify-end gap-1">
+                <button
+                  type="button"
+                  onClick={() => { setStartDate(''); }}
+                  className={`px-3 py-1 rounded-full text-[12px] font-medium transition-all ${
+                    !startDate && !recurrence
+                      ? 'bg-[var(--primary)] text-[color:#ffffff]'
+                      : 'bg-slate-100 dark:bg-slate-800 text-[color:var(--text-secondary)]'
+                  } ${recurrence ? 'opacity-40' : ''}`}
+                  disabled={!!recurrence}
+                >那天完成</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // 切换到区间模式：如果 startDate 空，自动填今天
+                    if (!startDate) {
+                      const today = new Date().toISOString().slice(0, 10);
+                      setStartDate(today);
+                      // 如果 dueDate 比 startDate 早，清空 dueDate
+                      if (dueDate && dueDate < today) setDueDate('');
+                    }
+                  }}
+                  className={`px-3 py-1 rounded-full text-[12px] font-medium transition-all ${
+                    startDate ? 'bg-[var(--primary)] text-[color:#ffffff]' : 'bg-slate-100 dark:bg-slate-800 text-[color:var(--text-secondary)]'
+                  } ${recurrence ? 'opacity-40' : ''}`}
+                  disabled={!!recurrence}
+                >那天之前完成</button>
+              </div>
+            </div>
+            {startDate && !recurrence && (
+              <div className="ios-list-item">
+                <span className="text-sm text-[color:var(--text-secondary)] w-20">起始日</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setStartDate(v);
+                    // 如果起始日晚于截止日，清空截止日
+                    if (dueDate && v > dueDate) setDueDate('');
+                  }}
+                  className="flex-1 bg-transparent text-right text-[15px] outline-none"
+                />
+              </div>
+            )}
+            <div className="ios-list-item">
+              <span className="text-sm text-[color:var(--text-secondary)] w-20">
+                {startDate && !recurrence ? '截止日' : '完成日期'}
+              </span>
               <input
                 type="date"
                 value={dueDate}
@@ -218,7 +273,12 @@ export default function TaskEditor({ task, onClose, template }: Props) {
               <span className="text-sm text-[color:var(--text-secondary)] w-20">重复</span>
               <select
                 value={recurrence}
-                onChange={e => setRecurrence(e.target.value)}
+                onChange={e => {
+                  const v = e.target.value;
+                  setRecurrence(v);
+                  // v6.5 — 选了重复就清掉 startDate（重复任务不支持区间）
+                  if (v) setStartDate('');
+                }}
                 className="flex-1 bg-transparent text-right text-[15px] outline-none"
               >
                 <option value="">不重复</option>

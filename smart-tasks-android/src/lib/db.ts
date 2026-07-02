@@ -1,12 +1,16 @@
 // IndexedDB 数据层 - Task / PomodoroSession / Tag / Note
 const DB_NAME = 'smart-tasks-db';
-const DB_VERSION = 2;
+const DB_VERSION = 3; // v6.5 — added startDate field to tasks (no store rebuild needed, just bump)
 
 export interface Task {
   id: string;
   title: string;
   description: string;
   dueDate: string | null;
+  // v6.5 — optional start date. When set, the task spans [startDate, dueDate]
+  // and shows on every day in between on the calendar. When null, the task is
+  // a single-point task that only shows on dueDate.
+  startDate: string | null;
   priority: 'low' | 'medium' | 'high';
   status: 'todo' | 'in_progress' | 'done' | 'cancelled';
   recurrence: 'daily' | 'weekly' | 'monthly' | null;

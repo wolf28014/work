@@ -212,14 +212,14 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
   async function seedDemoData() {
     const demoTasks: Task[] = [
-      { id: genId(), title: '欢迎使用智能待办', description: '点击右上角 + 创建任务，长按任务可编辑或删除', dueDate: null, priority: 'medium', status: 'todo', recurrence: null, tags: ['入门'], subtasks: [], dependsOn: [], pomodoros: 0, noteMarkdown: null, createdAt: Date.now(), updatedAt: Date.now(), completedAt: null, deletedAt: null },
-      { id: genId(), title: '完成产品需求文档', description: '梳理 V2.0 版本核心功能模块', dueDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10), priority: 'high', status: 'in_progress', recurrence: null, tags: ['工作', '产品'], subtasks: [{ id: genId(), title: '竞品分析', done: true, order: 0 }, { id: genId(), title: '功能列表', done: false, order: 1 }, { id: genId(), title: '原型评审', done: false, order: 2 }], dependsOn: [], pomodoros: 3, noteMarkdown: null, createdAt: Date.now() - 86400000, updatedAt: Date.now(), completedAt: null, deletedAt: null },
-      { id: genId(), title: '每日阅读 30 分钟', description: '', dueDate: new Date().toISOString().slice(0, 10), priority: 'low', status: 'todo', recurrence: 'daily', tags: ['学习'], subtasks: [], dependsOn: [], pomodoros: 0, noteMarkdown: null, createdAt: Date.now() - 86400000, updatedAt: Date.now(), completedAt: null, deletedAt: null },
-      { id: genId(), title: '健身房训练', description: '腿日：深蹲 + 硬拉', dueDate: new Date().toISOString().slice(0, 10), priority: 'medium', status: 'todo', recurrence: 'weekly', tags: ['健康'], subtasks: [], dependsOn: [], pomodoros: 1, noteMarkdown: null, createdAt: Date.now() - 2 * 86400000, updatedAt: Date.now(), completedAt: null, deletedAt: null },
-      { id: genId(), title: '回复客户邮件', description: '', dueDate: new Date().toISOString().slice(0, 10), priority: 'high', status: 'done', recurrence: null, tags: ['工作'], subtasks: [], dependsOn: [], pomodoros: 1, noteMarkdown: null, createdAt: Date.now() - 86400000, updatedAt: Date.now(), completedAt: Date.now(), deletedAt: null },
-      { id: genId(), title: '准备周会汇报', description: '本周进度 + 下周计划', dueDate: new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10), priority: 'high', status: 'todo', recurrence: 'weekly', tags: ['工作'], subtasks: [], dependsOn: [], pomodoros: 0, noteMarkdown: null, createdAt: Date.now() - 86400000, updatedAt: Date.now(), completedAt: null, deletedAt: null },
-      { id: genId(), title: '学习 React 18 新特性', description: 'Concurrent Mode、Suspense、useTransition', dueDate: null, priority: 'medium', status: 'in_progress', recurrence: null, tags: ['学习', '前端'], subtasks: [{ id: genId(), title: '阅读官方文档', done: true, order: 0 }, { id: genId(), title: '写 demo', done: false, order: 1 }], dependsOn: [], pomodoros: 2, noteMarkdown: null, createdAt: Date.now() - 3 * 86400000, updatedAt: Date.now(), completedAt: null, deletedAt: null },
-      { id: genId(), title: '整理本月开支', description: '', dueDate: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10), priority: 'low', status: 'todo', recurrence: 'monthly', tags: ['生活'], subtasks: [], dependsOn: [], pomodoros: 0, noteMarkdown: null, createdAt: Date.now() - 86400000, updatedAt: Date.now(), completedAt: null, deletedAt: null },
+      { id: genId(), title: '欢迎使用智能待办', description: '点击右上角 + 创建任务，长按任务可编辑或删除', dueDate: null, startDate: null, priority: 'medium', status: 'todo', recurrence: null, tags: ['入门'], subtasks: [], dependsOn: [], pomodoros: 0, noteMarkdown: null, createdAt: Date.now(), updatedAt: Date.now(), completedAt: null, deletedAt: null },
+      { id: genId(), title: '完成产品需求文档', description: '梳理 V2.0 版本核心功能模块', dueDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10), startDate: new Date().toISOString().slice(0, 10), priority: 'high', status: 'in_progress', recurrence: null, tags: ['工作', '产品'], subtasks: [{ id: genId(), title: '竞品分析', done: true, order: 0 }, { id: genId(), title: '功能列表', done: false, order: 1 }, { id: genId(), title: '原型评审', done: false, order: 2 }], dependsOn: [], pomodoros: 3, noteMarkdown: null, createdAt: Date.now() - 86400000, updatedAt: Date.now(), completedAt: null, deletedAt: null },
+      { id: genId(), title: '每日阅读 30 分钟', description: '', dueDate: new Date().toISOString().slice(0, 10), startDate: null, priority: 'low', status: 'todo', recurrence: 'daily', tags: ['学习'], subtasks: [], dependsOn: [], pomodoros: 0, noteMarkdown: null, createdAt: Date.now() - 86400000, updatedAt: Date.now(), completedAt: null, deletedAt: null },
+      { id: genId(), title: '健身房训练', description: '腿日：深蹲 + 硬拉', dueDate: new Date().toISOString().slice(0, 10), startDate: null, priority: 'medium', status: 'todo', recurrence: 'weekly', tags: ['健康'], subtasks: [], dependsOn: [], pomodoros: 1, noteMarkdown: null, createdAt: Date.now() - 2 * 86400000, updatedAt: Date.now(), completedAt: null, deletedAt: null },
+      { id: genId(), title: '回复客户邮件', description: '', dueDate: new Date().toISOString().slice(0, 10), startDate: null, priority: 'high', status: 'done', recurrence: null, tags: ['工作'], subtasks: [], dependsOn: [], pomodoros: 1, noteMarkdown: null, createdAt: Date.now() - 86400000, updatedAt: Date.now(), completedAt: Date.now(), deletedAt: null },
+      { id: genId(), title: '准备周会汇报', description: '本周进度 + 下周计划', dueDate: new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10), startDate: null, priority: 'high', status: 'todo', recurrence: 'weekly', tags: ['工作'], subtasks: [], dependsOn: [], pomodoros: 0, noteMarkdown: null, createdAt: Date.now() - 86400000, updatedAt: Date.now(), completedAt: null, deletedAt: null },
+      { id: genId(), title: '学习 React 18 新特性', description: 'Concurrent Mode、Suspense、useTransition', dueDate: null, startDate: null, priority: 'medium', status: 'in_progress', recurrence: null, tags: ['学习', '前端'], subtasks: [{ id: genId(), title: '阅读官方文档', done: true, order: 0 }, { id: genId(), title: '写 demo', done: false, order: 1 }], dependsOn: [], pomodoros: 2, noteMarkdown: null, createdAt: Date.now() - 3 * 86400000, updatedAt: Date.now(), completedAt: null, deletedAt: null },
+      { id: genId(), title: '整理本月开支', description: '', dueDate: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10), startDate: null, priority: 'low', status: 'todo', recurrence: 'monthly', tags: ['生活'], subtasks: [], dependsOn: [], pomodoros: 0, noteMarkdown: null, createdAt: Date.now() - 86400000, updatedAt: Date.now(), completedAt: null, deletedAt: null },
     ];
     const demoTags: Tag[] = [
       { id: genId(), name: '工作', color: 'violet', createdAt: Date.now(), updatedAt: Date.now() },
@@ -243,6 +243,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         title: partial.title || '新任务',
         description: partial.description || '',
         dueDate: partial.dueDate || null,
+        // v6.5 — startDate; if recurrence is set, force startDate=null (重复任务不支持区间)
+        startDate: partial.recurrence ? null : (partial.startDate || null),
         priority: partial.priority || 'medium',
         status: partial.status || 'todo',
         recurrence: partial.recurrence || null,
@@ -263,7 +265,12 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     async updateTask(id, patch) {
       const existing = state.tasks.find(t => t.id === id);
       if (!existing) return;
-      const updated = { ...existing, ...patch, updatedAt: Date.now() };
+      // v6.5 — 如果 patch 启用了 recurrence，强制清掉 startDate
+      const patchWithStartDate: Partial<Task> = { ...patch };
+      if (patchWithStartDate.recurrence) {
+        patchWithStartDate.startDate = null;
+      }
+      const updated = { ...existing, ...patchWithStartDate, updatedAt: Date.now() };
       await saveTask(updated);
       dispatch({ type: 'UPDATE_TASK', task: updated });
       syncTaskToCloud(updated).catch(e => console.log('Sync failed:', e));

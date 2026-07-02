@@ -34,9 +34,102 @@ export default function CalendarView({ onEdit }: Props) {
 
   const tasksByDate = useMemo(() => {
     const map = new Map<string, Task[]>();
-    tasks.filter(t => !t.deletedAt && t.dueDate).forEach(t => {
-      if (!map.has(t.dueDate!)) map.set(t.dueDate!, []);
-      map.get(t.dueDate!)!.push(t);
+
+    // v6.5 — 完成日期映射：已完成的任务在 completedAt 那天显示（绿色打卡）
+    // 单独构建一张「完成记录」map，最后合并进主 map（用特殊标记区分）
+    const completedByDate = new Map<string, Task[]>();
+    tasks.filter(t => !t.deletedAt && t.status === 'done' && t.completedAt).forEach(t => {
+      const d = new Date(t.completedAt!);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (!completedByDate.has(dateStr)) completedByDate.set(dateStr, []);
+      if (!completedByDate.get(dateStr)!.some(x => x.id === t.id)) {
+        completedByDate.get(dateStr)!.push(t);
+      }
+    });
+
+    // 1. 普通任务（非重复、未完成、有 dueDate）：按 dueDate 直接映射
+    //    区间任务（有 startDate）：startDate 到 dueDate 之间每天都显示
+    tasks.filter(t => !t.deletedAt && t.status !== 'done' && t.status !== 'cancelled' && !t.recurrence && t.dueDate).forEach(t => {
+      if (t.startDate) {
+        // v6.5 — 区间任务：startDate 到 dueDate 之间每天都显示
+        const start = new Date(t.startDate);
+        const end = new Date(t.dueDate!);
+        if (start > end) return; // 数据异常，跳过
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          if (!map.has(dateStr)) map.set(dateStr, []);
+          if (!map.get(dateStr)!.some(x => x.id === t.id)) map.get(dateStr)!.push(t);
+        }
+      } else {
+        // 单点任务：仅 dueDate 显示
+        if (!map.has(t.dueDate!)) map.set(t.dueDate!, []);
+        if (!map.get(t.dueDate!)!.some(x => x.id === t.id)) map.get(t.dueDate!)!.push(t);
+      }
+    });
+
+    // 2. 重复任务：在当前月内按规则展开
+    //    - daily:   每天显示
+    //    - weekly:  每周 dueDate 星期几那天显示
+    //    - monthly: 每月 dueDate 几号那天显示
+    //    范围：max(createdAt, 月初) 到 min(dueDate, 月末)
+    //    注意：已完成的重复实例（status=done）已在上面 completedByDate 处理，这里跳过
+    const monthStart = new Date(current.year, current.month, 1);
+    const monthEnd = new Date(current.year, current.month + 1, 0);
+
+    tasks.filter(t => !t.deletedAt && t.recurrence && t.status !== 'done' && t.status !== 'cancelled').forEach(t => {
+      const createdDate = new Date(t.createdAt);
+      const start = createdDate > monthStart ? createdDate : monthStart;
+
+      let end = monthEnd;
+      if (t.dueDate) {
+        const due = new Date(t.dueDate);
+        end = due < monthEnd ? due : monthEnd;
+      }
+      if (start > end) return;
+
+      // 锚点：weekly/monthly 用 dueDate 的星期几/几号；没 dueDate 用 createdAt
+      const anchor = t.dueDate ? new Date(t.dueDate) : new Date(t.createdAt);
+
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        let match = false;
+        if (t.recurrence === 'daily') {
+          match = true;
+        } else if (t.recurrence === 'weekly') {
+          match = d.getDay() === anchor.getDay();
+        } else if (t.recurrence === 'monthly') {
+          match = d.getDate() === anchor.getDate();
+        }
+        if (match) {
+          const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          if (!map.has(dateStr)) map.set(dateStr, []);
+          const arr = map.get(dateStr)!;
+          if (!arr.some(x => x.id === t.id)) arr.push(t);
+        }
+      }
+    });
+
+    // 3. 合并已完成任务（绿色打卡），加 'completed' 标记
+    //    用 spread + 自定义标记，渲染时区分
+    //    为了不污染 Task 类型，我们在 selectedTasks 渲染时再单独查 completedByDate
+    //    这里只把完成的任务也加到 map 里（这样日历小格子的圆点统计能包含）
+    completedByDate.forEach((arr, dateStr) => {
+      if (!map.has(dateStr)) map.set(dateStr, []);
+      arr.forEach(t => {
+        if (!map.get(dateStr)!.some(x => x.id === t.id)) map.get(dateStr)!.push(t);
+      });
+    });
+
+    return map;
+  }, [tasks, current]);
+
+  // 已完成任务按 completedAt 那天分组（用于渲染时区分绿色打卡）
+  const completedByDate = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    tasks.filter(t => !t.deletedAt && t.status === 'done' && t.completedAt).forEach(t => {
+      const d = new Date(t.completedAt!);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (!map.has(dateStr)) map.set(dateStr, new Set());
+      map.get(dateStr)!.add(t.id);
     });
     return map;
   }, [tasks]);
@@ -109,11 +202,14 @@ export default function CalendarView({ onEdit }: Props) {
         {days.map((d, i) => {
           if (!d) return <div key={i} />;
           const dayTasks = tasksByDate.get(d.date) || [];
+          const completedToday = completedByDate.get(d.date) || new Set<string>();
           const isToday = d.date === tStr;
           const isSelected = d.date === selectedDate;
           const hasOverdue = dayTasks.some(t => t.status !== 'done' && t.status !== 'cancelled' && t.dueDate! < tStr);
           const doneCount = dayTasks.filter(t => t.status === 'done').length;
           const isAllDone = dayTasks.length > 0 && doneCount === dayTasks.length;
+          // v6.5 — 是否有区间任务（连续多天显示的任务）
+          const hasRangeTask = dayTasks.some(t => t.startDate && t.dueDate && t.startDate !== t.dueDate);
           return (
             <button
               key={i}
@@ -141,9 +237,21 @@ export default function CalendarView({ onEdit }: Props) {
                 {d.day}
               </span>
               {dayTasks.length > 0 && (
-                <div className="flex gap-0.5 mt-0.5">
+                <div className="flex gap-0.5 mt-0.5 items-center">
+                  {/* v6.5 — 已完成绿色打卡点 */}
+                  {completedToday.size > 0 && (
+                    <div
+                      className="rounded-full"
+                      style={{
+                        width: 5, height: 5,
+                        background: isSelected ? '#ffffff' : 'var(--stat-done)',
+                        boxShadow: isSelected ? 'none' : '0 0 4px var(--stat-done)',
+                      }}
+                    />
+                  )}
+                  {/* 未完成任务的状态圆点 */}
                   {STATUS_ORDER.slice(0, 3).map(s => {
-                    const has = dayTasks.some(t => t.status === s);
+                    const has = dayTasks.some(t => t.status === s && !completedToday.has(t.id));
                     if (!has) return null;
                     return (
                       <div
@@ -153,6 +261,10 @@ export default function CalendarView({ onEdit }: Props) {
                       />
                     );
                   })}
+                  {/* v6.5 — 区间任务标记：在圆点后加个小横线表示这是区间任务 */}
+                  {hasRangeTask && !isSelected && (
+                    <div className="rounded-full ml-0.5" style={{ width: 6, height: 2, background: 'var(--text-tertiary)' }} />
+                  )}
                 </div>
               )}
               {hasOverdue && !isSelected && (
@@ -187,18 +299,25 @@ export default function CalendarView({ onEdit }: Props) {
             {selectedTasks.map(task => {
               const sc = STATUS_TOKEN[task.status];
               const overdue = !task.dueDate ? false : (task.dueDate < tStr && task.status !== 'done' && task.status !== 'cancelled');
+              const isCompletedHere = task.status === 'done' && task.completedAt && (() => {
+                const d = new Date(task.completedAt!);
+                const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                return dateStr === selectedDate;
+              })();
+              const isRangeTask = task.startDate && task.dueDate && task.startDate !== task.dueDate;
+              const isRangeEndpoint = task.startDate && task.dueDate && (selectedDate === task.startDate || selectedDate === task.dueDate);
               return (
                 <div
                   key={task.id}
                   onClick={() => onEdit(task)}
                   className="v3-card p-3 flex items-center gap-3 active:scale-[0.98] transition-transform"
-                  style={{ opacity: task.status === 'done' ? 0.6 : 1 }}
+                  style={{ opacity: task.status === 'done' && !isCompletedHere ? 0.6 : 1 }}
                 >
                   <div
                     className="priority-bar"
                     style={{
-                      background: PRI_BAR[task.priority],
-                      boxShadow: `0 0 8px ${PRI_BAR[task.priority]}`,
+                      background: isCompletedHere ? 'var(--stat-done)' : PRI_BAR[task.priority],
+                      boxShadow: `0 0 8px ${isCompletedHere ? 'var(--stat-done)' : PRI_BAR[task.priority]}`,
                       width: 4, borderRadius: 4,
                     }}
                   />
@@ -206,19 +325,32 @@ export default function CalendarView({ onEdit }: Props) {
                     <div
                       className="text-[14px] font-semibold"
                       style={{
-                        color: task.status === 'done' ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                        color: isCompletedHere ? 'var(--stat-done)' : task.status === 'done' ? 'var(--text-tertiary)' : 'var(--text-primary)',
                         textDecoration: task.status === 'done' ? 'line-through' : 'none',
                       }}
                     >
                       {task.title}
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span
-                        className="text-[10px] px-1.5 py-0.5 rounded font-bold"
-                        style={{ background: sc.soft, color: sc.text, border: `1px solid ${sc.dot}40` }}
-                      >
-                        {STATUS_LABELS[task.status]}
-                      </span>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {isCompletedHere ? (
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded font-bold"
+                          style={{ background: 'var(--primary-soft)', color: 'var(--stat-done)', border: '1px solid var(--stat-done)40' }}
+                        >✓ 已完成</span>
+                      ) : (
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded font-bold"
+                          style={{ background: sc.soft, color: sc.text, border: `1px solid ${sc.dot}40` }}
+                        >
+                          {STATUS_LABELS[task.status]}
+                        </span>
+                      )}
+                      {/* v6.5 — 区间任务标签 */}
+                      {isRangeTask && !isCompletedHere && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
+                          {isRangeEndpoint ? (selectedDate === task.startDate ? '起' : '止') : `${task.startDate} → ${task.dueDate}`}
+                        </span>
+                      )}
                       {overdue && (
                         <span className="text-[10px] font-bold" style={{ color: 'var(--pri-high)' }}>逾期</span>
                       )}
