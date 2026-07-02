@@ -39,7 +39,8 @@ export default function TaskEditor({ task, onClose, template }: Props) {
   const [newSubtask, setNewSubtask] = useState('');
   const [parsing, setParsing] = useState(false);
   const [splitting, setSplitting] = useState(false);
-  const [summary, setSummary] = useState<string>('');
+  // v6.7 — 从 task.noteMarkdown 加载已保存的 AI 总结
+  const [summary, setSummary] = useState<string>(task?.noteMarkdown || '');
   const [loadingSummary, setLoadingSummary] = useState(false);
 
   // Ensure template tags exist in the tag store (one-time, only when creating from template)
@@ -114,6 +115,9 @@ export default function TaskEditor({ task, onClose, template }: Props) {
         subtasks,
       });
       setSummary(result);
+      // v6.7 — 持久化总结到 noteMarkdown（自动同步到云端）
+      await updateTask(task.id, { noteMarkdown: result });
+      showToast('总结已保存', 'success');
     } catch (e: any) {
       showToast(e.message || 'AI 总结失败', 'error');
     } finally {

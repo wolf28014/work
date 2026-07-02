@@ -4,6 +4,8 @@ import { useTaskStore } from '../lib/store';
 import TaskCard from '../components/TaskCard';
 import SwipeableSheet from '../components/SwipeableSheet';
 import { tfidfSearch, todayStr, isOverdue, useToday } from '../lib/task-utils';
+import { aiSearchTasks, getAISettings } from '../lib/ai-client';
+import { showToast } from '../components/Toast';
 
 interface Props {
   onEdit: (t: Task) => void;
@@ -48,6 +50,21 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
   const [showSortSheet, setShowSortSheet] = useState(false);
   const [batchMode, setBatchMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // v6.7 — AI 自然语言搜索
+  const [aiSearchLoading, setAiSearchLoading] = useState(false);
+  const [aiSearchIds, setAiSearchIds] = useState<Set<string> | null>(null);
+
+  async function handleAISearch() {
+    if (!query.trim()) { showToast('请输入搜索词', 'info'); return; }
+    if (!getAISettings()) { showToast('请先配置 AI API', 'error'); return; }
+    setAiSearchLoading(true);
+    try {
+      const ids = await aiSearchTasks(query, activeTasks);
+      setAiSearchIds(new Set(ids));
+      showToast(`AI 找到 ${ids.length} 个匹配任务`, 'success');
+    } catch (e: any) { showToast(e.message || 'AI 搜索失败', 'error'); }
+    finally { setAiSearchLoading(false); }
+  }
 
   const activeTasks = useMemo(() => tasks.filter(t => !t.deletedAt), [tasks]);
 
@@ -67,6 +84,10 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
   }, [activeTasks, filter, today]);
 
   const searchResults = useMemo(() => {
+    // v6.7 — AI 搜索激活时，只显示 AI 匹配的任务
+    if (aiSearchIds) {
+      return filtered.filter(t => aiSearchIds.has(t.id)).map(t => ({ task: t, matchedFields: ['AI 匹配'] as string[] }));
+    }
     if (!query.trim()) return filtered.map(t => ({ task: t, matchedFields: [] as string[] }));
     return tfidfSearch(filtered, query).map(r => ({ task: r.task, matchedFields: r.matchedFields }));
   }, [filtered, query]);
@@ -149,10 +170,21 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
             />
             {query && (
               <button
-                onClick={() => setQuery('')}
+                onClick={() => { setQuery(''); setAiSearchIds(null); }}
                 className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center z-10"
                 style={{ background: 'var(--bg-sunken)', color: 'var(--text-secondary)' }}
               >×</button>
+            )}
+            {/* v6.7 — AI 搜索按钮 */}
+            {getAISettings() && (
+              <button
+                onClick={handleAISearch}
+                disabled={aiSearchLoading || !query.trim()}
+                className="absolute right-9 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center z-10 disabled:opacity-30"
+                style={{ background: aiSearchIds ? 'var(--primary-soft)' : 'var(--bg-sunken)', color: aiSearchIds ? 'var(--primary)' : 'var(--text-secondary)' }}
+                aria-label="AI 搜索"
+                title="AI 智能搜索"
+              >{aiSearchLoading ? '⏳' : '✨'}</button>
             )}
           </div>
           <button

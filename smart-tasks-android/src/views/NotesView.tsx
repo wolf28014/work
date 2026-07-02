@@ -4,6 +4,7 @@ import { getAllNotes, saveNote, deleteNotePermanent, softDeleteNote, genId, getN
 import { syncNoteToCloud } from '../lib/auth';
 import { showToast } from '../components/Toast';
 import SwipeableSheet from '../components/SwipeableSheet';
+import { aiNoteSummary, aiNoteContinue, aiNoteTranslate, getAISettings } from '../lib/ai-client';
 
 interface Props {
   /** Open the editor for a given note (or null = create new). */
@@ -412,6 +413,9 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
   const [createdNoteId, setCreatedNoteId] = useState<string | null>(null);
   // v6.6 — 记录新建笔记的首次创建时间，避免每次自动保存把 createdAt 覆盖成当前时间
   const [createdNoteAt, setCreatedNoteAt] = useState<number | null>(null);
+  // v6.7 — AI 笔记助手状态
+  const [aiLoading, setAiLoading] = useState(false);
+  const [showAIMenu, setShowAIMenu] = useState(false);
 
   useEffect(() => {
     // Auto-focus title for new notes
@@ -508,6 +512,48 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
     onClose();
   }
 
+  // v6.7 — AI 笔记助手
+  async function handleAISummary() {
+    if (!content.trim()) { showToast('请先输入笔记内容', 'error'); return; }
+    if (!getAISettings()) { showToast('请先在设置中配置 AI API', 'error'); return; }
+    setShowAIMenu(false);
+    setAiLoading(true);
+    try {
+      const summary = await aiNoteSummary(content);
+      // 把摘要追加到笔记末尾
+      const newContent = content + '\n\n---\n\n## AI 摘要\n\n' + summary;
+      handleChangeContent(newContent);
+      showToast('摘要已生成', 'success');
+    } catch (e: any) { showToast(e.message || 'AI 请求失败', 'error'); }
+    finally { setAiLoading(false); }
+  }
+
+  async function handleAIContinue() {
+    if (!content.trim()) { showToast('请先输入笔记内容', 'error'); return; }
+    if (!getAISettings()) { showToast('请先在设置中配置 AI API', 'error'); return; }
+    setShowAIMenu(false);
+    setAiLoading(true);
+    try {
+      const continuation = await aiNoteContinue(content);
+      handleChangeContent(content + '\n\n' + continuation);
+      showToast('续写已生成', 'success');
+    } catch (e: any) { showToast(e.message || 'AI 请求失败', 'error'); }
+    finally { setAiLoading(false); }
+  }
+
+  async function handleAITranslate(lang: string) {
+    if (!content.trim()) { showToast('请先输入笔记内容', 'error'); return; }
+    if (!getAISettings()) { showToast('请先在设置中配置 AI API', 'error'); return; }
+    setShowAIMenu(false);
+    setAiLoading(true);
+    try {
+      const translated = await aiNoteTranslate(content, lang);
+      handleChangeContent(content + '\n\n---\n\n## ' + lang + '翻译\n\n' + translated);
+      showToast('翻译已生成', 'success');
+    } catch (e: any) { showToast(e.message || 'AI 请求失败', 'error'); }
+    finally { setAiLoading(false); }
+  }
+
   async function handleDelete() {
     // v6.6 — 修复 #12：新建笔记（已自动保存到 IndexedDB）也要能删除
     const idToDelete = note?.id || createdNoteId;
@@ -552,6 +598,41 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
           >
             <span style={{ fontSize: 16 }}>📌</span>
           </button>
+          {/* v6.7 — AI 笔记助手 */}
+          <div className="relative">
+            <button
+              onClick={() => setShowAIMenu(!showAIMenu)}
+              disabled={aiLoading}
+              className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
+              style={{
+                background: showAIMenu ? 'var(--primary-soft)' : 'transparent',
+                color: showAIMenu ? 'var(--primary)' : 'var(--text-secondary)',
+              }}
+              aria-label="AI 助手"
+            >
+              <span style={{ fontSize: 14 }}>✨</span>
+            </button>
+            {showAIMenu && (
+              <div
+                className="absolute right-0 top-11 z-20 rounded-xl py-1 min-w-[140px]"
+                style={{
+                  background: 'var(--card)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                <button onClick={handleAISummary} className="block w-full text-left px-3 py-2 text-[13px] active:bg-[var(--bg-elevated)]">📝 生成摘要</button>
+                <button onClick={handleAIContinue} className="block w-full text-left px-3 py-2 text-[13px] active:bg-[var(--bg-elevated)]">✍️ 续写内容</button>
+                <button onClick={() => handleAITranslate('英文')} className="block w-full text-left px-3 py-2 text-[13px] active:bg-[var(--bg-elevated)]">🌐 翻译成英文</button>
+                <button onClick={() => handleAITranslate('中文')} className="block w-full text-left px-3 py-2 text-[13px] active:bg-[var(--bg-elevated)]">🌐 翻译成中文</button>
+              </div>
+            )}
+            {aiLoading && (
+              <div className="absolute right-0 top-11 z-20 rounded-xl py-2 px-3 text-[12px]" style={{ background: 'var(--card)', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', border: '1px solid var(--border)' }}>
+                AI 处理中…
+              </div>
+            )}
+          </div>
           {note && (
             <button
               onClick={handleDelete}

@@ -1,9 +1,9 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, type ReactNode } from 'react';
 import { useTaskStore } from '../lib/store';
 import {
   STATUS_LABELS, STATUS_ORDER, PRIORITY_LABELS, todayStr,
 } from '../lib/task-utils';
-import { generateWeeklyReport, getAISettings } from '../lib/ai-client';
+import { generateWeeklyReport, aiGoalBreakdown, getAISettings } from '../lib/ai-client';
 import { useAuth } from '../lib/auth';
 import { showToast } from '../components/Toast';
 
@@ -50,6 +50,11 @@ export default function DashboardView({ onOpenPro }: Props) {
   const { pro } = useAuth();
   const [report, setReport] = useState<string>('');
   const [generating, setGenerating] = useState(false);
+  // v6.7 — AI 目标拆解
+  const [goalInput, setGoalInput] = useState('');
+  const [goalTimeframe, setGoalTimeframe] = useState('3 个月');
+  const [goalResult, setGoalResult] = useState('');
+  const [goalLoading, setGoalLoading] = useState(false);
 
   const stats = useMemo(() => {
     const active = tasks.filter(t => !t.deletedAt);
@@ -100,8 +105,79 @@ export default function DashboardView({ onOpenPro }: Props) {
     try {
       const r = await generateWeeklyReport(tasks.filter(t => !t.deletedAt), pomodoros);
       setReport(r);
+      // v6.7 — 归档周报到 localStorage（保留最近 4 周）
+      try {
+        const archives = JSON.parse(localStorage.getItem('weekly-reports') || '[]');
+        archives.push({ content: r, date: new Date().toISOString() });
+        const trimmed = archives.slice(-4);
+        localStorage.setItem('weekly-reports', JSON.stringify(trimmed));
+      } catch {}
     } catch (e: any) { showToast(e.message || '生成失败', 'error'); }
     finally { setGenerating(false); }
+  }
+
+  // v6.7 — AI 目标拆解
+  async function handleGoalBreakdown() {
+    if (!getAISettings()) { showToast('请先配置 AI API', 'error'); return; }
+    if (!goalInput.trim()) { showToast('请输入目标', 'error'); return; }
+    setGoalLoading(true);
+    try {
+      const result = await aiGoalBreakdown(goalInput.trim(), goalTimeframe);
+      setGoalResult(result);
+    } catch (e: any) { showToast(e.message || '拆解失败', 'error'); }
+    finally { setGoalLoading(false); }
+  }
+
+  // v6.7 — 轻量 Markdown 渲染（支持 # 标题、**粗体**、- 列表、段落）
+  function renderMarkdown(md: string): ReactNode {
+    const lines = md.split('\n');
+    const elements: ReactNode[] = [];
+    let listItems: string[] = [];
+
+    const flushList = () => {
+      if (listItems.length > 0) {
+        elements.push(
+          <ul key={`ul-${elements.length}`} className="list-disc pl-5 my-1 space-y-0.5">
+            {listItems.map((item, i) => <li key={i}>{renderInline(item)}</li>)}
+          </ul>
+        );
+        listItems = [];
+      }
+    };
+
+    const renderInline = (text: string): ReactNode => {
+      // **粗体**
+      const parts = text.split(/(\*\*[^*]+\*\*)/g);
+      return parts.map((p, i) => {
+        if (p.startsWith('**') && p.endsWith('**')) {
+          return <strong key={i}>{p.slice(2, -2)}</strong>;
+        }
+        return p;
+      });
+    };
+
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('# ')) {
+        flushList();
+        elements.push(<div key={idx} className="text-[15px] font-bold mt-2 mb-1">{trimmed.slice(2)}</div>);
+      } else if (trimmed.startsWith('## ')) {
+        flushList();
+        elements.push(<div key={idx} className="text-[14px] font-semibold mt-2 mb-1" style={{ color: 'var(--primary)' }}>{trimmed.slice(3)}</div>);
+      } else if (trimmed.startsWith('### ')) {
+        flushList();
+        elements.push(<div key={idx} className="text-[13px] font-semibold mt-1.5 mb-0.5">{trimmed.slice(4)}</div>);
+      } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+        listItems.push(trimmed.slice(2));
+      } else if (trimmed === '') {
+        flushList();
+      } else {
+        flushList();
+        elements.push(<div key={idx} className="my-0.5">{renderInline(trimmed)}</div>);
+      }
+    });
+    flushList();
+    return elements;
   }
 
   const maxDailyPomodoro = Math.max(...stats.dailyPomodoros.map(d => d.count), 1);
@@ -352,8 +428,8 @@ export default function DashboardView({ onOpenPro }: Props) {
           </button>
         </div>
         {report ? (
-          <div className="text-[13px] leading-relaxed whitespace-pre-wrap fade-in" style={{ color: 'var(--text-primary)' }}>
-            {report}
+          <div className="text-[13px] leading-relaxed fade-in" style={{ color: 'var(--text-primary)' }}>
+            {renderMarkdown(report)}
           </div>
         ) : generating ? (
           <div className="space-y-2">
@@ -364,6 +440,48 @@ export default function DashboardView({ onOpenPro }: Props) {
         ) : (
           <div className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>
             {getAISettings() ? '点击「生成周报」AI 会根据你本周的数据生成一份回顾' : '请先在设置中配置 AI API，然后即可生成智能周报'}
+          </div>
+        )}
+      </div>
+
+      {/* v6.7 — AI 目标拆解 */}
+      <div className="ios-card p-4 mt-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-[14px] font-bold">🎯 AI 目标拆解</div>
+          {goalResult && (
+            <button onClick={() => setGoalResult('')} className="text-[11px] text-[color:var(--text-tertiary)]">清除</button>
+          )}
+        </div>
+        <div className="flex gap-2 mb-2">
+          <input
+            value={goalInput}
+            onChange={e => setGoalInput(e.target.value)}
+            placeholder="如：3 个月学会 Rust"
+            className="ios-input flex-1"
+            style={{ paddingTop: 8, paddingBottom: 8 }}
+          />
+          <select
+            value={goalTimeframe}
+            onChange={e => setGoalTimeframe(e.target.value)}
+            className="ios-input"
+            style={{ paddingTop: 8, paddingBottom: 8, width: 90 }}
+          >
+            <option value="1 个月">1 个月</option>
+            <option value="3 个月">3 个月</option>
+            <option value="6 个月">6 个月</option>
+            <option value="1 年">1 年</option>
+          </select>
+        </div>
+        <button
+          onClick={handleGoalBreakdown}
+          disabled={goalLoading || !goalInput.trim()}
+          className="btn-primary w-full"
+        >
+          {goalLoading ? '拆解中…' : '生成计划'}
+        </button>
+        {goalResult && (
+          <div className="text-[13px] leading-relaxed fade-in mt-2" style={{ color: 'var(--text-primary)' }}>
+            {renderMarkdown(goalResult)}
           </div>
         )}
       </div>
