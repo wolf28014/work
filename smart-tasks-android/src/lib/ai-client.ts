@@ -1,5 +1,9 @@
 // AI 客户端 - OpenAI 兼容接口
 // v6.7 — 重构：流式输出、超时、重试、API Key 加密、temperature 可配
+// v6.8 — Pro 用户用内置 API Key（免配置），免费用户限额 + 自带 Key
+
+import { getCurrentProStatus, getProAIConfig } from './auth';
+import { canUse, recordUsage, type AIFeature } from './ai-quota';
 
 export interface AISettings {
   baseURL: string;
@@ -46,6 +50,13 @@ export function getAISettings(): AISettings | null {
   } catch { return null; }
 }
 
+// v6.8 — 判断 AI 是否可用（自带 Key 或 Pro）
+// Pro 用户即使没配 Key 也能用（内置 Key）
+export function hasAIConfigured(): boolean {
+  if (getAISettings()) return true;
+  return isProActive();
+}
+
 export function saveAISettings(s: AISettings) {
   // v6.7 — 混淆 apiKey 后存储
   const stored = { baseURL: s.baseURL, apiKey: s.apiKey ? obfuscate(s.apiKey) : '', model: s.model };
@@ -54,6 +65,35 @@ export function saveAISettings(s: AISettings) {
 
 export function clearAISettings() {
   localStorage.removeItem(STORAGE_KEY);
+}
+
+// v6.8 — Pro 配置和配额
+const FEATURE_LABELS: Record<AIFeature, string> = {
+  chat: 'AI 对话', parse: 'AI 解析', split: 'AI 拆解', summary: 'AI 总结',
+  search: 'AI 搜索', focus: 'AI 专注建议', note: 'AI 笔记', weeklyReport: 'AI 周报',
+};
+
+function isProActive(): boolean {
+  const pro = getCurrentProStatus();
+  return pro.isPro && (!pro.expiresAt || pro.expiresAt > Date.now());
+}
+
+export async function getEffectiveAISettings(): Promise<AISettings | null> {
+  if (isProActive()) {
+    const proConfig = await getProAIConfig();
+    if (proConfig) return proConfig;
+  }
+  return getAISettings();
+}
+
+function checkQuota(feature: AIFeature): void {
+  if (!canUse(feature, isProActive())) {
+    throw new Error(`今日${FEATURE_LABELS[feature]}次数已用完，升级 Pro 解锁无限`);
+  }
+}
+
+function recordFeatureUsage(feature: AIFeature): void {
+  if (!isProActive()) recordUsage(feature);
 }
 
 // v6.7 — 请求超时 + 重试 + AbortController 支持
@@ -67,6 +107,8 @@ interface AIChatOptions {
   // v6.7 — Function Calling 支持
   tools?: any[];
   toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
+  // v6.8 — 允许外部传入 settings（Pro Key 或自带 Key）
+  settings?: AISettings;
 }
 
 /**
@@ -150,8 +192,9 @@ export async function aiChatStream(
   onDelta: (delta: string) => void,
   options: AIChatOptions = {}
 ): Promise<string> {
-  const s = getAISettings();
-  if (!s) throw new Error('未配置 AI API，请先在设置中填入');
+  // v6.8 — 优先用传入的 settings，否则用 getAISettings（向后兼容）
+  const s = options.settings || getAISettings();
+  if (!s) throw new Error('未配置 AI API，Pro 会员免配置，或在设置中填入');
   const url = s.baseURL.replace(/\/$/, '') + '/chat/completions';
   const temperature = options.temperature ?? 0.7;
   const timeout = options.timeout ?? DEFAULT_TIMEOUT;
@@ -233,11 +276,14 @@ function friendlyError(status: number, errText: string): string {
 export async function parseTaskWithAI(input: string, todayISO: string): Promise<{
   title: string; priority: 'low' | 'medium' | 'high'; dueDate: string | null; tags: string[]; description: string;
 }> {
+  checkQuota('parse');
+  const s = await getEffectiveAISettings();
+  if (!s) throw new Error('未配置 AI API，Pro 会员免配置，或在设置中填入自己的 Key');
   const system = `你是一个任务解析助手。从用户的自然语言中提取任务信息，返回严格的 JSON 格式：
 {"title":"任务标题","priority":"low|medium|high","dueDate":"YYYY-MM-DD 或 null","tags":["标签"],"description":"补充说明"}
 规则：今天是 ${todayISO}；"明天"、"后天"等相对日期要换算成 YYYY-MM-DD；"紧急"、"马上" → high；"重要" → medium；其他默认 low；没有明确截止日期 → null；标签最多 3 个；仅输出 JSON。`;
-  // v6.7 — 解析场景用低 temperature（0.2）保证结构化输出稳定
-  const resp = await aiChat([{ role: 'system', content: system }, { role: 'user', content: input }], undefined, { temperature: 0.2 });
+  const resp = await aiChat([{ role: 'system', content: system }, { role: 'user', content: input }], s, { temperature: 0.2 });
+  recordFeatureUsage('parse');
   const match = resp.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('AI 响应格式错误');
   const parsed = JSON.parse(match[0]);
@@ -251,8 +297,9 @@ export async function parseTaskWithAI(input: string, todayISO: string): Promise<
 }
 
 export async function generateWeeklyReport(tasks: any[], pomodoros: any[]): Promise<string> {
-  const s = getAISettings();
-  if (!s) throw new Error('未配置 AI API');
+  checkQuota('weeklyReport');
+  const s = await getEffectiveAISettings();
+  if (!s) throw new Error('未配置 AI API，Pro 会员免配置');
   const now = Date.now();
   const weekAgo = now - 7 * 86400000;
   const recentTasks = tasks.filter(t => t.updatedAt >= weekAgo);
@@ -266,13 +313,16 @@ export async function generateWeeklyReport(tasks: any[], pomodoros: any[]): Prom
     任务详情: recentTasks.slice(0, 30).map(t => ({ 标题: t.title, 状态: t.status, 优先级: t.priority, 截止: t.dueDate, 标签: t.tags })),
   };
   const system = `你是一个时间管理教练。根据用户本周数据生成简洁有温度的周报，Markdown 格式，包含：1. 本周概览 2. 亮点回顾 3. 改进建议 4. 下周寄语。语气亲切，控制在 300 字以内。`;
-  return await aiChat([{ role: 'system', content: system }, { role: 'user', content: `本周数据：\n${JSON.stringify(summary, null, 2)}` }]);
+  const __r = await aiChat([{ role: 'system', content: system }, { role: 'user', content: `本周数据：\n${JSON.stringify(summary, null, 2)}` }], s);
+  recordFeatureUsage('weeklyReport');
+  return __r;
 }
 
 // AI 拆解子任务：根据任务标题和描述自动生成 3-6 个子任务
 export async function aiSplitSubtasks(title: string, description: string): Promise<string[]> {
-  const s = getAISettings();
-  if (!s) throw new Error('未配置 AI API');
+  checkQuota('split');
+  const s = await getEffectiveAISettings();
+  if (!s) throw new Error('未配置 AI API，Pro 会员免配置');
   const system = `你是一个项目管理专家。根据用户提供的任务标题和描述，拆解出 3-6 个具体可执行的子任务。
 要求：
 - 每个子任务都是独立的、可勾选完成的动作
@@ -287,7 +337,8 @@ export async function aiSplitSubtasks(title: string, description: string): Promi
   const resp = await aiChat([
     { role: 'system', content: system },
     { role: 'user', content: user },
-  ], undefined, { temperature: 0.3 });
+  ], s, { temperature: 0.3 });
+  recordFeatureUsage('split');
   const match = resp.match(/\[[\s\S]*\]/);
   if (!match) throw new Error('AI 响应格式错误');
   const arr = JSON.parse(match[0]);
@@ -297,8 +348,9 @@ export async function aiSplitSubtasks(title: string, description: string): Promi
 
 // AI 任务总结：根据任务详情生成进展总结和下一步建议
 export async function aiTaskSummary(task: any): Promise<string> {
-  const s = getAISettings();
-  if (!s) throw new Error('未配置 AI API');
+  checkQuota('summary');
+  const s = await getEffectiveAISettings();
+  if (!s) throw new Error('未配置 AI API，Pro 会员免配置');
   const system = `你是一个任务管理助手。根据用户提供的任务信息，生成简洁的进展总结。
 要求：
 - 控制在 200 字以内
@@ -320,16 +372,19 @@ export async function aiTaskSummary(task: any): Promise<string> {
     番茄钟数: task.pomodoros,
   };
 
-  return await aiChat([
+  const __r = await aiChat([
     { role: 'system', content: system },
     { role: 'user', content: `请分析这个任务：\n${JSON.stringify(taskInfo, null, 2)}` },
-  ]);
+  ], s);
+  recordFeatureUsage('summary');
+  return __r;
 }
 
 // AI 专注建议：根据当前任务列表给出专注建议
 export async function aiFocusSuggestion(tasks: any[], recentPomodoros: any[]): Promise<string> {
-  const s = getAISettings();
-  if (!s) throw new Error('未配置 AI API');
+  checkQuota('focus');
+  const s = await getEffectiveAISettings();
+  if (!s) throw new Error('未配置 AI API，Pro 会员免配置');
   const now = Date.now();
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -357,10 +412,12 @@ export async function aiFocusSuggestion(tasks: any[], recentPomodoros: any[]): P
 - 语气亲切有动力，像朋友一样
 - 使用纯文本，可用 emoji`;
 
-  return await aiChat([
+  const __r = await aiChat([
     { role: 'system', content: system },
     { role: 'user', content: `当前状态：\n${JSON.stringify(summary, null, 2)}` },
-  ]);
+  ], s);
+  recordFeatureUsage('focus');
+  return __r;
 }
 
 // ============================================================
@@ -368,46 +425,55 @@ export async function aiFocusSuggestion(tasks: any[], recentPomodoros: any[]): P
 // ============================================================
 
 export async function aiNoteSummary(content: string): Promise<string> {
-  const s = getAISettings();
-  if (!s) throw new Error('未配置 AI API');
+  checkQuota('note');
+  const s = await getEffectiveAISettings();
+  if (!s) throw new Error('未配置 AI API，Pro 会员免配置');
   const system = `你是一个笔记整理助手。根据用户提供的笔记内容，生成简洁的摘要。
 要求：
 - 控制在 150 字以内
 - 提取核心要点
 - 语气专业
 - 使用纯文本，可用 emoji 和换行`;
-  return await aiChat([
+  const __r = await aiChat([
     { role: 'system', content: system },
     { role: 'user', content: `请总结这条笔记：\n${content}` },
-  ], undefined, { temperature: 0.3 });
+  ], s, { temperature: 0.3 });
+  recordFeatureUsage('note');
+  return __r;
 }
 
 export async function aiNoteContinue(content: string): Promise<string> {
-  const s = getAISettings();
-  if (!s) throw new Error('未配置 AI API');
+  checkQuota('note');
+  const s = await getEffectiveAISettings();
+  if (!s) throw new Error('未配置 AI API，Pro 会员免配置');
   const system = `你是一个写作助手。根据用户提供的笔记开头，续写内容。
 要求：
 - 保持原有风格和语气
 - 续写 100-200 字
 - 自然衔接，不要重复开头内容
 - 使用纯文本`;
-  return await aiChat([
+  const __r = await aiChat([
     { role: 'system', content: system },
     { role: 'user', content: `请续写：\n${content.slice(-500)}` },
-  ]);
+  ], s);
+  recordFeatureUsage('note');
+  return __r;
 }
 
 export async function aiNoteTranslate(content: string, targetLang: string): Promise<string> {
-  const s = getAISettings();
-  if (!s) throw new Error('未配置 AI API');
+  checkQuota('note');
+  const s = await getEffectiveAISettings();
+  if (!s) throw new Error('未配置 AI API，Pro 会员免配置');
   const system = `你是一个翻译助手。将用户提供的文本翻译成${targetLang}。
 要求：
 - 保持原文含义和语气
 - 仅输出翻译结果，不要任何解释`;
-  return await aiChat([
+  const __r = await aiChat([
     { role: 'system', content: system },
     { role: 'user', content: content },
-  ], undefined, { temperature: 0.2 });
+  ], s, { temperature: 0.2 });
+  recordFeatureUsage('note');
+  return __r;
 }
 
 // ============================================================
@@ -415,8 +481,10 @@ export async function aiNoteTranslate(content: string, targetLang: string): Prom
 // ============================================================
 
 export async function aiSuggestColumn(taskTitle: string, columns: string[]): Promise<string> {
-  const s = getAISettings();
-  if (!s) throw new Error('未配置 AI API');
+  // v6.8 — Pro 专属功能
+  if (!isProActive()) throw new Error('AI 看板分类是 Pro 专属功能');
+  const s = await getEffectiveAISettings();
+  if (!s) throw new Error('未配置 AI API，Pro 会员免配置');
   const system = `你是一个任务分类助手。根据任务标题，从给定的看板列中选择最合适的一个。
 要求：
 - 只能从给定列中选择
@@ -424,7 +492,7 @@ export async function aiSuggestColumn(taskTitle: string, columns: string[]): Pro
   const resp = await aiChat([
     { role: 'system', content: system },
     { role: 'user', content: `任务：${taskTitle}\n可选列：${columns.join('、')}` },
-  ], undefined, { temperature: 0.1 });
+  ], s, { temperature: 0.1 });
   // 去掉换行和标点，匹配最接近的列名
   const cleaned = resp.trim().replace(/[，。.\s]/g, '');
   const matched = columns.find(c => cleaned.includes(c));
@@ -436,8 +504,9 @@ export async function aiSuggestColumn(taskTitle: string, columns: string[]): Pro
 // ============================================================
 
 export async function aiSearchTasks(query: string, tasks: any[]): Promise<string[]> {
-  const s = getAISettings();
-  if (!s) throw new Error('未配置 AI API');
+  checkQuota('search');
+  const s = await getEffectiveAISettings();
+  if (!s) throw new Error('未配置 AI API，Pro 会员免配置');
   // v6.7.3 — 修复：传完整字段 + 把时间戳转成可读日期，让 AI 能理解"昨天完成的"等语义
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
@@ -481,7 +550,8 @@ export async function aiSearchTasks(query: string, tasks: any[]): Promise<string
   const resp = await aiChat([
     { role: 'system', content: system },
     { role: 'user', content: `查询：${query}\n任务列表：${JSON.stringify(taskList.slice(0, 100))}` },
-  ], undefined, { temperature: 0.2 });
+  ], s, { temperature: 0.2 });
+  recordFeatureUsage('search');
   const match = resp.match(/\[[\s\S]*\]/);
   if (!match) return [];
   try {
@@ -496,8 +566,10 @@ export async function aiSearchTasks(query: string, tasks: any[]): Promise<string
 // ============================================================
 
 export async function aiGoalBreakdown(goal: string, timeframe: string): Promise<string> {
-  const s = getAISettings();
-  if (!s) throw new Error('未配置 AI API');
+  // v6.8 — Pro 专属功能
+  if (!isProActive()) throw new Error('AI 目标拆解是 Pro 专属功能');
+  const s = await getEffectiveAISettings();
+  if (!s) throw new Error('未配置 AI API，Pro 会员免配置');
   const system = `你是一个目标管理教练。根据用户的目标和时间范围，拆解成可执行的阶段性计划。
 要求：
 - Markdown 格式
@@ -508,7 +580,7 @@ export async function aiGoalBreakdown(goal: string, timeframe: string): Promise<
   return await aiChat([
     { role: 'system', content: system },
     { role: 'user', content: `目标：${goal}\n时间范围：${timeframe}` },
-  ]);
+  ], s);
 }
 
 // ============================================================

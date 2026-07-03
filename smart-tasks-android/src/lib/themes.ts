@@ -88,6 +88,9 @@ function tints(hex: string, softA = 0.10, glowA = 0.25, borderA = 0.28) {
   };
 }
 
+// v6.8 — Pro 主题（后 5 个）
+export const PRO_THEME_IDS: string[] = ['aurora', 'cherry', 'midnight', 'warm-sand', 'deep-ocean'];
+
 export const THEMES: Theme[] = [
   // === 5 original themes (kept as-is, with new fields filled in) ===
   {

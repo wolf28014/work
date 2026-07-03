@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import type { Note } from '../lib/db';
 import { getAllNotes, saveNote, deleteNotePermanent, softDeleteNote, genId, getNoteById } from '../lib/db';
-import { syncNoteToCloud } from '../lib/auth';
+import { syncNoteToCloud, getCurrentProStatus } from '../lib/auth';
 import { showToast } from '../components/Toast';
 import SwipeableSheet from '../components/SwipeableSheet';
 import { aiNoteSummary, aiNoteContinue, aiNoteTranslate, getAISettings } from '../lib/ai-client';
@@ -54,6 +54,13 @@ export default function NotesView({ onOpenEditor }: Props) {
   }
 
   async function handleCreate() {
+    // v6.8 — 免费用户笔记 50 条限制
+    const pro = getCurrentProStatus();
+    const isPro = pro.isPro && (!pro.expiresAt || pro.expiresAt > Date.now());
+    if (!isPro && notes.length >= 50) {
+      showToast('免费版最多 50 条笔记，升级 Pro 解锁无限', 'info');
+      return;
+    }
     onOpenEditor(null);
   }
 

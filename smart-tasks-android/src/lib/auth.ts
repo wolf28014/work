@@ -53,6 +53,11 @@ export function getCurrentUserId(): string | null {
   return currentUser?.id ?? null;
 }
 
+// v6.8 — 同步获取当前 Pro 状态（供非 hook 模块如 ai-client 使用）
+export function getCurrentProStatus(): ProStatus {
+  return currentProStatus;
+}
+
 // 邮箱密码注册
 export async function signUpWithEmail(email: string, password: string) {
   const sb = getSupabase();
@@ -795,3 +800,58 @@ export function unsubscribeRealtime() {
   }
   realtimeChannel = null;
 }
+
+// ============================================================
+// v6.8 — Pro 内置 AI API Key
+// Pro 用户免配置即可用 AI，用开发者内置的 Key
+// Key 存在 Supabase app_config 表，前端拉取
+// ============================================================
+
+interface ProAIConfig {
+  baseURL: string;
+  apiKey: string;
+  model: string;
+}
+
+let cachedProAIConfig: ProAIConfig | null = null;
+let cachedProAIConfigTime = 0;
+const PRO_AI_CACHE_TTL = 3600000;  // 1 小时缓存
+
+/** 获取 Pro 内置 AI 配置（仅 Pro 用户可拿到） */
+export async function getProAIConfig(): Promise<ProAIConfig | null> {
+  if (!currentUser) return null;
+  const sb = getSupabase();
+  if (!sb) return null;
+
+  // 缓存 1 小时
+  if (cachedProAIConfig && Date.now() - cachedProAIConfigTime < PRO_AI_CACHE_TTL) {
+    return cachedProAIConfig;
+  }
+
+  try {
+    const { data, error } = await sb
+      .from('app_config')
+      .select('value')
+      .eq('key', 'pro_ai_config')
+      .maybeSingle();
+
+    if (error || !data?.value) return null;
+
+    const config = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+    if (!config.baseURL || !config.apiKey || !config.model) return null;
+
+    cachedProAIConfig = config;
+    cachedProAIConfigTime = Date.now();
+    return config;
+  } catch (e) {
+    console.log('[getProAIConfig] failed:', e);
+    return null;
+  }
+}
+
+/** 清除 Pro AI 配置缓存（登出时调用） */
+export function clearProAIConfigCache() {
+  cachedProAIConfig = null;
+  cachedProAIConfigTime = 0;
+}
+

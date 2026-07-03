@@ -24,12 +24,12 @@ const PLANS: PlanDef[] = [
 ];
 
 const PRO_FEATURES: { icon: string; title: string; desc: string }[] = [
-  { icon: '✦', title: 'AI 无限对话',    desc: '不限次数调用 AI 助手与周报生成' },
-  { icon: '◷', title: '专注时长统计',    desc: '完整专注时长趋势、热力图' },
-  { icon: '▦', title: '看板视图解锁',    desc: '无限列、自定义看板与拖拽' },
-  { icon: '☁', title: '云同步扩容',     desc: '云端存储扩容至 1GB' },
-  { icon: '✿', title: '高级主题与背景',  desc: '解锁全部玻璃主题与动态背景' },
-  { icon: '↻', title: '循环任务增强',    desc: '自定义重复规则与提醒' },
+  { icon: '✦', title: 'AI 全功能无限',    desc: '对话/解析/拆解/总结/搜索/周报/笔记 AI 全部无限次，免配置 API Key' },
+  { icon: '🎤', title: '语音输入',         desc: 'AI 助手支持语音说话输入，解放双手' },
+  { icon: '✿', title: '高级主题与背景',   desc: '解锁极光/樱花/午夜/暖沙/深海 5 套高级主题，自定义背景图' },
+  { icon: '🎯', title: 'AI 目标拆解',     desc: '输入目标自动拆解成月/周/日计划' },
+  { icon: '▦', title: 'AI 看板分类',      desc: 'AI 自动建议任务归类到看板列' },
+  { icon: '☁', title: '云同步扩容',       desc: '多设备无限同步，云端存储扩容' },
 ];
 
 export default function ProSheet({ onClose }: Props) {

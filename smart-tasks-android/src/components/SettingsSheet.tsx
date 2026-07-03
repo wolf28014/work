@@ -15,7 +15,7 @@ import {
 } from '../lib/background';
 import { useAuth, logout, mergeLocalToCloud, pullCloudToLocal, redeemCode } from '../lib/auth';
 import { checkUpdateManual, getCachedUpdateInfo, CURRENT_VERSION } from '../lib/updater';
-import { THEMES } from '../lib/themes';
+import { THEMES, PRO_THEME_IDS } from '../lib/themes';
 import SwipeableSheet from './SwipeableSheet';
 
 interface Props {
@@ -388,6 +388,10 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                     <div className="flex items-center gap-2.5 flex-wrap">
                       {THEMES.map(t => {
                         const isActive = appTheme === t.id;
+                        // v6.8 — Pro 主题锁
+                        const isProTheme = PRO_THEME_IDS.includes(t.id);
+                        const isProUser = pro?.isPro && (!pro.expiresAt || pro.expiresAt > Date.now());
+                        const locked = isProTheme && !isProUser;
                         // For gradient themes (bg is a CSS gradient), use the bg directly.
                         // For solid-color themes, build a primary→primaryStrong gradient.
                         const circleBg = typeof t.bg === 'string' && t.bg.includes('gradient')
@@ -397,6 +401,10 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                           <button
                             key={t.id}
                             onClick={() => {
+                              if (locked) {
+                                showToast(`「${t.name}」是 Pro 主题，升级 Pro 解锁`, 'info');
+                                return;
+                              }
                               setAppTheme(t.id);
                               showToast(`已切换至「${t.name}」`, 'success');
                             }}
@@ -404,25 +412,26 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                             aria-label={t.name}
                           >
                             <div
-                              className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
+                              className="w-12 h-12 rounded-full flex items-center justify-center transition-all relative"
                               style={{
-                                background: circleBg,
+                                background: locked ? 'var(--bg-elevated)' : circleBg,
                                 border: isActive
                                   ? `3px solid ${t.primary}`
                                   : `2px solid var(--border)`,
                                 boxShadow: isActive
                                   ? `0 0 0 3px var(--bg), 0 0 12px ${t.primary}55`
                                   : 'none',
-                                position: 'relative',
+                                opacity: locked ? 0.5 : 1,
                               }}
                             >
-                              {!t.isDark && (
+                              {locked ? (
+                                <span style={{ color: 'var(--text-tertiary)', fontSize: 18 }}>🔒</span>
+                              ) : !t.isDark ? (
                                 <span style={{ color: '#ffffff', fontSize: 18, fontWeight: 700 }}>{t.emoji}</span>
-                              )}
-                              {t.isDark && (
+                              ) : (
                                 <span style={{ color: t.primary, fontSize: 18 }}>{t.emoji}</span>
                               )}
-                              {isActive && (
+                              {isActive && !locked && (
                                 <div
                                   className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center"
                                   style={{ background: t.primary, border: '2px solid var(--card)' }}

@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTaskStore } from '../lib/store';
-import { aiChatStream, getAISettings, parseAIActions, type AIAction, createVoiceRecognizer } from '../lib/ai-client';
+import { useAuth } from '../lib/auth';
+import { aiChatStream, getEffectiveAISettings, parseAIActions, type AIAction, createVoiceRecognizer } from '../lib/ai-client';
+import { canUse, recordUsage } from '../lib/ai-quota';
 import { showToast } from './Toast';
 import SwipeableSheet from './SwipeableSheet';
 import { todayStr } from '../lib/task-utils';
@@ -28,6 +30,8 @@ function saveHistory(msgs: Message[]) {
 
 export default function AIChatSheet({ onClose }: Props) {
   const { tasks, createTask, completeTask } = useTaskStore();
+  const { pro } = useAuth();
+  const isPro = !!(pro?.isPro && (!pro.expiresAt || pro.expiresAt > Date.now()));
   const [messages, setMessages] = useState<Message[]>(() => loadHistory());
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -86,7 +90,16 @@ export default function AIChatSheet({ onClose }: Props) {
   async function send(text?: string) {
     const content = (text || input).trim();
     if (!content) return;
-    if (!getAISettings()) { showToast('请先在设置中配置 AI API', 'error'); return; }
+    // v6.8 — 配额检查 + Pro Key
+    if (!canUse('chat', isPro)) {
+      showToast('今日 AI 对话次数已用完，升级 Pro 解锁无限', 'info');
+      return;
+    }
+    const settings = await getEffectiveAISettings();
+    if (!settings) {
+      showToast('请先在设置中配置 AI API，或升级 Pro 免配置', 'error');
+      return;
+    }
     setInput('');
     const newMessages = [...messages, { role: 'user' as const, content }];
     setMessages(newMessages);
@@ -129,7 +142,9 @@ export default function AIChatSheet({ onClose }: Props) {
       await aiChatStream(history, (delta) => {
         full += delta;
         setStreamingContent(full);
-      }, { signal: controller.signal });
+      }, { signal: controller.signal, settings });
+      // v6.8 — 记录配额使用（成功后，recordUsage 内部判断 Pro 不计数）
+      if (!isPro) recordUsage('chat');
 
       // v6.7 — 解析并执行操作指令
       const { actions, reply } = parseAIActions(full);
