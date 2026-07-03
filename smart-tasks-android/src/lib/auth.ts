@@ -896,17 +896,38 @@ export async function deleteAccount(): Promise<void> {
 }
 
 // 登录设备管理：获取当前 session 信息
-export async function getSessionInfo(): Promise<{ deviceId: string; lastSignIn: string } | null> {
+export async function getSessionInfo(): Promise<{ deviceId: string; lastSignIn: string; deviceName: string } | null> {
   const sb = getSupabase();
   if (!sb) return null;
   try {
-    const { data } = await sb.auth.getSession();
+    const { data, error } = await sb.auth.getSession();
+    if (error) console.error('[getSessionInfo] error:', error);
     if (!data.session) return null;
-    // 生成设备 ID（基于 session）
-    const deviceId = data.session.user.id.slice(0, 8);
-    const lastSignIn = new Date(data.session.user.last_sign_in_at || '').toLocaleString('zh-CN');
-    return { deviceId, lastSignIn };
-  } catch {
+
+    const user = data.session.user;
+    const deviceId = user.id.slice(0, 8);
+
+    // 解析设备名（从 User-Agent）
+    const ua = navigator.userAgent;
+    let deviceName = 'Web 浏览器';
+    if (/Android/i.test(ua)) deviceName = 'Android 设备';
+    else if (/iPhone|iPad/i.test(ua)) deviceName = 'iOS 设备';
+    else if (/Windows/i.test(ua)) deviceName = 'Windows PC';
+    else if (/Mac/i.test(ua)) deviceName = 'Mac 电脑';
+
+    // 最近登录时间
+    const lastSignInRaw = user.last_sign_in_at || user.created_at;
+    let lastSignIn = '未知';
+    if (lastSignInRaw) {
+      try {
+        const d = new Date(lastSignInRaw);
+        lastSignIn = d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+      } catch {}
+    }
+
+    return { deviceId, lastSignIn, deviceName };
+  } catch (e) {
+    console.error('[getSessionInfo] failed:', e);
     return null;
   }
 }

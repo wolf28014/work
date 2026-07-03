@@ -35,6 +35,10 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
   const [redeemInput, setRedeemInput] = useState('');
   const [updateInfo, setUpdateInfo] = useState(getCachedUpdateInfo());
   const [checking, setChecking] = useState(false);
+  // v6.9.1 — 登录设备信息
+  const [deviceInfo, setDeviceInfo] = useState<{ deviceId: string; lastSignIn: string; deviceName: string } | null>(null);
+  const [deviceLoading, setDeviceLoading] = useState(false);
+  const [deviceChecked, setDeviceChecked] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('violet');
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
@@ -217,18 +221,49 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                         <span className="text-sm flex-1">修改密码</span>
                         <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>›</span>
                       </button>
-                      {/* v6.9 — P2 登录设备信息 */}
+                      {/* v6.9.1 — P2 登录设备信息（修复空白：改成展开式） */}
                       <button
                         onClick={async () => {
+                          if (deviceInfo) { setDeviceInfo(null); setDeviceChecked(false); return; }
+                          setDeviceLoading(true);
+                          setDeviceChecked(true);
                           const info = await getSessionInfo();
-                          if (info) showToast(`设备 ${info.deviceId} · 最近登录 ${info.lastSignIn}`, 'info');
-                          else showToast('无法获取设备信息', 'error');
+                          setDeviceInfo(info);
+                          setDeviceLoading(false);
                         }}
                         className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]"
                       >
                         <span className="text-sm flex-1">登录设备</span>
-                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>查看 ›</span>
+                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                          {deviceLoading ? '查询中…' : deviceInfo ? '收起' : '查看 ›'}
+                        </span>
                       </button>
+                      {deviceInfo && (
+                        <div className="ios-list-item flex-col items-stretch !block" style={{ background: 'var(--bg-elevated)' }}>
+                          <div className="text-[12px] mb-1" style={{ color: 'var(--text-secondary)' }}>
+                            设备类型：<span style={{ color: 'var(--text-primary)' }}>{deviceInfo.deviceName}</span>
+                          </div>
+                          <div className="text-[12px] mb-1" style={{ color: 'var(--text-secondary)' }}>
+                            设备 ID：<span style={{ color: 'var(--text-primary)', fontFamily: 'monospace' }}>{deviceInfo.deviceId}</span>
+                          </div>
+                          <div className="text-[12px]" style={{ color: 'var(--text-secondary)' }}>
+                            最近登录：<span style={{ color: 'var(--text-primary)' }}>{deviceInfo.lastSignIn}</span>
+                          </div>
+                          <div className="text-[11px] mt-1.5" style={{ color: 'var(--text-tertiary)' }}>
+                            💡 在其他设备登录同一账号会自动同步数据。如发现异常登录请修改密码。
+                          </div>
+                        </div>
+                      )}
+                      {deviceLoading && !deviceInfo && (
+                        <div className="ios-list-item" style={{ background: 'var(--bg-elevated)' }}>
+                          <span className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>正在获取设备信息…</span>
+                        </div>
+                      )}
+                      {deviceChecked && deviceInfo === null && !deviceLoading && (
+                        <div className="ios-list-item" style={{ background: 'var(--bg-elevated)' }}>
+                          <span className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>无法获取设备信息，请确认已登录</span>
+                        </div>
+                      )}
                       {/* v6.9 — P0 注销账号 */}
                       <button
                         onClick={async () => {
