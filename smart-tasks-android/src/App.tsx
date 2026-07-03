@@ -177,22 +177,19 @@ function Shell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // v6.6 — 修复 #42：恢复 backButton listener
-  // Android 物理返回键：有 sheet 时关闭 sheet，无 sheet 时退出 App
+  // v6.8.1 — 修复子页面侧滑直接返回桌面
+  // SwipeableSheet 自己有 backButton listener，会调 onClose
+  // App 只在没有 sheet 时 exitApp
   useEffect(() => {
     let listener: any;
     (async () => {
       try {
         const { App: CapacitorApp } = await import('@capacitor/app');
+        const { hasActiveSheet } = await import('./components/SwipeableSheet');
         listener = await CapacitorApp.addListener('backButton', () => {
-          // 检查是否有 sheet 打开（任何 z-50 的 fixed 元素）
-          const openSheets = document.querySelectorAll('[class*="fixed"][class*="z-50"]');
-          if (openSheets.length > 0) {
-            // 模拟点击 mask 关闭
-            const mask = openSheets[openSheets.length - 1] as HTMLElement;
-            if (mask.onClick) mask.onClick({} as any);
-            else mask.click();
-          } else {
+          // 有 sheet 打开时，SwipeableSheet 自己的 listener 会处理 onClose
+          // 这里只在没有 sheet 时退出 App
+          if (!hasActiveSheet()) {
             CapacitorApp.exitApp();
           }
         });

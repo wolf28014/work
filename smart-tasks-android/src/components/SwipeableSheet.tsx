@@ -52,20 +52,23 @@ export default function SwipeableSheet({
   }, []);
 
   // 监听系统返回键（含 MIUI 全面屏左右边缘内滑）
-  // 只在 mount 时注册一次，unmount 时移除
+  // v6.8.1 — 修复：确保有 sheet 时 backButton 只关闭 sheet，不退出 App
+  // 用 priority 让 SwipeableSheet 的 listener 优先于 App.tsx 的执行
   const closingRef = useRef(false);
   useEffect(() => {
     closingRef.current = closing;
   }, [closing]);
   useEffect(() => {
-    const handleBackButton = () => {
+    const handleBackButton = (e: any) => {
+      // 阻止默认行为（退出 App），只关闭 sheet
+      if (e && typeof e.preventDefault === 'function') e.preventDefault();
       if (closingRef.current) return;
       setClosing(true);
       closingRef.current = true;
       setTimeout(() => onCloseRef.current(), 200);
     };
-    const listener = CapacitorApp.addListener('backButton', handleBackButton);
-    return () => { listener.then(l => l.remove()); };
+    const listenerPromise = CapacitorApp.addListener('backButton', handleBackButton);
+    return () => { listenerPromise.then(l => l.remove()); };
   }, []);
 
   // 包装 onClose，触发关闭动画
