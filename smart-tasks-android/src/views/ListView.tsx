@@ -154,7 +154,8 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
       {/* 搜索 + 工具栏 */}
       <div className="px-4 pt-3 pb-2 sticky top-0 z-20 app-header">
         <div className="flex items-center gap-2">
-          <div className="flex-1 relative">
+          {/* v6.7.2 — 搜索框拉长，用 flex-[2] 占更多空间 */}
+          <div className="flex-[2_1_0%] relative min-w-0">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10" style={{ color: 'var(--text-tertiary)' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
@@ -164,9 +165,9 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="搜索任务…"
-              className="ios-input"
+              className="ios-input w-full"
               data-search-input
-              style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 36, paddingRight: query ? 36 : 14, borderRadius: 'var(--r-pill)' }}
+              style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 36, paddingRight: query ? 62 : 36, borderRadius: 'var(--r-pill)' }}
             />
             {query && (
               <button
@@ -187,27 +188,19 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
               >{aiSearchLoading ? '⏳' : '✨'}</button>
             )}
           </div>
+          {/* v6.7.2 — 排序按钮（合并了标签分组功能），名称改为"排序" */}
           <button
             onClick={() => setShowSortSheet(true)}
             className="px-3 py-2 rounded-full text-[12px] font-bold whitespace-nowrap flex items-center gap-1 active:scale-95 transition-transform"
             style={{
-              background: (sortMode !== 'priority' || sortAsc) ? 'var(--primary-soft)' : 'var(--card)',
-              border: `1px solid ${(sortMode !== 'priority' || sortAsc) ? 'var(--primary-border)' : 'var(--border)'}`,
-              color: (sortMode !== 'priority' || sortAsc) ? 'var(--primary)' : 'var(--text-secondary)',
+              background: (sortMode !== 'priority' || sortAsc || groupByTag) ? 'var(--primary-soft)' : 'var(--card)',
+              border: `1px solid ${(sortMode !== 'priority' || sortAsc || groupByTag) ? 'var(--primary-border)' : 'var(--border)'}`,
+              color: (sortMode !== 'priority' || sortAsc || groupByTag) ? 'var(--primary)' : 'var(--text-secondary)',
             }}
           >
             <span>↕</span>
-            <span>{SORT_LABELS[sortMode]}</span>
+            <span>排序</span>
           </button>
-          <button
-            onClick={() => setGroupByTag(!groupByTag)}
-            className="px-3 py-2 rounded-full text-[12px] font-bold whitespace-nowrap active:scale-95 transition-transform"
-            style={{
-              background: groupByTag ? 'var(--primary-soft)' : 'var(--card)',
-              border: `1px solid ${groupByTag ? 'var(--primary-border)' : 'var(--border)'}`,
-              color: groupByTag ? 'var(--primary)' : 'var(--text-secondary)',
-            }}
-          >标签</button>
           <button
             onClick={() => {
               if (batchMode) setSelectedIds(new Set());
@@ -403,6 +396,25 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
                 <span className="text-[15px] font-medium" style={{ color: 'var(--text-primary)' }}>方向</span>
                 <span className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>
                   {sortAsc ? '升序 ↑（低到高）' : '降序 ↓（高到低）'}
+                </span>
+              </button>
+            </div>
+
+            {/* v6.7.2 — 标签分组开关（从顶部工具栏合并进来） */}
+            <div className="px-3 pb-2">
+              <button
+                onClick={() => setGroupByTag(!groupByTag)}
+                className="w-full flex items-center justify-between p-3.5 rounded-xl active:scale-[0.98] transition-transform"
+                style={{
+                  background: groupByTag ? 'var(--primary-soft)' : 'var(--bg-elevated)',
+                  border: `1px solid ${groupByTag ? 'var(--primary-border)' : 'var(--border)'}`,
+                }}
+              >
+                <span className="text-[15px] font-medium" style={{ color: groupByTag ? 'var(--primary)' : 'var(--text-primary)' }}>
+                  按标签分组
+                </span>
+                <span className="text-[13px]" style={{ color: groupByTag ? 'var(--primary)' : 'var(--text-secondary)' }}>
+                  {groupByTag ? '开启 ✓' : '关闭'}
                 </span>
               </button>
             </div>
