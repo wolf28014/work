@@ -20,6 +20,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 拉完整历史 + tag，让 vite 能注入正确版本号
+          fetch-tags: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
