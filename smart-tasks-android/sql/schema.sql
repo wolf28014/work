@@ -134,11 +134,13 @@ CREATE POLICY "users_update_own_settings" ON public.user_settings FOR UPDATE USI
 CREATE POLICY "users_select_license" ON public.license_codes FOR SELECT USING (true);
 
 -- ============== 兑换码消费函数 ==============
+-- v6.8.3 — 修复 integer out of range：30*86400*1000 超出 PostgreSQL integer 范围
 CREATE OR REPLACE FUNCTION public.redeem_license_code(code_input TEXT, user_id_input UUID)
 RETURNS TABLE(type TEXT, expires_at BIGINT) AS $$
 DECLARE
   code_record RECORD;
   new_expires_at BIGINT;
+  now_ms BIGINT;
 BEGIN
   -- v6.6 — 修复 #48：长度校验，防止 DOS
   IF length(code_input) > 64 THEN RAISE EXCEPTION '兑换码格式错误'; END IF;
@@ -149,21 +151,28 @@ BEGIN
     RAISE EXCEPTION '兑换码已过期';
   END IF;
 
-  IF code_record.type = 'pro_lifetime' THEN new_expires_at := 9999999999999;
-  ELSIF code_record.type = 'pro_monthly' THEN new_expires_at := (EXTRACT(EPOCH FROM NOW()) * 1000 + 30 * 86400 * 1000)::BIGINT;
-  ELSIF code_record.type = 'pro_yearly' THEN new_expires_at := (EXTRACT(EPOCH FROM NOW()) * 1000 + 365 * 86400 * 1000)::BIGINT;
-  ELSIF code_record.type = 'ai_monthly' THEN new_expires_at := (EXTRACT(EPOCH FROM NOW()) * 1000 + 30 * 86400 * 1000)::BIGINT;
+  -- v6.8.3 — 用 BIGINT 避免整数溢出
+  now_ms := (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT;
+
+  IF code_record.type = 'pro_lifetime' THEN
+    new_expires_at := 9999999999999;
+  ELSIF code_record.type = 'pro_monthly' THEN
+    new_expires_at := now_ms + (30 * 86400000)::BIGINT;
+  ELSIF code_record.type = 'pro_yearly' THEN
+    new_expires_at := now_ms + (365 * 86400000)::BIGINT;
+  ELSIF code_record.type = 'ai_monthly' THEN
+    new_expires_at := now_ms + (30 * 86400000)::BIGINT;
   END IF;
 
   UPDATE public.license_codes
-  SET is_used = TRUE, used_by = user_id_input, used_at = (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT
+  SET is_used = TRUE, used_by = user_id_input, used_at = now_ms
   WHERE code = code_input;
 
   INSERT INTO public.user_settings (user_id, is_pro, pro_expires_at, license_key, updated_at)
-  VALUES (user_id_input, TRUE, new_expires_at, code_input, (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT)
+  VALUES (user_id_input, TRUE, new_expires_at, code_input, now_ms)
   ON CONFLICT (user_id) DO UPDATE
   SET is_pro = TRUE, pro_expires_at = new_expires_at, license_key = code_input,
-      updated_at = (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT;
+      updated_at = now_ms;
 
   RETURN QUERY SELECT code_record.type::TEXT, new_expires_at;
 END;
