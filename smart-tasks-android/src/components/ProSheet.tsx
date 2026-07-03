@@ -11,16 +11,35 @@ interface PlanDef {
   id: string;
   name: string;
   price: string;
+  originalPrice?: string;  // v6.8.2 — 原价（划线价）
   period: string;
   tagline: string;
   highlight?: boolean;
   badge?: string;
 }
 
+// v6.8.2 — 方案 A + 首月优惠 + 限时折扣
+// 限时折扣：原价 ¥9.9/月 ¥68/年 ¥168/终身，限时 7 折
+// 首月优惠：月度首月 ¥1
 const PLANS: PlanDef[] = [
-  { id: 'monthly', name: '月度',  price: '¥18',  period: '/月',  tagline: '体验全部 Pro 功能', badge: '' },
-  { id: 'yearly',  name: '年度',  price: '¥128', period: '/年',  tagline: '每月仅 10.6 元，省 29%', highlight: true, badge: '推荐' },
-  { id: 'lifetime',name: '终身',  price: '¥388', period: '一次性', tagline: '一次买断，永久享用', badge: '超值' },
+  {
+    id: 'monthly', name: '月度',
+    price: '¥9.9', period: '/月',
+    tagline: '首月仅 ¥1 体验，次月 ¥9.9/月，随时可取消',
+    badge: '首月¥1',
+  },
+  {
+    id: 'yearly', name: '年度',
+    price: '¥48', originalPrice: '¥68', period: '/年',
+    tagline: '限时 7 折！月均仅 ¥4，比月度省 60%',
+    highlight: true, badge: '限时7折',
+  },
+  {
+    id: 'lifetime', name: '终身',
+    price: '¥118', originalPrice: '¥168', period: '一次性',
+    tagline: '限时 7 折！一次买断，相当于 2.5 年年费',
+    badge: '超值',
+  },
 ];
 
 const PRO_FEATURES: { icon: string; title: string; desc: string }[] = [
@@ -125,8 +144,14 @@ export default function ProSheet({ onClose }: Props) {
         </div>
 
         {/* 套餐选择 */}
-        <div className="text-[13px] font-bold mb-2 px-1" style={{ color: 'var(--text-primary)' }}>
-          选择套餐
+        <div className="flex items-center justify-between mb-2 px-1">
+          <div className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>
+            选择套餐
+          </div>
+          {/* v6.8.2 — 限时折扣标签 */}
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'var(--pri-high-soft)', color: 'var(--pri-high)' }}>
+            <span>🔥 限时 7 折</span>
+          </div>
         </div>
         <div className="grid grid-cols-3 gap-2 mb-4">
           {PLANS.map(p => {
@@ -153,7 +178,10 @@ export default function ProSheet({ onClose }: Props) {
                   </div>
                 )}
                 <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>{p.name}</div>
-                <div className="flex items-baseline gap-0.5">
+                <div className="flex items-baseline gap-1 justify-center">
+                  {p.originalPrice && (
+                    <span className="text-[11px] line-through" style={{ color: 'var(--text-tertiary)' }}>{p.originalPrice}</span>
+                  )}
                   <span className="text-[18px] font-black" style={{ color: isSelected ? 'var(--primary)' : 'var(--text-primary)' }}>{p.price}</span>
                 </div>
                 <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{p.period}</div>
@@ -177,7 +205,7 @@ export default function ProSheet({ onClose }: Props) {
             boxShadow: '0 8px 20px var(--primary-glow)',
           }}
         >
-          立即开通 Pro
+          {selectedPlan === 'monthly' ? '¥1 体验首月' : selectedPlan === 'yearly' ? '¥48 开通年度' : '¥118 终身买断'}
         </button>
 
         {/* 兑换码 */}
