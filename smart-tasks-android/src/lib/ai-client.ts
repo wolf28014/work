@@ -438,13 +438,46 @@ export async function aiSuggestColumn(taskTitle: string, columns: string[]): Pro
 export async function aiSearchTasks(query: string, tasks: any[]): Promise<string[]> {
   const s = getAISettings();
   if (!s) throw new Error('未配置 AI API');
-  // 只传任务的 id 和标题，避免 token 爆炸
-  const taskList = tasks.filter(t => !t.deletedAt).map(t => ({ id: t.id, title: t.title, tags: t.tags, dueDate: t.dueDate }));
-  const system = `你是一个任务搜索助手。用户用自然语言描述要找的任务，你从给定的任务列表中找出匹配的，返回 JSON 数组格式的任务 id。
+  // v6.7.3 — 修复：传完整字段 + 把时间戳转成可读日期，让 AI 能理解"昨天完成的"等语义
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+  const formatDate = (ts: number | null): string => {
+    if (!ts) return '无';
+    return new Date(ts).toISOString().slice(0, 10);  // YYYY-MM-DD
+  };
+
+  const taskList = tasks.filter(t => !t.deletedAt).map(t => ({
+    id: t.id,
+    title: t.title,
+    tags: t.tags,
+    dueDate: t.dueDate || '无',
+    status: t.status === 'done' ? '已完成' : t.status === 'in_progress' ? '进行中' : t.status === 'cancelled' ? '已取消' : '待办',
+    completedDate: formatDate(t.completedAt),  // 转成 YYYY-MM-DD，AI 容易判断
+    createdDate: formatDate(t.createdAt),
+    priority: t.priority,
+  }));
+  const system = `你是一个任务搜索助手。今天是 ${today}，昨天是 ${yesterday}。用户用自然语言描述要找的任务，你从给定的任务列表中找出匹配的，返回 JSON 数组格式的任务 id。
+
+任务字段说明：
+- status: 待办/进行中/已完成/已取消
+- completedDate: 完成日期 YYYY-MM-DD，"无"表示未完成
+- dueDate: 截止日期 YYYY-MM-DD
+- priority: low/medium/high
+
+常见查询理解：
+- "昨天完成的" → status="已完成" 且 completedDate="${yesterday}"
+- "今天完成的" → status="已完成" 且 completedDate="${today}"
+- "本周完成的" → status="已完成" 且 completedDate 在本周
+- "逾期的" → dueDate < ${today} 且 status 不是"已完成"/"已取消"
+- "跟设计有关的" → title 或 tags 含"设计"相关词
+- "紧急的" → priority=high
+
 要求：
-- 理解用户的语义意图（如"上周完成的"、"跟设计有关的"）
+- 理解用户的语义意图
 - 没有匹配则返回空数组 []
-- 仅输出 JSON 数组，不要任何其他文字`;
+- 仅输出 JSON 数组（id 字符串），不要任何其他文字`;
   const resp = await aiChat([
     { role: 'system', content: system },
     { role: 'user', content: `查询：${query}\n任务列表：${JSON.stringify(taskList.slice(0, 100))}` },
