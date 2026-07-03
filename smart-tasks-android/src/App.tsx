@@ -344,7 +344,29 @@ function Shell() {
 
   // v6.2 — current tab's display name for PC top bar / sidebar header.
   const activeTab = TABS.find(t => t.id === tab);
-  const syncLabel = isSyncing ? '同步中…' : (user ? '已同步' : '未登录');
+  // v6.9 — P1 同步状态指示（加"上次同步时间"）
+  const [lastSyncDisplay, setLastSyncDisplay] = useState('');
+  useEffect(() => {
+    const updateSyncDisplay = () => {
+      const last = localStorage.getItem('last-cloud-sync-time');
+      if (last) {
+        const d = new Date(parseInt(last, 10));
+        const now = new Date();
+        const diff = now.getTime() - d.getTime();
+        if (diff < 60000) setLastSyncDisplay('刚刚同步');
+        else if (diff < 3600000) setLastSyncDisplay(`${Math.floor(diff / 60000)} 分钟前同步`);
+        else if (diff < 86400000) setLastSyncDisplay(`${Math.floor(diff / 3600000)} 小时前同步`);
+        else setLastSyncDisplay(`${d.getMonth() + 1}月${d.getDate()}日同步`);
+      } else {
+        setLastSyncDisplay('');
+      }
+    };
+    updateSyncDisplay();
+    const interval = setInterval(updateSyncDisplay, 30000);
+    return () => clearInterval(interval);
+  }, [isSyncing]);
+
+  const syncLabel = isSyncing ? '同步中…' : (user ? (lastSyncDisplay || '已同步') : '未登录');
 
   return (
     <div

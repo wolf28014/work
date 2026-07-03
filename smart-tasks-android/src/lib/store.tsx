@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useReducer, useRef, type ReactNode } from 'react';
 import type { Task, PomodoroSession, Tag } from './db';
-import { getAllTasks, saveTask, deleteTaskPermanent, getAllPomodoros, addPomodoroSession, getAllTags, saveTag, deleteTag as deleteTagDB } from './db';
+import { getAllTasks, saveTask, deleteTaskPermanent, getAllPomodoros, addPomodoroSession, getAllTags, saveTag, deleteTag as deleteTagDB, exportAllData, saveBackup } from './db';
 import { genId } from './db';
 import { generateNextRecurrence } from './task-utils';
 import { syncTaskToCloud, syncPomodoroToCloud, syncTagToCloud, deleteTagFromCloud, deleteTaskFromCloud, useAuth, subscribeRealtime, unsubscribeRealtime } from './auth';
@@ -228,6 +228,23 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.tasks]);
+
+  // v6.9 — P1 自动定时备份（每周一次，存 IndexedDB）
+  useEffect(() => {
+    const BACKUP_KEY = 'last-auto-backup';
+    const WEEK_MS = 7 * 86400000;
+    const lastBackup = parseInt(localStorage.getItem(BACKUP_KEY) || '0', 10);
+    if (Date.now() - lastBackup > WEEK_MS) {
+      (async () => {
+        try {
+          const data = await exportAllData();
+          await saveBackup(data);
+          localStorage.setItem(BACKUP_KEY, String(Date.now()));
+          console.log('[backup] 自动备份完成');
+        } catch (e) { console.log('[backup] 自动备份失败:', e); }
+      })();
+    }
+  }, []);
 
   // v6.5.1 — 老用户升级后，把"欢迎使用智能待办"任务的旧短文本升级成详细使用说明
   // 判断条件：title 是"欢迎使用智能待办"且 description 不是新版本（不含"## 📋 任务管理"）

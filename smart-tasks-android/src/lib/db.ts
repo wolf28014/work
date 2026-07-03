@@ -1,6 +1,6 @@
 // IndexedDB 数据层 - Task / PomodoroSession / Tag / Note
 const DB_NAME = 'smart-tasks-db';
-const DB_VERSION = 3; // v6.5 — added startDate field to tasks (no store rebuild needed, just bump)
+const DB_VERSION = 4; // v6.9 — added backups store
 
 export interface Task {
   id: string;
@@ -99,6 +99,10 @@ export function openDB(): Promise<IDBDatabase> {
         const store = db.createObjectStore('notes', { keyPath: 'id' });
         store.createIndex('updatedAt', 'updatedAt', { unique: false });
         store.createIndex('deletedAt', 'deletedAt', { unique: false });
+      }
+      // v6.9 — backups store (added in DB_VERSION 4)
+      if (!db.objectStoreNames.contains('backups')) {
+        db.createObjectStore('backups', { keyPath: 'id' });
       }
     };
   });
@@ -263,4 +267,73 @@ export async function importAllData(data: any, replace = false) {
     t.oncomplete = () => resolve();
     t.onerror = () => reject(t.error);
   });
+}
+
+// ============================================================
+// v6.9 — P1 自动定时备份（存 IndexedDB backups store）
+// ============================================================
+
+export interface BackupRecord {
+  id: string;        // 备份 ID（时间戳）
+  createdAt: number; // 备份创建时间
+  data: any;         // 备份数据（exportAllData 格式）
+}
+
+// v6.9 — DB_VERSION 升级到 4，加 backups store
+// 注意：openDB 的 onupgradeneeded 也要处理
+const DB_VERSION_V69 = 4;
+
+export async function saveBackup(data: any): Promise<void> {
+  const db = await openDB();
+  // 检查是否有 backups store，没有则创建（需要重新 openDB）
+  if (!db.objectStoreNames.contains('backups')) {
+    db.close();
+    dbInstance = null;
+    // 重新打开触发 onupgradeneeded
+    const newDb = await openDB();
+    if (!newDb.objectStoreNames.contains('backups')) {
+      // 手动创建（onupgradeneeded 可能没处理 v4）
+      const versionReq = indexedDB.open(DB_NAME, DB_VERSION_V69);
+      await new Promise<void>((resolve, reject) => {
+        versionReq.onsuccess = () => { dbInstance = versionReq.result; resolve(); };
+        versionReq.onerror = () => reject(versionReq.error);
+        versionReq.onupgradeneeded = (e) => {
+          const d = (e.target as IDBOpenDBRequest).result;
+          if (!d.objectStoreNames.contains('backups')) {
+            d.createObjectStore('backups', { keyPath: 'id' });
+          }
+        };
+      });
+    }
+  }
+  const record: BackupRecord = {
+    id: 'backup_' + Date.now(),
+    createdAt: Date.now(),
+    data,
+  };
+  await tx('backups', 'readwrite', s => s.put(record));
+  // 只保留最近 4 个备份
+  const all = await tx<BackupRecord[]>('backups', 'readonly', s => s.getAll());
+  if (all && all.length > 4) {
+    const sorted = all.sort((a, b) => a.createdAt - b.createdAt);
+    for (let i = 0; i < sorted.length - 4; i++) {
+      await tx('backups', 'readwrite', s => s.delete(sorted[i].id));
+    }
+  }
+}
+
+export async function getBackups(): Promise<BackupRecord[]> {
+  try {
+    const all = await tx<BackupRecord[]>('backups', 'readonly', s => s.getAll());
+    return (all || []).sort((a, b) => b.createdAt - a.createdAt);
+  } catch {
+    return [];
+  }
+}
+
+export async function restoreBackup(backupId: string): Promise<void> {
+  const all = await getBackups();
+  const backup = all.find(b => b.id === backupId);
+  if (!backup) throw new Error('备份不存在');
+  await importAllData(backup.data, true);
 }

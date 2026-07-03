@@ -13,7 +13,7 @@ import {
   clearCustomImage,
   type BackgroundSettings,
 } from '../lib/background';
-import { useAuth, logout, mergeLocalToCloud, pullCloudToLocal, redeemCode } from '../lib/auth';
+import { useAuth, logout, mergeLocalToCloud, pullCloudToLocal, redeemCode, changePassword, deleteAccount, getSessionInfo } from '../lib/auth';
 import { checkUpdateManual, getCachedUpdateInfo, CURRENT_VERSION } from '../lib/updater';
 import { THEMES, PRO_THEME_IDS } from '../lib/themes';
 import SwipeableSheet from './SwipeableSheet';
@@ -200,6 +200,49 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                         className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]"
                       >
                         <span className="text-sm flex-1 text-rose-500">退出登录</span>
+                      </button>
+                      {/* v6.9 — P0 修改密码 */}
+                      <button
+                        onClick={async () => {
+                          const newPwd = prompt('请输入新密码（至少 6 位）');
+                          if (!newPwd) return;
+                          if (newPwd.length < 6) { showToast('密码至少 6 位', 'error'); return; }
+                          try {
+                            await changePassword(newPwd);
+                            showToast('密码修改成功', 'success');
+                          } catch (e: any) { showToast(e.message || '修改失败', 'error'); }
+                        }}
+                        className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]"
+                      >
+                        <span className="text-sm flex-1">修改密码</span>
+                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>›</span>
+                      </button>
+                      {/* v6.9 — P2 登录设备信息 */}
+                      <button
+                        onClick={async () => {
+                          const info = await getSessionInfo();
+                          if (info) showToast(`设备 ${info.deviceId} · 最近登录 ${info.lastSignIn}`, 'info');
+                          else showToast('无法获取设备信息', 'error');
+                        }}
+                        className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]"
+                      >
+                        <span className="text-sm flex-1">登录设备</span>
+                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>查看 ›</span>
+                      </button>
+                      {/* v6.9 — P0 注销账号 */}
+                      <button
+                        onClick={async () => {
+                          if (!confirm('⚠️ 注销账号将永久删除你的所有云端数据（任务/笔记/番茄钟/标签/Pro 权益），此操作不可撤销！\n\n确定注销？')) return;
+                          if (!confirm('再次确认：所有云端数据将被永久删除，本地数据保留。确定继续？')) return;
+                          try {
+                            await deleteAccount();
+                            showToast('账号已注销，云端数据已删除', 'info');
+                          } catch (e: any) { showToast(e.message || '注销失败', 'error'); }
+                        }}
+                        className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]"
+                      >
+                        <span className="text-sm flex-1 text-rose-600">注销账号</span>
+                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>›</span>
                       </button>
                     </div>
                   ) : (
