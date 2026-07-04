@@ -173,95 +173,6 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
         <div className="p-4">
           {tab === 'general' && (
             <div className="space-y-4">
-              {/* 通用设置 */}
-              <div>
-                <div className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-2 px-1">通用</div>
-                <div className="ios-list-group">
-                  <div className="ios-list-item">
-                    <span className="text-sm flex-1">深色模式</span>
-                    <button
-                      onClick={toggleTheme}
-                      className="w-12 h-7 rounded-full p-0.5 transition-colors"
-                      style={{ background: theme === 'dark' ? 'var(--primary)' : 'var(--border-strong)' }}
-                    >
-                      <div className="w-6 h-6 bg-white rounded-full shadow transition-transform" style={{ transform: theme === 'dark' ? 'translateX(20px)' : 'translateX(0)' }} />
-                    </button>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      setChecking(true);
-                      try {
-                        const result = await checkUpdateManual();
-                        if (result.hasUpdate) {
-                          setUpdateInfo({ version: result.version!, url: result.url!, notes: result.notes! });
-                        }
-                      } finally { setChecking(false); }
-                    }}
-                    className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]"
-                  >
-                    <span className="text-sm flex-1">检查更新</span>
-                    {updateInfo ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.open(updateInfo.url, '_blank');
-                          showToast('正在跳转浏览器下载…', 'info');
-                        }}
-                        className="px-3 py-1 rounded-full text-[11px] font-semibold active:scale-95 transition-transform"
-                        style={{ background: 'var(--primary)', color: 'var(--bg)' }}
-                      >📥 下载 v{updateInfo.version}</button>
-                    ) : checking ? (
-                      <span className="text-xs text-[color:var(--text-tertiary)]">检查中…</span>
-                    ) : (
-                      <span className="text-xs text-[color:var(--text-tertiary)]">v{CURRENT_VERSION} ›</span>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* 同步区（已登录才显示） */}
-              {isConfigured && user && (
-                <div>
-                  <div className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-2 px-1">数据同步</div>
-                  <div className="ios-list-group">
-                    <button
-                      onClick={async () => {
-                        try {
-                          await mergeLocalToCloud();
-                          showToast('本地数据已合并到云端', 'success');
-                        } catch (e: any) { showToast(e.message || '同步失败', 'error'); }
-                      }}
-                      className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]"
-                    >
-                      <span className="text-2xl">☁️</span>
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">上传本地到云端</div>
-                        <div className="text-[11px] text-[color:var(--text-tertiary)] mt-0.5">合并本地数据到云端（不覆盖）</div>
-                      </div>
-                      <span className="text-[color:var(--text-tertiary)]">›</span>
-                    </button>
-                    <button
-                      onClick={async () => {
-                        if (!confirm('从云端拉取数据会覆盖本地，确定？')) return;
-                        try {
-                          await pullCloudToLocal();
-                          showToast('已从云端拉取', 'success');
-                          setTimeout(() => window.location.reload(), 800);
-                        } catch (e: any) { showToast(e.message || '拉取失败', 'error'); }
-                      }}
-                      className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]"
-                    >
-                      <span className="text-2xl">⬇️</span>
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">从云端拉取</div>
-                        <div className="text-[11px] text-[color:var(--text-tertiary)] mt-0.5">覆盖本地数据（慎用）</div>
-                      </div>
-                      <span className="text-[color:var(--text-tertiary)]">›</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {/* 账号区 */}
               <div>
                 <div className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-2 px-1">账号</div>
@@ -429,6 +340,52 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                   </div>
                 </div>
               )}
+
+              {/* 通用设置 */}
+              <div>
+                <div className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-2 px-1">通用</div>
+                <div className="ios-list-group">
+                  <div className="ios-list-item">
+                    <span className="text-sm flex-1">深色模式</span>
+                    <button
+                      onClick={toggleTheme}
+                      className="w-12 h-7 rounded-full p-0.5 transition-colors"
+                      style={{ background: theme === 'dark' ? 'var(--primary)' : 'var(--border-strong)' }}
+                    >
+                      <div className="w-6 h-6 bg-white rounded-full shadow transition-transform" style={{ transform: theme === 'dark' ? 'translateX(20px)' : 'translateX(0)' }} />
+                    </button>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setChecking(true);
+                      try {
+                        const result = await checkUpdateManual();
+                        if (result.hasUpdate) {
+                          setUpdateInfo({ version: result.version!, url: result.url!, notes: result.notes! });
+                        }
+                      } finally { setChecking(false); }
+                    }}
+                    className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]"
+                  >
+                    <span className="text-sm flex-1">检查更新</span>
+                    {updateInfo ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(updateInfo.url, '_blank');
+                          showToast('正在跳转浏览器下载…', 'info');
+                        }}
+                        className="px-3 py-1 rounded-full text-[11px] font-semibold active:scale-95 transition-transform"
+                        style={{ background: 'var(--primary)', color: 'var(--bg)' }}
+                      >📥 下载 v{updateInfo.version}</button>
+                    ) : checking ? (
+                      <span className="text-xs text-[color:var(--text-tertiary)]">检查中…</span>
+                    ) : (
+                      <span className="text-xs text-[color:var(--text-tertiary)]">v{CURRENT_VERSION} ›</span>
+                    )}
+                  </button>
+                </div>
+              </div>
 
               {/* 关于区 */}
               <div>
@@ -781,6 +738,49 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
 
           {tab === 'data' && (
             <div className="space-y-3">
+              {/* 同步区（已登录才显示） */}
+              {isConfigured && user && (
+                <div>
+                  <div className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-2 px-1">数据同步</div>
+                  <div className="ios-list-group">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await mergeLocalToCloud();
+                          showToast('本地数据已合并到云端', 'success');
+                        } catch (e: any) { showToast(e.message || '同步失败', 'error'); }
+                      }}
+                      className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]"
+                    >
+                      <span className="text-2xl">☁️</span>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">上传本地到云端</div>
+                        <div className="text-[11px] text-[color:var(--text-tertiary)] mt-0.5">合并本地数据到云端（不覆盖）</div>
+                      </div>
+                      <span className="text-[color:var(--text-tertiary)]">›</span>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm('从云端拉取数据会覆盖本地，确定？')) return;
+                        try {
+                          await pullCloudToLocal();
+                          showToast('已从云端拉取', 'success');
+                          setTimeout(() => window.location.reload(), 800);
+                        } catch (e: any) { showToast(e.message || '拉取失败', 'error'); }
+                      }}
+                      className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]"
+                    >
+                      <span className="text-2xl">⬇️</span>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">从云端拉取</div>
+                        <div className="text-[11px] text-[color:var(--text-tertiary)] mt-0.5">覆盖本地数据（慎用）</div>
+                      </div>
+                      <span className="text-[color:var(--text-tertiary)]">›</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="ios-list-group">
                 <button onClick={handleExportJSON} className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]">
                   <span className="text-sm flex-1">导出为 JSON（含回收站）</span>
