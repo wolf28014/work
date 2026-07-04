@@ -71,35 +71,24 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
   const filtered = useMemo(() => {
     let result = activeTasks;
     if (filter === 'today') {
-      // v6.9.8 — 修复：重复任务只要未完成就算今天要做的
-      // 重复任务的 dueDate 是最终截止日（可能很远），不能拿它跟今天比
-      // 重复任务 = 每天都要做的，只要 status 不是 done/cancelled 就算今天的
+      // v6.9.9 — 重复任务今日/逾期逻辑重写
+      // 重复任务的 dueDate 是"当前周期该完成的日期"
+      // 完成后 completeTask 生成新实例，dueDate 推到下个周期
+      // 所以：
+      // - 今日 = dueDate <= today（该做了但还没做）
+      // - 逾期 = dueDate < today（该做但过了还没做）
       result = result.filter(t => {
         if (t.status === 'done' || t.status === 'cancelled') return false;
-        if (t.recurrence) {
-          // 重复任务：未完成就是今天要做的（不管 dueDate 多远）
-          // 但如果 dueDate 已过（截止日已过），不算今天
-          if (t.dueDate && t.dueDate < today) return false;
-          return true;
-        }
-        // 非重复：dueDate === today
-        return t.dueDate === today;
+        if (!t.dueDate) return false;
+        // 重复和非重复统一逻辑：dueDate <= today 算今天要做的
+        return t.dueDate <= today;
       });
     } else if (filter === 'overdue') {
-      // v6.9.8 — 修复：重复任务也要显示在逾期里
-      // 重复任务逾期 = 未完成 + 创建日期已过至少一天
       result = result.filter(t => {
         if (t.status === 'done' || t.status === 'cancelled') return false;
-        if (!t.recurrence) {
-          // 非重复任务：dueDate < today
-          return t.dueDate && t.dueDate < today;
-        }
-        // 重复任务：创建日期已过至少一天就算逾期（说明昨天/之前没完成）
-        // 但 dueDate 已过（最终截止日）的不算（任务已结束）
-        if (t.dueDate && t.dueDate < today) return false; // 截止日已过
-        const createdDate = new Date(t.createdAt);
-        const createdStr = `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}-${String(createdDate.getDate()).padStart(2, '0')}`;
-        return createdStr < today; // 创建日期早于今天 = 至少存在了一天没完成
+        if (!t.dueDate) return false;
+        // dueDate < today = 过了该做的日期还没完成
+        return t.dueDate < today;
       });
     } else if (filter === 'done') {
       result = result.filter(t => t.status === 'done');
@@ -163,23 +152,15 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
 
   const counts = useMemo(() => ({
     all: activeTasks.filter(t => t.status !== 'done' && t.status !== 'cancelled').length,
-    // v6.9.8 — 修复：今日 count 包含重复任务
+    // v6.9.9 — 统一逻辑：dueDate <= today
     today: activeTasks.filter(t => {
       if (t.status === 'done' || t.status === 'cancelled') return false;
-      if (t.recurrence) {
-        if (t.dueDate && t.dueDate < today) return false;
-        return true;
-      }
-      return t.dueDate === today;
+      return t.dueDate && t.dueDate <= today;
     }).length,
-    // v6.9.8 — 修复：逾期 count 包含重复任务
+    // v6.9.9 — 统一逻辑：dueDate < today
     overdue: activeTasks.filter(t => {
       if (t.status === 'done' || t.status === 'cancelled') return false;
-      if (!t.recurrence) return t.dueDate && t.dueDate < today;
-      if (t.dueDate && t.dueDate < today) return false;
-      const d = new Date(t.createdAt);
-      const cs = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      return cs < today;
+      return t.dueDate && t.dueDate < today;
     }).length,
     done: activeTasks.filter(t => t.status === 'done').length,
   }), [activeTasks, today]);
