@@ -60,7 +60,6 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
       t.status === 'done' &&
       t.completedAt
     );
-    if (completed.length === 0) return null;
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -76,27 +75,80 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
     const lastDoneDate = new Date(lastDone);
     const lastDoneStr = `${lastDoneDate.getMonth() + 1}月${lastDoneDate.getDate()}日`;
 
+    // v6.9.2 — 计算逾期天数（用于逾期提示）
+    const isOverdue = task.dueDate && task.status !== 'done' && task.status !== 'cancelled' && task.dueDate < new Date().toISOString().slice(0, 10);
+    let overdueDays = 0;
+    if (isOverdue && task.dueDate) {
+      const due = new Date(task.dueDate);
+      const today = new Date();
+      overdueDays = Math.floor((today.getTime() - due.getTime()) / 86400000);
+    }
+
     if (task.recurrence === 'daily' || task.recurrence === 'weekdays') {
       // daily 和 weekdays 都是"今天是否完成"的打卡式任务
       const todayCompleted = todayDone.length > 0;
+      // v6.9.2 — 逾期时显示连续未完成天数
+      if (isOverdue && !todayCompleted) {
+        // 计算从 dueDate 到今天有多少个应该完成的日子
+        let missedDays = overdueDays;
+        if (task.recurrence === 'weekdays') {
+          // 工作日只算周一到周五
+          missedDays = 0;
+          const d = new Date(task.dueDate!);
+          while (d <= today) {
+            const day = d.getDay();
+            if (day >= 1 && day <= 5) missedDays++;
+            d.setDate(d.getDate() + 1);
+          }
+        }
+        return {
+          text: `已逾期 ${missedDays} 天未完成`,
+          count: `本周 ${weekDone.length}次`,
+          completed: false,
+          overdue: true,
+        };
+      }
       return {
         text: todayCompleted ? `${lastDoneStr}已完成` : '今日未完成',
         count: `本周 ${weekDone.length}次`,
         completed: todayCompleted,
+        overdue: false,
       };
     } else if (task.recurrence === 'weekly') {
       const thisWeekCompleted = weekDone.length > 0;
+      // v6.9.2 — 逾期提示
+      if (isOverdue && !thisWeekCompleted) {
+        const missedWeeks = Math.floor(overdueDays / 7) + 1;
+        return {
+          text: `已逾期 ${missedWeeks} 周未完成`,
+          count: `本月 ${monthDone.length}次`,
+          completed: false,
+          overdue: true,
+        };
+      }
       return {
         text: thisWeekCompleted ? `${lastDoneStr}已完成` : '本周未完成',
         count: `本月 ${monthDone.length}次`,
         completed: thisWeekCompleted,
+        overdue: false,
       };
     } else {
       const thisMonthCompleted = monthDone.length > 0;
+      // v6.9.2 — 逾期提示
+      if (isOverdue && !thisMonthCompleted) {
+        const missedMonths = Math.floor(overdueDays / 30) + 1;
+        return {
+          text: `已逾期 ${missedMonths} 月未完成`,
+          count: `总计 ${completed.length}次`,
+          completed: false,
+          overdue: true,
+        };
+      }
       return {
         text: thisMonthCompleted ? `${lastDoneStr}已完成` : '本月未完成',
         count: `总计 ${completed.length}次`,
         completed: thisMonthCompleted,
+        overdue: false,
       };
     }
   }, [task, allTasks]);
@@ -328,8 +380,8 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
                 )}
                 {task.recurrence && (
                   <span style={{
-                    color: recurrenceInfo?.completed ? 'var(--stat-done, #10B981)' : 'var(--text-tertiary)',
-                    fontWeight: recurrenceInfo?.completed ? 600 : 400,
+                    color: recurrenceInfo?.overdue ? 'var(--pri-high)' : recurrenceInfo?.completed ? 'var(--stat-done, #10B981)' : 'var(--text-tertiary)',
+                    fontWeight: (recurrenceInfo?.completed || recurrenceInfo?.overdue) ? 600 : 400,
                   }}>
                     ↻ {task.recurrence === 'daily' ? '每日' : task.recurrence === 'weekdays' ? '工作日' : task.recurrence === 'weekly' ? '每周' : '每月'}
                     {recurrenceInfo && ` · ${recurrenceInfo.text} · ${recurrenceInfo.count}`}
