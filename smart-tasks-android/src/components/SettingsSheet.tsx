@@ -14,6 +14,7 @@ import {
   type BackgroundSettings,
 } from '../lib/background';
 import { useAuth, logout, mergeLocalToCloud, pullCloudToLocal, redeemCode, changePassword, deleteAccount, getSessionInfo } from '../lib/auth';
+import { getBackups, restoreBackup, type BackupRecord } from '../lib/db';
 import { checkUpdateManual, getCachedUpdateInfo, CURRENT_VERSION } from '../lib/updater';
 import { THEMES, PRO_THEME_IDS } from '../lib/themes';
 import SwipeableSheet from './SwipeableSheet';
@@ -39,6 +40,8 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
   const [deviceInfo, setDeviceInfo] = useState<{ deviceId: string; lastSignIn: string; deviceName: string } | null>(null);
   const [deviceLoading, setDeviceLoading] = useState(false);
   const [deviceChecked, setDeviceChecked] = useState(false);
+  // v6.9.6 — 备份恢复
+  const [backups, setBackups] = useState<BackupRecord[]>([]);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('violet');
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
@@ -798,6 +801,53 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
               </div>
               <div className="text-[11px] text-[color:var(--text-tertiary)] px-2">
                 💡 数据存储在手机本地 IndexedDB 中，卸载 App 会丢失。建议定期导出 JSON 备份。
+              </div>
+
+              {/* v6.9.6 — 备份恢复区 */}
+              <div className="mt-3">
+                <div className="text-[13px] font-medium text-[color:var(--text-secondary)] mb-2 px-1">本地备份（自动）</div>
+                <div className="ios-list-group">
+                  <button
+                    onClick={async () => {
+                      const list = await getBackups();
+                      setBackups(list);
+                    }}
+                    className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]"
+                  >
+                    <span className="text-sm flex-1">查看备份</span>
+                    <span className="text-xs text-[color:var(--text-tertiary)]">›</span>
+                  </button>
+                </div>
+                {backups.length > 0 && (
+                  <div className="mt-2 space-y-1.5">
+                    {backups.map(b => (
+                      <div key={b.id} className="ios-list-item">
+                        <div className="flex-1">
+                          <div className="text-sm">{new Date(b.createdAt).toLocaleString('zh-CN')}</div>
+                          <div className="text-[11px] text-[color:var(--text-tertiary)] mt-0.5">
+                            {b.data?.tasks?.length || 0} 任务 · {b.data?.notes?.length || 0} 笔记
+                          </div>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            if (!confirm('恢复此备份会覆盖当前所有数据，确定？')) return;
+                            try {
+                              await restoreBackup(b.id);
+                              showToast('已恢复，正在刷新…', 'success');
+                              setTimeout(() => window.location.reload(), 1000);
+                            } catch (e: any) { showToast(e.message || '恢复失败', 'error'); }
+                          }}
+                          className="text-xs px-3 py-1.5 bg-[var(--primary-soft)] text-[color:var(--primary)] rounded-lg font-medium"
+                        >恢复</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {backups.length === 0 && (
+                  <div className="text-[11px] text-[color:var(--text-tertiary)] px-2 mt-1">
+                    每周自动备份一次，保留最近 4 个
+                  </div>
+                )}
               </div>
             </div>
           )}

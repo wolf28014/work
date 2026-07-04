@@ -98,7 +98,7 @@ function Shell() {
   const [authOpen, setAuthOpen] = useState(false);
   const [proOpen, setProOpen] = useState(false);
   const [legalOpen, setLegalOpen] = useState<null | 'privacy' | 'agreement' | 'about' | 'permissions'>(null);
-  const [privacyAgreed, setPrivacyAgreed] = useState(true); // 默认跳过隐私政策
+  const [privacyAgreed, setPrivacyAgreed] = useState(isPrivacyAgreed()); // v6.9.6 — 修复 #3：用 isPrivacyAgreed() 而非硬编码 true
   // v6.2 — sync indicator state: true while a cloud poll is in-flight.
   const [isSyncing, setIsSyncing] = useState(false);
   const { loading, tasks, theme, appTheme } = useTaskStore();

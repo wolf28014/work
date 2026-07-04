@@ -25,7 +25,7 @@ export default function Toast() {
   if (!state) return null;
 
   const colors = {
-    info: 'bg-[var(--card)] text-[color:#ffffff]',
+    info: 'bg-[var(--text-primary)] text-[color:var(--bg)]',
     success: 'bg-[var(--primary)] text-[color:#ffffff]',
     error: 'bg-rose-500 text-[color:#ffffff]',
   };

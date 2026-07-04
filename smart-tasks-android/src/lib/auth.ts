@@ -115,6 +115,8 @@ export async function logout() {
   await signOut();
   currentUser = null;
   currentProStatus = { isPro: false, expiresAt: null, type: null };
+  // v6.9.6 — 修复 #2：登出时清除 Pro AI Key 缓存，防止跨账号泄漏
+  clearProAIConfigCache();
   notify();
 }
 
@@ -892,6 +894,7 @@ export async function deleteAccount(): Promise<void> {
   await sb.auth.signOut();
   currentUser = null;
   currentProStatus = { isPro: false, expiresAt: null, type: null };
+  clearProAIConfigCache();
   notify();
 }
 

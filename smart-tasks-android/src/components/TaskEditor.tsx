@@ -238,7 +238,7 @@ export default function TaskEditor({ task, onClose, template }: Props) {
                   onClick={() => {
                     // 切换到区间模式：如果 startDate 空，自动填今天
                     if (!startDate) {
-                      const today = new Date().toISOString().slice(0, 10);
+                      const today = todayStr(); // v6.9.6 — 修复 #5：用本地时间
                       setStartDate(today);
                       // 如果 dueDate 比 startDate 早，清空 dueDate
                       if (dueDate && dueDate < today) setDueDate('');

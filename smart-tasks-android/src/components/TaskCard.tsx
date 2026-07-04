@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from 'react';
 import type { Task } from '../lib/db';
 import { useTaskStore } from '../lib/store';
 import {
-  PRIORITY_LABELS, STATUS_LABELS, STATUS_ORDER, formatDate, isOverdue,
+  PRIORITY_LABELS, STATUS_LABELS, STATUS_ORDER, formatDate, isOverdue, todayStr,
 } from '../lib/task-utils';
 import { showToast } from './Toast';
 import SwipeableSheet from './SwipeableSheet';
@@ -76,12 +76,13 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
     const lastDoneStr = `${lastDoneDate.getMonth() + 1}月${lastDoneDate.getDate()}日`;
 
     // v6.9.2 — 计算逾期天数（用于逾期提示）
-    const isOverdue = task.dueDate && task.status !== 'done' && task.status !== 'cancelled' && task.dueDate < new Date().toISOString().slice(0, 10);
+    // v6.9.6 — 修复 #1：today 变量作用域错误导致 weekdays 逾期时崩溃
+    const isOverdue = task.dueDate && task.status !== 'done' && task.status !== 'cancelled' && task.dueDate < todayStr();
     let overdueDays = 0;
     if (isOverdue && task.dueDate) {
       const due = new Date(task.dueDate);
-      const today = new Date();
-      overdueDays = Math.floor((today.getTime() - due.getTime()) / 86400000);
+      const todayDate = new Date();
+      overdueDays = Math.floor((todayDate.getTime() - due.getTime()) / 86400000);
     }
 
     if (task.recurrence === 'daily' || task.recurrence === 'weekdays') {
@@ -95,7 +96,7 @@ export default function TaskCard({ task, onEdit, onStartPomodoro, compact = fals
           // 工作日只算周一到周五
           missedDays = 0;
           const d = new Date(task.dueDate!);
-          while (d <= today) {
+          while (d <= todayDate) {
             const day = d.getDay();
             if (day >= 1 && day <= 5) missedDays++;
             d.setDate(d.getDate() + 1);

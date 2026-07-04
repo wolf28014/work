@@ -101,7 +101,7 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
     }
     if (!query.trim()) return filtered.map(t => ({ task: t, matchedFields: [] as string[] }));
     return tfidfSearch(filtered, query).map(r => ({ task: r.task, matchedFields: r.matchedFields }));
-  }, [filtered, query]);
+  }, [filtered, query, aiSearchIds]);
 
   const sorted = useMemo(() => {
     const arr = [...searchResults.map(r => r.task)];
