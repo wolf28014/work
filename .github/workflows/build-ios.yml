@@ -1,0 +1,80 @@
+name: Build iOS IPA
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: smart-tasks-ios/package-lock.json
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install dependencies
+        working-directory: smart-tasks-ios
+        run: npm ci
+
+      - name: Build web
+        working-directory: smart-tasks-ios
+        run: npm run build
+
+      - name: Add iOS platform
+        working-directory: smart-tasks-ios
+        run: npx cap add ios || true
+
+      - name: Sync to iOS
+        working-directory: smart-tasks-ios
+        run: npx cap sync ios
+
+      - name: Build IPA (unsigned)
+        working-directory: smart-tasks-ios
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package IPA
+        working-directory: smart-tasks-ios
+        run: |
+          mkdir -p Payload
+          cp -r ios/App/build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -r Smart-Tasks-iOS.ipa Payload
+
+      - name: Upload IPA to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: smart-tasks-ios/Smart-Tasks-iOS.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-logs
+          path: |
+            smart-tasks-ios/ios/App/build/reports/
+          retention-days: 7

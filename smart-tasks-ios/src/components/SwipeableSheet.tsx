@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 
 interface Props {
   onClose: () => void;
@@ -85,7 +86,8 @@ export default function SwipeableSheet({
     touchStartX.current = touch.clientX;
     touchStartY.current = touch.clientY;
     const screenWidth = window.innerWidth;
-    const edgeWidth = 20; // 贴近 MIUI 规范
+    // v6.9.7 — iOS 边缘区域更大（30px），Android 保持 20px（贴近 MIUI 规范）
+    const edgeWidth = Capacitor.getPlatform() === 'ios' ? 30 : 20;
     if (touch.clientX < edgeWidth) {
       startEdge.current = 'left';
     } else if (touch.clientX > screenWidth - edgeWidth) {

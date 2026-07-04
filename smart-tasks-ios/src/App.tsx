@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { TaskProvider, useTaskStore } from './lib/store';
 import ListView from './views/ListView';
 import KanbanView from './views/KanbanView';
@@ -34,9 +35,19 @@ import type { Note } from './lib/db';
 async function setupStatusBar(themeId: string) {
   try {
     const theme = getThemeById(themeId);
-    await StatusBar.setOverlaysWebView({ overlay: false });
-    await StatusBar.setBackgroundColor({ color: theme.statusBarBg });
-    await StatusBar.setStyle({ style: theme.isDark ? Style.Dark : Style.Light });
+    const platform = Capacitor.getPlatform();
+
+    if (platform === 'ios') {
+      // v6.9.7 — iOS: 覆盖 WebView（状态栏占空间），只设样式不设背景色
+      // iOS 状态栏背景色由 WebView body 背景决定，不需要显式设
+      await StatusBar.setOverlaysWebView({ overlay: false });
+      await StatusBar.setStyle({ style: theme.isDark ? Style.Dark : Style.Light });
+    } else {
+      // Android: 设背景色 + 样式
+      await StatusBar.setOverlaysWebView({ overlay: false });
+      await StatusBar.setBackgroundColor({ color: theme.statusBarBg });
+      await StatusBar.setStyle({ style: theme.isDark ? Style.Dark : Style.Light });
+    }
   } catch (e) {
     console.log('StatusBar not available:', e);
   }
@@ -77,6 +88,15 @@ function TabIcon({ glyph, active }: { glyph: string; active: boolean }) {
 }
 
 function Shell() {
+  // v6.9.7 — iOS 平台检测，添加 body.ios 类用于 CSS 适配
+  useEffect(() => {
+    if (Capacitor.getPlatform() === 'ios') {
+      document.body.classList.add('ios');
+    } else if (Capacitor.getPlatform() === 'android') {
+      document.body.classList.add('android');
+    }
+  }, []);
+
   const [tab, setTab] = useState<Tab>('list');
   const [tabDirection, setTabDirection] = useState<'left' | 'right'>('left');
   const [pomodoroTaskId, setPomodoroTaskId] = useState<string>('');
