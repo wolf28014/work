@@ -1,0 +1,26 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+
+# iOS 构建缓存
+ios/App/build/
+ios/App/Pods/
+ios/DerivedData/
+ios/capacitor-cordova-ios-plugins/sources/
+
+# 日志
+npm-debug.log*
+*.log
+
+# 环境变量
+.env
+.env.local
+
+# macOS
+.DS_Store
+
+# Xcode
+*.xcuserstate
+xcuserdata/

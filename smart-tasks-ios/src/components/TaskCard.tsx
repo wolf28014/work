@@ -1,0 +1,534 @@
+import { useState, useRef, useMemo } from 'react';
+import type { Task } from '../lib/db';
+import { useTaskStore } from '../lib/store';
+import {
+  PRIORITY_LABELS, STATUS_LABELS, STATUS_ORDER, formatDate, isOverdue, todayStr,
+} from '../lib/task-utils';
+import { showToast } from './Toast';
+import SwipeableSheet from './SwipeableSheet';
+
+interface Props {
+  task: Task;
+  onEdit: (t: Task) => void;
+  onStartPomodoro?: (t: Task) => void;
+  compact?: boolean;
+}
+
+// v4 design tokens (mirror of CSS variables for inline use)
+const PRI_VAR: Record<Task['priority'], { bar: string; soft: string; text: string }> = {
+  high:   { bar: 'var(--pri-high)',    soft: 'var(--pri-high-soft)',    text: 'var(--pri-high)' },
+  medium: { bar: 'var(--pri-medium)',  soft: 'var(--pri-medium-soft)',  text: 'var(--pri-medium)' },
+  low:    { bar: 'var(--pri-low)',     soft: 'var(--pri-low-soft)',     text: 'var(--pri-low)' },
+};
+const STATUS_VAR: Record<string, { soft: string; text: string; dot: string }> = {
+  todo:        { soft: 'var(--pri-low-soft)',     text: 'var(--pri-low)',     dot: 'var(--stat-todo)' },
+  in_progress: { soft: 'var(--pri-medium-soft)',  text: 'var(--pri-medium)',  dot: 'var(--stat-progress)' },
+  done:        { soft: 'var(--primary-soft)',     text: 'var(--primary)',     dot: 'var(--stat-done)' },
+  cancelled:   { soft: 'var(--bg-elevated)',      text: 'var(--text-secondary)', dot: 'var(--stat-cancelled)' },
+};
+
+const SWIPE_THRESHOLD = 88;
+
+export default function TaskCard({ task, onEdit, onStartPomodoro, compact = false }: Props) {
+  const { completeTask, updateTask, softDeleteTask, tags, tasks: allTasks } = useTaskStore();
+  const [showActions, setShowActions] = useState(false);
+  const [showStatusSheet, setShowStatusSheet] = useState(false);
+  const [showSubtasks, setShowSubtasks] = useState(false);
+
+  // Swipe gesture state
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const isHorizontal = useRef<boolean | null>(null);
+
+  const pri = PRI_VAR[task.priority];
+  const stat = STATUS_VAR[task.status];
+  const overdue = isOverdue(task);
+  const isDone = task.status === 'done';
+  const subtaskDone = task.subtasks.filter(s => s.done).length;
+  const subtaskTotal = task.subtasks.length;
+
+  // 计算重复任务的完成频次
+  const recurrenceInfo = useMemo(() => {
+    if (!task.recurrence) return null;
+    // v6.6 — 修复 #16：用 title + recurrence 组合匹配，避免同名不同类型任务合并统计
+    const completed = allTasks.filter(t =>
+      !t.deletedAt &&
+      t.title === task.title &&
+      t.recurrence === task.recurrence &&
+      t.status === 'done' &&
+      t.completedAt
+    );
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const weekStart = todayStart - (now.getDay() * 86400000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+    const todayDone = completed.filter(t => t.completedAt! >= todayStart);
+    const weekDone = completed.filter(t => t.completedAt! >= weekStart);
+    const monthDone = completed.filter(t => t.completedAt! >= monthStart);
+
+    // 最近一次完成日期
+    const lastDone = completed.reduce((max, t) => t.completedAt! > max ? t.completedAt! : max, 0);
+    const lastDoneDate = new Date(lastDone);
+    const lastDoneStr = `${lastDoneDate.getMonth() + 1}月${lastDoneDate.getDate()}日`;
+
+    // v6.9.2 — 计算逾期天数（用于逾期提示）
+    // v6.9.6 — 修复 #1：today 变量作用域错误导致 weekdays 逾期时崩溃
+    const isOverdue = task.dueDate && task.status !== 'done' && task.status !== 'cancelled' && task.dueDate < todayStr();
+    let overdueDays = 0;
+    if (isOverdue && task.dueDate) {
+      const due = new Date(task.dueDate);
+      const todayDate = new Date();
+      overdueDays = Math.floor((todayDate.getTime() - due.getTime()) / 86400000);
+    }
+
+    if (task.recurrence === 'daily' || task.recurrence === 'weekdays') {
+      // daily 和 weekdays 都是"今天是否完成"的打卡式任务
+      const todayCompleted = todayDone.length > 0;
+      // v6.9.2 — 逾期时显示连续未完成天数
+      if (isOverdue && !todayCompleted) {
+        // 计算从 dueDate 到今天有多少个应该完成的日子
+        let missedDays = overdueDays;
+        if (task.recurrence === 'weekdays') {
+          // 工作日只算周一到周五
+          missedDays = 0;
+          const d = new Date(task.dueDate!);
+          while (d <= todayDate) {
+            const day = d.getDay();
+            if (day >= 1 && day <= 5) missedDays++;
+            d.setDate(d.getDate() + 1);
+          }
+        }
+        return {
+          text: `已逾期 ${missedDays} 天未完成`,
+          count: `本周 ${weekDone.length}次`,
+          completed: false,
+          overdue: true,
+        };
+      }
+      return {
+        text: todayCompleted ? `${lastDoneStr}已完成` : '今日未完成',
+        count: `本周 ${weekDone.length}次`,
+        completed: todayCompleted,
+        overdue: false,
+      };
+    } else if (task.recurrence === 'weekly') {
+      const thisWeekCompleted = weekDone.length > 0;
+      // v6.9.2 — 逾期提示
+      if (isOverdue && !thisWeekCompleted) {
+        const missedWeeks = Math.floor(overdueDays / 7) + 1;
+        return {
+          text: `已逾期 ${missedWeeks} 周未完成`,
+          count: `本月 ${monthDone.length}次`,
+          completed: false,
+          overdue: true,
+        };
+      }
+      return {
+        text: thisWeekCompleted ? `${lastDoneStr}已完成` : '本周未完成',
+        count: `本月 ${monthDone.length}次`,
+        completed: thisWeekCompleted,
+        overdue: false,
+      };
+    } else {
+      const thisMonthCompleted = monthDone.length > 0;
+      // v6.9.2 — 逾期提示
+      if (isOverdue && !thisMonthCompleted) {
+        const missedMonths = Math.floor(overdueDays / 30) + 1;
+        return {
+          text: `已逾期 ${missedMonths} 月未完成`,
+          count: `总计 ${completed.length}次`,
+          completed: false,
+          overdue: true,
+        };
+      }
+      return {
+        text: thisMonthCompleted ? `${lastDoneStr}已完成` : '本月未完成',
+        count: `总计 ${completed.length}次`,
+        completed: thisMonthCompleted,
+        overdue: false,
+      };
+    }
+  }, [task, allTasks]);
+
+  // v6.1 — 创建日期 (M月D日 创建) — 灰色小字，显示在 info row 末尾
+  const createdDate = new Date(task.createdAt);
+  const createdLabel = `${createdDate.getMonth() + 1}月${createdDate.getDate()}日创建`;
+
+  async function handleCheck() {
+    if (isDone) {
+      await updateTask(task.id, { status: 'todo', completedAt: null });
+    } else {
+      await completeTask(task.id);
+      showToast('任务已完成 🎉', 'success');
+    }
+  }
+
+  async function handleStatusChange(newStatus: string) {
+    if (newStatus === task.status) {
+      setShowStatusSheet(false);
+      return;
+    }
+    await updateTask(task.id, {
+      status: newStatus as any,
+      completedAt: newStatus === 'done' ? Date.now() : null,
+    });
+    showToast(`已切换为「${STATUS_LABELS[newStatus]}」`, 'success');
+    setShowStatusSheet(false);
+  }
+
+  // === Swipe handlers ===
+  function onTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    touchStartX.current = t.clientX;
+    touchStartY.current = t.clientY;
+    isHorizontal.current = null;
+    setDragging(true);
+  }
+
+  function onTouchMove(e: React.TouchEvent) {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const t = e.touches[0];
+    const dx = t.clientX - touchStartX.current;
+    const dy = t.clientY - touchStartY.current;
+    if (isHorizontal.current === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+      isHorizontal.current = Math.abs(dx) > Math.abs(dy) * 1.2;
+    }
+    if (isHorizontal.current === true) {
+      if (e.cancelable) e.preventDefault();
+      // 左滑揭示删除；右滑揭示完成
+      const clamped = Math.max(-140, Math.min(140, dx));
+      setDragX(clamped);
+    }
+  }
+
+  function onTouchEnd() {
+    if (touchStartX.current === null) return;
+    setDragging(false);
+    if (isHorizontal.current === true) {
+      // 超过阈值后保持揭示，等待用户点击确认按钮
+      if (dragX <= -SWIPE_THRESHOLD) {
+        setDragX(-88);
+      } else if (dragX >= SWIPE_THRESHOLD) {
+        setDragX(88);
+      } else {
+        setDragX(0);
+      }
+    } else {
+      setDragX(0);
+    }
+    touchStartX.current = null;
+    touchStartY.current = null;
+    isHorizontal.current = null;
+  }
+
+  const tagColor = (name: string) => {
+    const tg = tags.find(t => t.name === name);
+    return tg?.color || 'violet';
+  };
+  const TAG_DOT: Record<string, string> = {
+    emerald: 'var(--primary)', amber: 'var(--accent-amber)', rose: 'var(--pri-high)',
+    violet: 'var(--accent-violet)', sky: 'var(--accent-sky)', teal: 'var(--primary)',
+    orange: 'var(--accent-amber)', slate: 'var(--text-secondary)',
+  };
+
+  return (
+    <>
+      <div className="relative overflow-hidden" style={{ borderRadius: 'var(--r-card)' }}>
+        {/* 左侧揭示：完成确认按钮 */}
+        <button
+          className="absolute inset-y-0 left-0 flex items-center justify-center"
+          style={{
+            width: 88,
+            transform: dragX > 0 ? `translateX(${dragX - 88}px)` : 'translateX(-88px)',
+            transition: dragging ? 'none' : 'transform 0.25s',
+            background: 'var(--primary)',
+            border: 'none',
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setDragX(0);
+            handleCheck();
+          }}
+        >
+          <div className="flex flex-col items-center" style={{ color: '#ffffff' }}>
+            <span style={{ fontSize: 22 }}>{isDone ? '↺' : '✓'}</span>
+            <span style={{ fontSize: 11, fontWeight: 600 }}>{isDone ? '恢复' : '完成'}</span>
+          </div>
+        </button>
+
+        {/* 右侧揭示：删除确认按钮 */}
+        <button
+          className="absolute inset-y-0 right-0 flex items-center justify-center"
+          style={{
+            width: 88,
+            transform: dragX < 0 ? `translateX(${dragX + 88}px)` : 'translateX(88px)',
+            transition: dragging ? 'none' : 'transform 0.25s',
+            background: 'var(--pri-high)',
+            border: 'none',
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setDragX(0);
+            softDeleteTask(task.id);
+            showToast('已移入回收站', 'info');
+          }}
+        >
+          <div className="flex flex-col items-center" style={{ color: '#ffffff' }}>
+            <span style={{ fontSize: 22 }}>🗑</span>
+            <span style={{ fontSize: 11, fontWeight: 600 }}>删除</span>
+          </div>
+        </button>
+
+        {/* 卡片本体 — 白色卡片 + 左侧优先级色条 */}
+        <div
+          className="ios-card relative"
+          style={{
+            transform: `translateX(${dragX}px)`,
+            transition: dragging ? 'none' : 'transform 0.25s cubic-bezier(0.32,0.72,0,1)',
+            opacity: isDone ? 0.6 : 1,
+          }}
+          // v6.6 — 修复 #39：滑动揭示后点击卡片空白处关闭揭示，而非打开编辑器
+          onClick={() => {
+            if (dragX !== 0) {
+              setDragX(0);
+              return;
+            }
+            onEdit(task);
+          }}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
+          <div className="flex">
+            {/* 左侧优先级色条 */}
+            <div
+              className="priority-bar"
+              style={{ background: pri.bar, margin: '12px 0 12px 14px', width: 4, borderRadius: 4 }}
+            />
+            <div className="flex-1 p-3.5">
+              <div className="flex items-start gap-2.5">
+                <button
+                  className={`ios-checkbox ${isDone ? 'checked' : ''} mt-0.5`}
+                  onClick={(e) => { e.stopPropagation(); handleCheck(); }}
+                />
+                <div className="flex-1 min-w-0">
+                  <div
+                    className="text-[15px] font-semibold leading-snug"
+                    style={{
+                      color: isDone ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                      textDecoration: isDone ? 'line-through' : 'none',
+                    }}
+                  >
+                    {task.title}
+                  </div>
+                  {task.description && !compact && (
+                    <div className="text-[13px] mt-0.5 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>
+                      {task.description}
+                    </div>
+                  )}
+                </div>
+                <span
+                  className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                  style={{ background: pri.soft, color: pri.text, border: `1px solid ${pri.bar}40` }}
+                >
+                  {PRIORITY_LABELS[task.priority]}
+                </span>
+              </div>
+
+              {task.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2 ml-8">
+                  {task.tags.slice(0, 4).map(tagName => (
+                    <span
+                      key={tagName}
+                      className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                      style={{
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      <span style={{ color: TAG_DOT[tagColor(tagName)] }}>#</span>{tagName}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 mt-2 ml-8 text-[11px] flex-wrap">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowStatusSheet(true); }}
+                  className="px-2 py-0.5 rounded-full font-bold active:scale-95 transition-transform"
+                  style={{ background: stat.soft, color: stat.text, border: `1px solid ${stat.dot}40` }}
+                >
+                  {STATUS_LABELS[task.status]} ▾
+                </button>
+                {task.dueDate && (
+                  <span
+                    className="font-medium flex items-center gap-1"
+                    style={{ color: overdue ? 'var(--pri-high)' : 'var(--text-secondary)' }}
+                  >
+                    <span>{overdue ? '⚠' : '◷'}</span>
+                    {/* v6.5 — 区间任务显示 startDate → dueDate */}
+                    {task.startDate && task.startDate !== task.dueDate ? (
+                      <span>{formatDate(task.startDate)} → {formatDate(task.dueDate)}</span>
+                    ) : (
+                      <span>{formatDate(task.dueDate)}</span>
+                    )}
+                  </span>
+                )}
+                {task.recurrence && (
+                  <span style={{
+                    color: recurrenceInfo?.overdue ? 'var(--pri-high)' : recurrenceInfo?.completed ? 'var(--stat-done, #10B981)' : 'var(--text-tertiary)',
+                    fontWeight: (recurrenceInfo?.completed || recurrenceInfo?.overdue) ? 600 : 400,
+                  }}>
+                    ↻ {task.recurrence === 'daily' ? '每日' : task.recurrence === 'weekdays' ? '工作日' : task.recurrence === 'weekly' ? '每周' : '每月'}
+                    {recurrenceInfo && ` · ${recurrenceInfo.text} · ${recurrenceInfo.count}`}
+                  </span>
+                )}
+                {subtaskTotal > 0 && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowSubtasks(!showSubtasks); }}
+                    className="px-2 py-0.5 rounded-full font-bold active:scale-95 transition-transform"
+                    style={{
+                      background: subtaskDone === subtaskTotal ? 'var(--primary-soft)' : 'var(--bg-elevated)',
+                      color: subtaskDone === subtaskTotal ? 'var(--primary)' : 'var(--text-secondary)',
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    {subtaskDone === subtaskTotal ? '✓' : '◐'} {subtaskDone}/{subtaskTotal} {showSubtasks ? '▴' : '▾'}
+                  </button>
+                )}
+                {task.pomodoros > 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onStartPomodoro) {
+                        onStartPomodoro(task);
+                      } else {
+                        showToast('请到专注页面开始专注', 'info');
+                      }
+                    }}
+                    className="px-2 py-0.5 rounded-full font-bold active:scale-95 transition-transform"
+                    style={{
+                      background: 'var(--pri-high-soft)',
+                      color: 'var(--pri-high)',
+                      border: '1px solid var(--pri-high)40',
+                    }}
+                    title="点击开始番茄钟"
+                  >🍅 {task.pomodoros}</button>
+                )}
+                {/* v6.1 — 创建日期（灰色小字，自动靠右；flex-wrap 时换行显示） */}
+                <span
+                  className="font-medium whitespace-nowrap"
+                  style={{ color: 'var(--text-quaternary)', marginLeft: 'auto' }}
+                  title={`创建于 ${createdDate.toLocaleDateString('zh-CN')}`}
+                >
+                  {createdLabel}
+                </span>
+              </div>
+
+              {showSubtasks && subtaskTotal > 0 && (
+                <div className="mt-2 ml-8 space-y-1 fade-in">
+                  {task.subtasks.map(s => (
+                    <div key={s.id} className="flex items-center gap-2 py-1">
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const newSubs = task.subtasks.map(x =>
+                            x.id === s.id ? { ...x, done: !x.done } : x
+                          );
+                          await updateTask(task.id, { subtasks: newSubs });
+                        }}
+                        className={`ios-checkbox ${s.done ? 'checked' : ''}`}
+                        style={{ width: 18, height: 18 }}
+                      />
+                      <span
+                        className="flex-1 text-[12px]"
+                        style={{
+                          color: s.done ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                          textDecoration: s.done ? 'line-through' : 'none',
+                        }}
+                      >
+                        {s.title}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowActions(!showActions); }}
+              className="px-3 active:opacity-60"
+              style={{ color: 'var(--text-tertiary)' }}
+            >⋯</button>
+          </div>
+
+          {showActions && (
+            <div className="flex border-t fade-in" style={{ borderColor: 'var(--border)' }}>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowActions(false); onEdit(task); }}
+                className="flex-1 py-2.5 text-[13px] font-semibold"
+                style={{ color: 'var(--accent-sky)' }}
+              >编辑</button>
+              <div style={{ width: 1, background: 'var(--border)' }} />
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowActions(false); setShowStatusSheet(true); }}
+                className="flex-1 py-2.5 text-[13px] font-semibold"
+                style={{ color: 'var(--primary)' }}
+              >切换状态</button>
+              <div style={{ width: 1, background: 'var(--border)' }} />
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowActions(false); softDeleteTask(task.id); showToast('已移入回收站', 'info'); }}
+                className="flex-1 py-2.5 text-[13px] font-semibold"
+                style={{ color: 'var(--pri-high)' }}
+              >删除</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 状态选择 ActionSheet */}
+      {showStatusSheet && (
+        <SwipeableSheet onClose={() => setShowStatusSheet(false)} zIndex={80} showEdgeIndicator={false}>
+            <div className="text-center text-[15px] font-semibold py-2 border-b" style={{ borderColor: 'var(--border)', color: 'var(--text-primary)' }}>
+              选择状态
+            </div>
+            <div className="p-3 space-y-2">
+              {STATUS_ORDER.map(s => {
+                const sc = STATUS_VAR[s];
+                const isCurrent = s === task.status;
+                return (
+                  <button
+                    key={s}
+                    onClick={() => handleStatusChange(s)}
+                    className="w-full flex items-center gap-3 p-3.5 rounded-xl transition-all active:scale-[0.98]"
+                    style={{
+                      background: isCurrent ? 'var(--primary-soft)' : 'var(--bg-elevated)',
+                      border: `1px solid ${isCurrent ? 'var(--primary-border)' : 'var(--border)'}`,
+                    }}
+                  >
+                    <div className="w-3 h-3 rounded-full" style={{ background: sc.dot }} />
+                    <span className="flex-1 text-left text-[15px] font-medium" style={{ color: isCurrent ? 'var(--primary)' : 'var(--text-primary)' }}>
+                      {STATUS_LABELS[s]}
+                    </span>
+                    {isCurrent && <span style={{ color: 'var(--primary)', fontSize: 18 }}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="px-3 pb-2">
+              <button
+                onClick={() => setShowStatusSheet(false)}
+                className="w-full py-3 rounded-xl text-[15px] font-medium"
+                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+              >取消</button>
+            </div>
+        </SwipeableSheet>
+      )}
+    </>
+  );
+}
