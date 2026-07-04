@@ -72,7 +72,18 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
     let result = activeTasks;
     // v6.6 — 修复 #15：用 useToday 的 today，跨午夜自动刷新
     if (filter === 'today') {
-      result = result.filter(t => t.dueDate === today && t.status !== 'done' && t.status !== 'cancelled');
+      // v6.9.3 — 修复：今日筛选应该包含重复任务
+      // 重复任务 dueDate <= today 且未完成 → 算今天的
+      // 非重复任务 dueDate === today
+      result = result.filter(t => {
+        if (t.status === 'done' || t.status === 'cancelled') return false;
+        if (t.recurrence) {
+          // 重复任务：dueDate <= today 算今天需要做的
+          return t.dueDate && t.dueDate <= today;
+        }
+        // 非重复：dueDate === today
+        return t.dueDate === today;
+      });
     } else if (filter === 'overdue') {
       result = result.filter(t => isOverdue(t));
     } else if (filter === 'done') {
@@ -137,7 +148,12 @@ export default function ListView({ onEdit, onStartPomodoro }: Props) {
 
   const counts = useMemo(() => ({
     all: activeTasks.filter(t => t.status !== 'done' && t.status !== 'cancelled').length,
-    today: activeTasks.filter(t => t.dueDate === today && t.status !== 'done' && t.status !== 'cancelled').length,
+    // v6.9.3 — 修复：今日 count 也包含重复任务
+    today: activeTasks.filter(t => {
+      if (t.status === 'done' || t.status === 'cancelled') return false;
+      if (t.recurrence) return t.dueDate && t.dueDate <= today;
+      return t.dueDate === today;
+    }).length,
     overdue: activeTasks.filter(t => isOverdue(t)).length,
     done: activeTasks.filter(t => t.status === 'done').length,
   }), [activeTasks, today]);
