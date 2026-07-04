@@ -28,7 +28,16 @@ export const TAG_COLORS: Record<string, string> = {
 export const TAG_COLOR_NAMES = Object.keys(TAG_COLORS);
 
 export function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  // v6.9.5 — 修复：用本地时间而非 UTC，避免时区导致日期偏差
+  return localDateStr(new Date());
+}
+
+// v6.9.5 — 本地日期格式化（YYYY-MM-DD），避免 toISOString 的 UTC 偏差
+export function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 // v6.6 — 修复 #15：跨午夜 today 刷新 hook
@@ -172,5 +181,6 @@ export function generateNextRecurrence(task: Task): Partial<Task> | null {
     else if (day === 6) d.setDate(d.getDate() + 2); // 周六 → 周一
     else d.setDate(d.getDate() + 1);                // 周日/周一-周四 → 下一天
   }
-  return { dueDate: d.toISOString().slice(0, 10) };
+  // v6.9.5 — 用本地时间格式化
+  return { dueDate: localDateStr(d) };
 }

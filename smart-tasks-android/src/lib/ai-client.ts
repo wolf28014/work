@@ -390,7 +390,7 @@ export async function aiFocusSuggestion(tasks: any[], recentPomodoros: any[]): P
   todayStart.setHours(0, 0, 0, 0);
   const todayPomodoros = recentPomodoros.filter(p => p.endedAt >= todayStart.getTime());
   const pendingTasks = tasks.filter(t => !t.deletedAt && t.status !== 'done' && t.status !== 'cancelled');
-  const overdueTasks = pendingTasks.filter(t => t.dueDate && t.dueDate < new Date().toISOString().slice(0, 10));
+  const overdueTasks = pendingTasks.filter(t => t.dueDate && t.dueDate < new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(new Date().getDate()).padStart(2, '0'));
 
   const summary = {
     '当前未完成任务数': pendingTasks.length,
@@ -400,7 +400,7 @@ export async function aiFocusSuggestion(tasks: any[], recentPomodoros: any[]): P
       '标题': t.title,
       '优先级': t.priority,
       '截止': t.dueDate || '无',
-      '是否逾期': t.dueDate ? t.dueDate < new Date().toISOString().slice(0, 10) : false,
+      '是否逾期': t.dueDate ? t.dueDate < new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(new Date().getDate()).padStart(2, '0') : false,
     })),
   };
 
@@ -509,12 +509,12 @@ export async function aiSearchTasks(query: string, tasks: any[]): Promise<string
   if (!s) throw new Error('未配置 AI API，Pro 会员免配置');
   // v6.7.3 — 修复：传完整字段 + 把时间戳转成可读日期，让 AI 能理解"昨天完成的"等语义
   const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const today = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
+  const yesterday = new Date(Date.now() - 86400000).getFullYear() + "-" + String(new Date(Date.now() - 86400000).getMonth() + 1).padStart(2, "0") + "-" + String(new Date(Date.now() - 86400000).getDate()).padStart(2, "0");
 
   const formatDate = (ts: number | null): string => {
     if (!ts) return '无';
-    return new Date(ts).toISOString().slice(0, 10);  // YYYY-MM-DD
+    const dd = new Date(ts); return dd.getFullYear() + "-" + String(dd.getMonth() + 1).padStart(2, "0") + "-" + String(dd.getDate()).padStart(2, "0");  // YYYY-MM-DD
   };
 
   const taskList = tasks.filter(t => !t.deletedAt).map(t => ({
