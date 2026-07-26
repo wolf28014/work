@@ -187,6 +187,94 @@ function renderMarkdown(md: string): string {
   return html.join('\n');
 }
 
+// ============================================================
+// v6.10.2 — 富文本编辑模式（contentEditable）
+// ============================================================
+// 解决「编辑模式下图片显示为 base64 代码」的问题。
+// 思路：用 contentEditable div 替代 textarea，图片以 <img> 元素
+// 直接渲染在编辑器内，文字和图片同时可见、可编辑。
+// 保存时把 DOM 序列化回 markdown，加载时把 markdown 转成可编辑 HTML。
+// ============================================================
+
+/** HTML 转义（用于安全设置 innerHTML） */
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * 把 markdown 转换为可编辑 HTML
+ * - 图片 ![alt](src) → <img> 元素（contenteditable=false，不可编辑图片本身）
+ * - 其他文本保持原样（# 标题、**粗体** 等以纯文本形式显示，由预览模式渲染）
+ * - \n → <br>
+ */
+function markdownToEditableHtml(md: string): string {
+  if (!md) return '';
+  const parts: string[] = [];
+  const regex = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(md)) !== null) {
+    const text = md.slice(lastIndex, match.index);
+    if (text) parts.push(escHtml(text).replace(/\n/g, '<br/>'));
+    const alt = escHtml(match[1]);
+    const src = match[2]; // data URL 已经是 URL-safe，不需转义
+    parts.push(`<img src="${src}" alt="${alt}" class="note-edit-img" contenteditable="false" />`);
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < md.length) {
+    parts.push(escHtml(md.slice(lastIndex)).replace(/\n/g, '<br/>'));
+  }
+  return parts.join('');
+}
+
+/**
+ * 把 contentEditable 的 DOM 序列化回 markdown
+ * - text node → 原样
+ * - <br> → \n
+ * - <img> → ![alt](src)
+ * - <div>/<p>（块级）→ 递归 + 前后补换行
+ * - 其他元素（strong/em/code/a 等）→ 递归取文本
+ * 末尾会折叠 3+ 换行为 2 个（段落分隔）
+ */
+function editableDomToMarkdown(root: Node): string {
+  const serialize = (node: Node): string => {
+    let out = '';
+    node.childNodes.forEach(child => {
+      if (child.nodeType === Node.TEXT_NODE) {
+        out += child.textContent || '';
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        const el = child as HTMLElement;
+        const tag = el.tagName.toLowerCase();
+        if (tag === 'img') {
+          const alt = el.getAttribute('alt') || '';
+          const src = el.getAttribute('src') || '';
+          out += `![${alt}](${src})`;
+        } else if (tag === 'br') {
+          out += '\n';
+        } else if (tag === 'div' || tag === 'p') {
+          // 块级元素：前后确保换行
+          if (out && !out.endsWith('\n')) out += '\n';
+          out += serialize(el);
+          out += '\n';
+        } else {
+          // strong/em/code/a/span 等：递归取内容
+          out += serialize(el);
+        }
+      }
+    });
+    return out;
+  };
+  let result = serialize(root);
+  // 折叠 3+ 换行为 2 个
+  result = result.replace(/\n{3,}/g, '\n\n');
+  // 去掉末尾空白
+  result = result.replace(/\s+$/, '');
+  return result;
+}
+
 interface Props {
   /** Open the editor for a given note (or null = create new). */
   onOpenEditor: (note: Note | null) => void;
@@ -606,8 +694,10 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
   const [pinned, setPinned] = useState(note?.pinned || false);
   const [saveTimer, setSaveTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
-  // v6.10 — content textarea ref（用于在光标位置插入图片）
-  const contentRef = useRef<HTMLTextAreaElement>(null);
+  // v6.10.2 — contentEditable 编辑器 ref（替代 textarea）
+  const editorRef = useRef<HTMLDivElement>(null);
+  // v6.10.2 — 保存光标位置（点击图片按钮会失焦，需要恢复）
+  const savedRangeRef = useRef<Range | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // 新建笔记时，第一次 persist 会生成 ID 并存到这里，
   // 后续 persist 复用这个 ID（变成 update 而不是 create），
@@ -637,6 +727,15 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // v6.10.2 — 初始化 contentEditable 内容
+  // 仅在 note 切换或预览/编辑模式切换时同步，避免每次输入都重置光标
+  useEffect(() => {
+    if (!previewMode && editorRef.current) {
+      editorRef.current.innerHTML = markdownToEditableHtml(content);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note?.id, previewMode]);
 
   async function persist(t: string, c: string, p: boolean) {
     try {
@@ -725,62 +824,99 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
     onClose();
   }
 
-  // v6.10 — 在 textarea 当前光标位置插入文本，并把光标移到插入文本末尾
-  function insertAtCursor(text: string, selectInside?: { start: number; end: number }) {
-    const ta = contentRef.current;
-    if (!ta) {
-      // 兜底：直接追加到末尾
-      const newContent = content + text;
-      handleChangeContent(newContent);
-      return;
-    }
-    const start = ta.selectionStart ?? content.length;
-    const end = ta.selectionEnd ?? content.length;
-    const before = content.slice(0, start);
-    const after = content.slice(end);
-    const newContent = before + text + after;
-    handleChangeContent(newContent);
-    // 等下一帧再设置光标（React 还没把新值回填到 DOM）
-    requestAnimationFrame(() => {
-      if (!ta) return;
-      if (selectInside) {
-        ta.focus();
-        ta.setSelectionRange(start + selectInside.start, start + selectInside.end);
-      } else {
-        const pos = start + text.length;
-        ta.focus();
-        ta.setSelectionRange(pos, pos);
-      }
-    });
+  // v6.10.2 — contentEditable 输入处理：DOM → markdown → setContent + 自动保存
+  function handleEditorInput() {
+    if (!editorRef.current) return;
+    const md = editableDomToMarkdown(editorRef.current);
+    setContent(md);
+    scheduleSave(title, md, pinned);
   }
 
-  // v6.10 — 点击图片按钮：触发文件选择
+  // v6.10.2 — 粘贴时强制纯文本（避免外部富文本污染 markdown）
+  function handleEditorPaste(e: React.ClipboardEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain');
+    // 用 execCommand 在光标位置插入纯文本（保留换行）
+    document.execCommand('insertText', false, text);
+  }
+
+  // v6.10.2 — 点击图片按钮：先保存光标位置，再触发文件选择
+  // （点击按钮 contentEditable 会失焦，window.getSelection 会失效）
   function handleAddImage() {
     if (previewMode) {
       showToast('请先切回编辑模式再插入图片', 'info');
       return;
     }
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editorRef.current?.contains(sel.anchorNode)) {
+      savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+    } else {
+      savedRangeRef.current = null;
+    }
     fileInputRef.current?.click();
   }
 
-  // v6.10 — 文件选择回调：压缩 + 插入 markdown 图片
+  // v6.10.2 — 文件选择回调：压缩 + 在光标位置插入 <img> 元素
   async function handleImageSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    // 清空 input 的 value，否则连续选同一张图不会触发 change
     e.target.value = '';
     if (!file) return;
     setImageProcessing(true);
     try {
       const dataUrl = await compressImageFile(file);
       if (!dataUrl) return;
-      // 在光标位置插入图片 markdown（前后各空一行，确保单独成段）
-      const insertText = `\n\n![图片](${dataUrl})\n\n`;
-      insertAtCursor(insertText);
+
+      const editor = editorRef.current;
+      if (!editor) return;
+
+      // 恢复之前保存的光标位置
+      const sel = window.getSelection();
+      let range: Range;
+      if (savedRangeRef.current && sel) {
+        sel.removeAllRanges();
+        sel.addRange(savedRangeRef.current);
+        range = savedRangeRef.current;
+      } else if (sel && sel.rangeCount > 0) {
+        range = sel.getRangeAt(0);
+      } else {
+        // 兜底：在编辑器末尾插入
+        range = document.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+      }
+
+      // 清除选区内容
+      range.deleteContents();
+
+      // 在光标位置插入：换行 → 图片 → 换行
+      const br1 = document.createElement('br');
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.alt = '图片';
+      img.className = 'note-edit-img';
+      img.setAttribute('contenteditable', 'false');
+      const br2 = document.createElement('br');
+
+      range.insertNode(br1);
+      range.setStartAfter(br1);
+      range.collapse(true);
+      range.insertNode(img);
+      range.setStartAfter(img);
+      range.collapse(true);
+      range.insertNode(br2);
+      range.setStartAfter(br2);
+      range.collapse(true);
+
+      // 更新选区
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+
+      // 触发保存（从 DOM 序列化为 markdown）
+      handleEditorInput();
       showToast('图片已插入', 'success');
-      // v6.10.1 — 插入图片后自动切到预览模式，避免用户在编辑模式下
-      // 看到一大段 base64 代码（data URL 长达几万字符，看起来像乱码）
-      setPreviewMode(true);
-      if (showAIMenu) setShowAIMenu(false);
+      // 不再强制切到预览模式 —— 编辑模式下图片直接可见
     } finally {
       setImageProcessing(false);
     }
@@ -798,42 +934,61 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
   }
 
   // v6.7 — AI 笔记助手
+  // v6.10.2 — AI 生成的内容含 markdown 格式（标题、列表等），切到预览模式查看更清晰
+  function getCurrentMarkdown(): string {
+    if (!previewMode && editorRef.current) {
+      return editableDomToMarkdown(editorRef.current);
+    }
+    return content;
+  }
+
   async function handleAISummary() {
-    if (!content.trim()) { showToast('请先输入笔记内容', 'error'); return; }
+    const currentMd = getCurrentMarkdown();
+    if (!currentMd.trim()) { showToast('请先输入笔记内容', 'error'); return; }
     if (!getAISettings()) { showToast('请先在设置中配置 AI API', 'error'); return; }
     setShowAIMenu(false);
     setAiLoading(true);
     try {
-      const summary = await aiNoteSummary(content);
-      // 把摘要追加到笔记末尾
-      const newContent = content + '\n\n---\n\n## AI 摘要\n\n' + summary;
-      handleChangeContent(newContent);
+      const summary = await aiNoteSummary(currentMd);
+      const newContent = currentMd + '\n\n---\n\n## AI 摘要\n\n' + summary;
+      setContent(newContent);
+      scheduleSave(title, newContent, pinned);
+      // v6.10.2 — AI 内容含 markdown 格式，切到预览模式渲染
+      setPreviewMode(true);
       showToast('摘要已生成', 'success');
     } catch (e: any) { showToast(e.message || 'AI 请求失败', 'error'); }
     finally { setAiLoading(false); }
   }
 
   async function handleAIContinue() {
-    if (!content.trim()) { showToast('请先输入笔记内容', 'error'); return; }
+    const currentMd = getCurrentMarkdown();
+    if (!currentMd.trim()) { showToast('请先输入笔记内容', 'error'); return; }
     if (!getAISettings()) { showToast('请先在设置中配置 AI API', 'error'); return; }
     setShowAIMenu(false);
     setAiLoading(true);
     try {
-      const continuation = await aiNoteContinue(content);
-      handleChangeContent(content + '\n\n' + continuation);
+      const continuation = await aiNoteContinue(currentMd);
+      const newContent = currentMd + '\n\n' + continuation;
+      setContent(newContent);
+      scheduleSave(title, newContent, pinned);
+      setPreviewMode(true);
       showToast('续写已生成', 'success');
     } catch (e: any) { showToast(e.message || 'AI 请求失败', 'error'); }
     finally { setAiLoading(false); }
   }
 
   async function handleAITranslate(lang: string) {
-    if (!content.trim()) { showToast('请先输入笔记内容', 'error'); return; }
+    const currentMd = getCurrentMarkdown();
+    if (!currentMd.trim()) { showToast('请先输入笔记内容', 'error'); return; }
     if (!getAISettings()) { showToast('请先在设置中配置 AI API', 'error'); return; }
     setShowAIMenu(false);
     setAiLoading(true);
     try {
-      const translated = await aiNoteTranslate(content, lang);
-      handleChangeContent(content + '\n\n---\n\n## ' + lang + '翻译\n\n' + translated);
+      const translated = await aiNoteTranslate(currentMd, lang);
+      const newContent = currentMd + '\n\n---\n\n## ' + lang + '翻译\n\n' + translated;
+      setContent(newContent);
+      scheduleSave(title, newContent, pinned);
+      setPreviewMode(true);
       showToast('翻译已生成', 'success');
     } catch (e: any) { showToast(e.message || 'AI 请求失败', 'error'); }
     finally { setAiLoading(false); }
@@ -1009,48 +1164,32 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
             }}
           />
         ) : (
-          <>
-            <textarea
-              ref={contentRef}
-              value={content}
-              onChange={e => handleChangeContent(e.target.value)}
-              placeholder="在此输入笔记内容… 支持 Markdown 格式，可点击上方图片按钮插入图片"
-              className="ios-input min-h-[60vh] resize-none leading-relaxed"
+          /* v6.10.2 — 编辑模式：contentEditable 富文本，图片直接以 <img> 显示 */
+          <div className="relative">
+            <div
+              ref={editorRef}
+              contentEditable
+              suppressContentEditableWarning
+              onInput={handleEditorInput}
+              onPaste={handleEditorPaste}
+              className="note-editable ios-input min-h-[60vh]"
+              data-placeholder="在此输入笔记内容… 支持 Markdown 格式，点击上方图片按钮可插入图片"
               style={{
                 background: 'transparent',
                 border: 'none',
                 padding: '8px 4px',
+                outline: 'none',
+                lineHeight: 1.7,
                 fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif',
+                wordBreak: 'break-word',
               }}
             />
-            {/* v6.10.1 — 编辑模式下若笔记含图片，提示用户切到预览模式查看图片 */}
-            {hasImages && (
-              <div
-                className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] fade-in"
-                style={{
-                  background: 'var(--primary-soft)',
-                  color: 'var(--primary)',
-                  border: '1px solid var(--primary-border)',
-                }}
-              >
-                <span>📷</span>
-                <span className="flex-1">此笔记含 {imageCount} 张图片，编辑模式下显示为 base64 代码</span>
-                <button
-                  onClick={handleTogglePreview}
-                  className="px-2.5 py-1 rounded-full text-[11px] font-semibold active:scale-95 transition-transform"
-                  style={{
-                    background: 'var(--primary)',
-                    color: '#ffffff',
-                  }}
-                >查看图片</button>
-              </div>
-            )}
-          </>
+          </div>
         )}
         <div className="text-[11px] pt-1" style={{ color: 'var(--text-tertiary)' }}>
           {previewMode
-            ? '👁️ 预览模式：点击眼睛图标可切回编辑。'
-            : '💡 笔记会自动保存。支持 Markdown（# 标题、**粗体**、- 列表 等），点击 🖼️ 可插入图片。'}
+            ? '👁️ 预览模式：渲染 Markdown 格式，点击眼睛图标切回编辑。'
+            : '💡 编辑模式：文字和图片同时显示，可直接编辑。点击 👁️ 切到预览查看渲染后的标题/列表等格式。'}
         </div>
       </div>
     </SwipeableSheet>

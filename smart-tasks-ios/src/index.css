@@ -917,3 +917,35 @@ body:not(.ios) .ios-notification-hint {
   background: var(--bg-elevated, rgba(0,0,0,0.04));
   box-shadow: 0 1px 4px rgba(0,0,0,0.08);
 }
+
+/* ============================================================
+   v6.10.2 — contentEditable 富文本编辑模式
+   ============================================================ */
+
+.note-editable {
+  font-size: 15px;
+  line-height: 1.7;
+  word-break: break-word;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}
+.note-editable:focus { outline: none; }
+/* 空内容时显示 placeholder（data-placeholder 属性） */
+.note-editable:empty:before {
+  content: attr(data-placeholder);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+/* 编辑模式下的图片样式（与预览模式一致） */
+.note-editable img.note-edit-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.6em auto;
+  border-radius: 10px;
+  background: var(--bg-elevated, rgba(0,0,0,0.04));
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
