@@ -711,6 +711,8 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
   // v6.10 — 预览模式 & 图片处理中
   const [previewMode, setPreviewMode] = useState(false);
   const [imageProcessing, setImageProcessing] = useState(false);
+  // v6.10.3 — 当前选中的图片元素（用于显示删除按钮）
+  const [activeImageEl, setActiveImageEl] = useState<HTMLImageElement | null>(null);
   // v6.10 — 缓存预览 HTML（避免每次 render 重新解析 markdown）
   const previewHtml = useMemo(() => renderMarkdown(content), [content, previewMode]);
   // v6.10.1 — 检测笔记中是否含图片（用于编辑模式提示）
@@ -838,6 +840,59 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
     const text = e.clipboardData.getData('text/plain');
     // 用 execCommand 在光标位置插入纯文本（保留换行）
     document.execCommand('insertText', false, text);
+  }
+
+  // v6.10.3 — 点击图片：选中该图片（让 Backspace/Delete 能删除）
+  // contenteditable=false 的 img 默认无法删除，必须先选中
+  function handleEditorClick(e: React.MouseEvent<HTMLDivElement>) {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'IMG' && target.classList.contains('note-edit-img')) {
+      e.preventDefault();
+      const sel = window.getSelection();
+      if (!sel) return;
+      const range = document.createRange();
+      range.selectNode(target);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      // 显示删除按钮（通过 state 控制）
+      setActiveImageEl(target as HTMLImageElement);
+    } else {
+      // 点击空白处隐藏删除按钮
+      setActiveImageEl(null);
+    }
+  }
+
+  // v6.10.3 — 删除当前选中的图片
+  function handleDeleteActiveImage() {
+    if (!activeImageEl || !editorRef.current) return;
+    activeImageEl.remove();
+    setActiveImageEl(null);
+    handleEditorInput();
+    showToast('图片已删除', 'info');
+  }
+
+  // v6.10.3 — 键盘删除：监听 keydown，Backspace/Delete 时若有图片被选中则删除
+  // （contenteditable=false 的 img 浏览器有时不会自动处理）
+  function handleEditorKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== 'Backspace' && e.key !== 'Delete') return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    // 选中的节点是 img
+    const container = range.commonAncestorContainer;
+    let imgEl: HTMLImageElement | null = null;
+    if (container.nodeType === Node.ELEMENT_NODE) {
+      const el = container as HTMLElement;
+      if (el.tagName === 'IMG' && el.classList.contains('note-edit-img')) {
+        imgEl = el as HTMLImageElement;
+      }
+    }
+    if (imgEl) {
+      e.preventDefault();
+      imgEl.remove();
+      setActiveImageEl(null);
+      handleEditorInput();
+    }
   }
 
   // v6.10.2 — 点击图片按钮：先保存光标位置，再触发文件选择
@@ -1172,6 +1227,8 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
               suppressContentEditableWarning
               onInput={handleEditorInput}
               onPaste={handleEditorPaste}
+              onClick={handleEditorClick}
+              onKeyDown={handleEditorKeyDown}
               className="note-editable ios-input min-h-[60vh]"
               data-placeholder="在此输入笔记内容… 支持 Markdown 格式，点击上方图片按钮可插入图片"
               style={{
@@ -1184,12 +1241,39 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
                 wordBreak: 'break-word',
               }}
             />
+            {/* v6.10.3 — 选中图片时显示删除按钮 */}
+            {activeImageEl && (
+              <div
+                className="absolute right-2 top-2 z-20 flex items-center gap-1 px-2.5 py-1.5 rounded-full fade-in"
+                style={{
+                  background: 'var(--card)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                <button
+                  onClick={handleDeleteActiveImage}
+                  className="px-2.5 py-1 rounded-full text-[11px] font-semibold active:scale-95 transition-transform flex items-center gap-1"
+                  style={{ background: 'var(--pri-high)', color: '#ffffff' }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  </svg>
+                  删除图片
+                </button>
+                <button
+                  onClick={() => setActiveImageEl(null)}
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-[12px] active:scale-95"
+                  style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                >×</button>
+              </div>
+            )}
           </div>
         )}
         <div className="text-[11px] pt-1" style={{ color: 'var(--text-tertiary)' }}>
           {previewMode
             ? '👁️ 预览模式：渲染 Markdown 格式，点击眼睛图标切回编辑。'
-            : '💡 编辑模式：文字和图片同时显示，可直接编辑。点击 👁️ 切到预览查看渲染后的标题/列表等格式。'}
+            : '💡 编辑模式：文字和图片同时显示。点击图片可选中并删除。点击 👁️ 切到预览查看渲染后的标题/列表等格式。'}
         </div>
       </div>
     </SwipeableSheet>

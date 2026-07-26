@@ -947,5 +947,13 @@ body:not(.ios) .ios-notification-hint {
   box-shadow: 0 1px 4px rgba(0,0,0,0.08);
   user-select: none;
   -webkit-user-select: none;
-  cursor: default;
+  cursor: pointer;
+  transition: outline 0.15s ease, box-shadow 0.15s ease;
+}
+/* v6.10.3 — 图片被选中时高亮（虚线边框 + 蓝色阴影） */
+.note-editable img.note-edit-img:focus,
+.note-editable img.note-edit-img.is-selected {
+  outline: 3px solid var(--primary, #007aff);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px var(--primary-soft, rgba(0,122,255,0.15)), 0 1px 4px rgba(0,0,0,0.08);
 }

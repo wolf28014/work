@@ -25,6 +25,7 @@ import {
 } from './lib/background';
 import { initAuth, useAuth, mergeLocalToCloud, syncFromCloud } from './lib/auth';
 import { checkUpdateOnLaunch, getCachedUpdateInfo } from './lib/updater';
+import { openInSystemBrowser } from './lib/system-browser';
 import { todayStr, isOverdue } from './lib/task-utils';
 import { getThemeById, isDarkTheme } from './lib/themes';
 import type { TaskTemplate } from './lib/templates';
@@ -603,7 +604,8 @@ function Shell() {
             </div>
             <button
               onClick={() => {
-                window.open(updateBanner.url, '_blank');
+                // v6.10.3 — 用系统默认浏览器打开下载链接（避免 In-App WebView）
+                openInSystemBrowser(updateBanner.url);
                 showToast('正在跳转浏览器下载…', 'info');
               }}
               className="px-3 py-1.5 rounded-full text-[12px] font-bold active:scale-95 transition-transform"

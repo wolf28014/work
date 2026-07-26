@@ -16,6 +16,7 @@ import {
 import { useAuth, logout, mergeLocalToCloud, pullCloudToLocal, redeemCode, changePassword, deleteAccount, getSessionInfo } from '../lib/auth';
 import { getBackups, restoreBackup, type BackupRecord } from '../lib/db';
 import { checkUpdateManual, getCachedUpdateInfo, CURRENT_VERSION } from '../lib/updater';
+import { openInSystemBrowser } from '../lib/system-browser';
 import { THEMES, PRO_THEME_IDS } from '../lib/themes';
 import SwipeableSheet from './SwipeableSheet';
 
@@ -375,7 +376,8 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          window.open(updateInfo.url, '_blank');
+                          // v6.10.3 — 用系统默认浏览器打开下载链接（避免 In-App WebView）
+                          openInSystemBrowser(updateInfo.url);
                           showToast('正在跳转浏览器下载…', 'info');
                         }}
                         className="px-3 py-1 rounded-full text-[11px] font-semibold active:scale-95 transition-transform"
