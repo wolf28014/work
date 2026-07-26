@@ -623,6 +623,12 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
   const [imageProcessing, setImageProcessing] = useState(false);
   // v6.10 — 缓存预览 HTML（避免每次 render 重新解析 markdown）
   const previewHtml = useMemo(() => renderMarkdown(content), [content, previewMode]);
+  // v6.10.1 — 检测笔记中是否含图片（用于编辑模式提示）
+  const imageCount = useMemo(() => {
+    const matches = content.match(/!\[[^\]]*\]\([^)]*\)/g);
+    return matches ? matches.length : 0;
+  }, [content]);
+  const hasImages = imageCount > 0;
 
   useEffect(() => {
     // Auto-focus title for new notes
@@ -771,6 +777,10 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
       const insertText = `\n\n![图片](${dataUrl})\n\n`;
       insertAtCursor(insertText);
       showToast('图片已插入', 'success');
+      // v6.10.1 — 插入图片后自动切到预览模式，避免用户在编辑模式下
+      // 看到一大段 base64 代码（data URL 长达几万字符，看起来像乱码）
+      setPreviewMode(true);
+      if (showAIMenu) setShowAIMenu(false);
     } finally {
       setImageProcessing(false);
     }
@@ -999,19 +1009,43 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
             }}
           />
         ) : (
-          <textarea
-            ref={contentRef}
-            value={content}
-            onChange={e => handleChangeContent(e.target.value)}
-            placeholder="在此输入笔记内容… 支持 Markdown 格式，可点击上方图片按钮插入图片"
-            className="ios-input min-h-[60vh] resize-none leading-relaxed"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: '8px 4px',
-              fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif',
-            }}
-          />
+          <>
+            <textarea
+              ref={contentRef}
+              value={content}
+              onChange={e => handleChangeContent(e.target.value)}
+              placeholder="在此输入笔记内容… 支持 Markdown 格式，可点击上方图片按钮插入图片"
+              className="ios-input min-h-[60vh] resize-none leading-relaxed"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: '8px 4px',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif',
+              }}
+            />
+            {/* v6.10.1 — 编辑模式下若笔记含图片，提示用户切到预览模式查看图片 */}
+            {hasImages && (
+              <div
+                className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] fade-in"
+                style={{
+                  background: 'var(--primary-soft)',
+                  color: 'var(--primary)',
+                  border: '1px solid var(--primary-border)',
+                }}
+              >
+                <span>📷</span>
+                <span className="flex-1">此笔记含 {imageCount} 张图片，编辑模式下显示为 base64 代码</span>
+                <button
+                  onClick={handleTogglePreview}
+                  className="px-2.5 py-1 rounded-full text-[11px] font-semibold active:scale-95 transition-transform"
+                  style={{
+                    background: 'var(--primary)',
+                    color: '#ffffff',
+                  }}
+                >查看图片</button>
+              </div>
+            )}
+          </>
         )}
         <div className="text-[11px] pt-1" style={{ color: 'var(--text-tertiary)' }}>
           {previewMode
