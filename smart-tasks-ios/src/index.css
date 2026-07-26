@@ -825,3 +825,95 @@ body.ios .ios-notification-hint {
 body:not(.ios) .ios-notification-hint {
   display: none;
 }
+
+/* ============================================================
+   v6.10 — 笔记 Markdown 预览样式
+   ============================================================ */
+
+.note-md-preview {
+  font-size: 15px;
+  line-height: 1.7;
+  word-break: break-word;
+  color: var(--text-primary);
+}
+.note-md-preview > *:first-child { margin-top: 0; }
+.note-md-preview > *:last-child { margin-bottom: 0; }
+.note-md-preview h1,
+.note-md-preview h2,
+.note-md-preview h3,
+.note-md-preview h4,
+.note-md-preview h5,
+.note-md-preview h6 {
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 1.2em 0 0.5em;
+  color: var(--text-primary);
+}
+.note-md-preview h1 { font-size: 22px; }
+.note-md-preview h2 { font-size: 19px; }
+.note-md-preview h3 { font-size: 17px; }
+.note-md-preview h4,
+.note-md-preview h5,
+.note-md-preview h6 { font-size: 15px; }
+.note-md-preview p {
+  margin: 0.5em 0;
+}
+.note-md-preview ul,
+.note-md-preview ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+.note-md-preview ul { list-style: disc; }
+.note-md-preview ol { list-style: decimal; }
+.note-md-preview li { margin: 0.2em 0; }
+.note-md-preview li > ul,
+.note-md-preview li > ol { margin: 0.2em 0; }
+.note-md-preview blockquote {
+  margin: 0.6em 0;
+  padding: 0.3em 0.9em;
+  border-left: 3px solid var(--primary, #007aff);
+  background: var(--bg-elevated, rgba(0,0,0,0.04));
+  color: var(--text-secondary, #666);
+  border-radius: 4px;
+}
+.note-md-preview code {
+  font-family: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  font-size: 13px;
+  background: var(--bg-elevated, rgba(0,0,0,0.06));
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.note-md-preview pre {
+  margin: 0.6em 0;
+  padding: 0.7em 0.9em;
+  background: var(--bg-elevated, rgba(0,0,0,0.06));
+  border-radius: 8px;
+  overflow-x: auto;
+}
+.note-md-preview pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.note-md-preview hr {
+  border: none;
+  border-top: 1px solid var(--border, rgba(0,0,0,0.1));
+  margin: 1em 0;
+}
+.note-md-preview a {
+  color: var(--primary, #007aff);
+  text-decoration: none;
+}
+.note-md-preview a:active { opacity: 0.6; }
+/* 图片：宽度撑满容器，圆角，可点击 */
+.note-md-preview img.note-md-img,
+.note-md-preview img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.6em auto;
+  border-radius: 10px;
+  background: var(--bg-elevated, rgba(0,0,0,0.04));
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}

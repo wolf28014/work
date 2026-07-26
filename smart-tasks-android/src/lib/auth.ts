@@ -515,7 +515,9 @@ export async function syncNoteToCloud(note: Note) {
     return;
   }
   // v6.6 — 修复 #50：限制 content 大小，防止 DOS 云端 DB
-  const MAX_CONTENT = 100000;
+  // v6.10 — 上限从 100KB 提升到 1MB，以容纳 base64 内嵌的图片
+  //        （单张压缩后约 80~150KB，1MB 可容纳 6~10 张图）
+  const MAX_CONTENT = 1000000;
   const content = note.content.length > MAX_CONTENT
     ? note.content.slice(0, MAX_CONTENT) + '\n\n[内容过长已截断]'
     : note.content;

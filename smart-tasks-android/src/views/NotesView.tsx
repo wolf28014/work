@@ -6,6 +6,187 @@ import { showToast } from '../components/Toast';
 import SwipeableSheet from '../components/SwipeableSheet';
 import { aiNoteSummary, aiNoteContinue, aiNoteTranslate, getAISettings } from '../lib/ai-client';
 
+// v6.10 — 笔记图片支持
+// ============================================================
+// 图片以 base64 data URL 内嵌在 markdown 中（![alt](data:image/jpeg;base64,...)）
+// 上传前会经过压缩（最大 1280px、JPEG 质量 0.75），单张约 80~150KB
+// 云端同步 content 上限已提升到 1MB，可容纳多张图片
+// ============================================================
+
+const IMAGE_MAX_SIZE = 1280;       // 压缩后最长边像素
+const IMAGE_QUALITY = 0.75;        // JPEG 质量
+const IMAGE_MAX_FILE_BYTES = 15 * 1024 * 1024; // 单张原始文件上限 15MB
+
+/**
+ * 把图片文件压缩为 JPEG data URL。
+ * - PNG/GIF 等格式也会被统一转成 JPEG（体积更小，方便 base64 内嵌）
+ * - 超过 IMAGE_MAX_SIZE 的图会等比缩小
+ * - 失败时返回 null，由调用方提示用户
+ */
+async function compressImageFile(file: File): Promise<string | null> {
+  if (!file.type.startsWith('image/')) {
+    showToast('请选择图片文件', 'error');
+    return null;
+  }
+  if (file.size > IMAGE_MAX_FILE_BYTES) {
+    showToast('图片过大（>15MB），请选择更小的图片', 'error');
+    return null;
+  }
+  try {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error || new Error('文件读取失败'));
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const im = new Image();
+      im.onerror = () => reject(new Error('图片解析失败'));
+      im.onload = () => resolve(im);
+      im.src = dataUrl;
+    });
+    let { width, height } = img;
+    if (width > IMAGE_MAX_SIZE || height > IMAGE_MAX_SIZE) {
+      if (width >= height) {
+        height = Math.round((height * IMAGE_MAX_SIZE) / width);
+        width = IMAGE_MAX_SIZE;
+      } else {
+        width = Math.round((width * IMAGE_MAX_SIZE) / height);
+        height = IMAGE_MAX_SIZE;
+      }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('canvas 2d context unavailable');
+    // 白底，避免透明 PNG 转 JPG 后变黑
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(img, 0, 0, width, height);
+    return canvas.toDataURL('image/jpeg', IMAGE_QUALITY);
+  } catch (e: any) {
+    console.error('[compressImageFile]', e);
+    showToast('图片处理失败：' + (e?.message || '未知错误'), 'error');
+    return null;
+  }
+}
+
+/**
+ * 极简 Markdown → HTML 渲染（不引入第三方库）
+ * 支持：标题、粗体、斜体、行内代码、无序/有序列表、链接、图片、引用、分隔线、段落
+ * 图片单独成段，方便点击查看
+ */
+function renderMarkdown(md: string): string {
+  if (!md) return '';
+  // 1. 转义 HTML
+  const esc = (s: string) => s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  const lines = md.replace(/\r\n/g, '\n').split('\n');
+  const html: string[] = [];
+  let inUl = false;
+  let inOl = false;
+  let inCode = false;
+  let para: string[] = [];
+
+  const flushPara = () => {
+    if (para.length) {
+      const text = para.join(' ');
+      html.push('<p>' + inline(text) + '</p>');
+      para = [];
+    }
+  };
+  const closeLists = () => {
+    if (inUl) { html.push('</ul>'); inUl = false; }
+    if (inOl) { html.push('</ol>'); inOl = false; }
+  };
+
+  function inline(s: string): string {
+    let t = esc(s);
+    // 图片：![alt](src)
+    t = t.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_m, alt, src) => {
+      return `<img alt="${alt}" src="${src}" class="note-md-img" loading="lazy" />`;
+    });
+    // 链接：[text](url)
+    t = t.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    // 粗体
+    t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    t = t.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+    // 斜体
+    t = t.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
+    t = t.replace(/(^|[^_])_([^_]+)_/g, '$1<em>$2</em>');
+    // 行内代码
+    t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
+    return t;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.trimEnd();
+    if (line.trim() === '') {
+      flushPara();
+      closeLists();
+      continue;
+    }
+    // 代码块
+    if (line.trim().startsWith('```')) {
+      flushPara();
+      closeLists();
+      if (inCode) { html.push('</code></pre>'); inCode = false; }
+      else { html.push('<pre><code>'); inCode = true; }
+      continue;
+    }
+    if (inCode) { html.push(esc(raw)); continue; }
+    // 分隔线
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
+      flushPara();
+      closeLists();
+      html.push('<hr/>');
+      continue;
+    }
+    // 标题
+    const h = line.match(/^(#{1,6})\s+(.*)$/);
+    if (h) {
+      flushPara();
+      closeLists();
+      const level = h[1].length;
+      html.push(`<h${level}>${inline(h[2])}</h${level}>`);
+      continue;
+    }
+    // 引用
+    if (/^>\s+/.test(line)) {
+      flushPara();
+      closeLists();
+      html.push('<blockquote>' + inline(line.replace(/^>\s+/, '')) + '</blockquote>');
+      continue;
+    }
+    // 无序列表
+    if (/^\s*[-*+]\s+/.test(line)) {
+      flushPara();
+      if (inOl) { html.push('</ol>'); inOl = false; }
+      if (!inUl) { html.push('<ul>'); inUl = true; }
+      html.push('<li>' + inline(line.replace(/^\s*[-*+]\s+/, '')) + '</li>');
+      continue;
+    }
+    // 有序列表
+    if (/^\s*\d+\.\s+/.test(line)) {
+      flushPara();
+      if (inUl) { html.push('</ul>'); inUl = false; }
+      if (!inOl) { html.push('<ol>'); inOl = true; }
+      html.push('<li>' + inline(line.replace(/^\s*\d+\.\s+/, '')) + '</li>');
+      continue;
+    }
+    closeLists();
+    para.push(line.trim());
+  }
+  flushPara();
+  closeLists();
+  if (inCode) html.push('</code></pre>');
+  return html.join('\n');
+}
+
 interface Props {
   /** Open the editor for a given note (or null = create new). */
   onOpenEditor: (note: Note | null) => void;
@@ -161,7 +342,13 @@ export default function NotesView({ onOpenEditor }: Props) {
 
   function preview(content: string): string {
     // Strip markdown-ish syntax for a clean preview
-    return content
+    // v6.10 — 先统计并剥离图片（避免 base64 data URL 污染预览）
+    let imageCount = 0;
+    let text = content.replace(/!\[[^\]]*\]\([^)]*\)/g, () => {
+      imageCount++;
+      return '';
+    });
+    text = text
       .replace(/^#+\s*/gm, '')
       .replace(/\*\*([^*]+)\*\*/g, '$1')
       .replace(/\*([^*]+)\*/g, '$1')
@@ -170,8 +357,13 @@ export default function NotesView({ onOpenEditor }: Props) {
       .replace(/^\s*[-*+]\s+/gm, '')
       .replace(/^\s*\d+\.\s+/gm, '')
       .replace(/\n+/g, ' ')
+      .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 100);
+    // v6.10 — 若笔记仅有图片，预览显示图片占位
+    if (!text && imageCount > 0) return `📷 ${imageCount} 张图片`;
+    if (imageCount > 0) return text + `  📷${imageCount}`;
+    return text;
   }
 
   return (
@@ -414,6 +606,9 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
   const [pinned, setPinned] = useState(note?.pinned || false);
   const [saveTimer, setSaveTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  // v6.10 — content textarea ref（用于在光标位置插入图片）
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   // 新建笔记时，第一次 persist 会生成 ID 并存到这里，
   // 后续 persist 复用这个 ID（变成 update 而不是 create），
   // 避免每次自动保存都创建一条新笔记。
@@ -423,6 +618,11 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
   // v6.7 — AI 笔记助手状态
   const [aiLoading, setAiLoading] = useState(false);
   const [showAIMenu, setShowAIMenu] = useState(false);
+  // v6.10 — 预览模式 & 图片处理中
+  const [previewMode, setPreviewMode] = useState(false);
+  const [imageProcessing, setImageProcessing] = useState(false);
+  // v6.10 — 缓存预览 HTML（避免每次 render 重新解析 markdown）
+  const previewHtml = useMemo(() => renderMarkdown(content), [content, previewMode]);
 
   useEffect(() => {
     // Auto-focus title for new notes
@@ -519,6 +719,74 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
     onClose();
   }
 
+  // v6.10 — 在 textarea 当前光标位置插入文本，并把光标移到插入文本末尾
+  function insertAtCursor(text: string, selectInside?: { start: number; end: number }) {
+    const ta = contentRef.current;
+    if (!ta) {
+      // 兜底：直接追加到末尾
+      const newContent = content + text;
+      handleChangeContent(newContent);
+      return;
+    }
+    const start = ta.selectionStart ?? content.length;
+    const end = ta.selectionEnd ?? content.length;
+    const before = content.slice(0, start);
+    const after = content.slice(end);
+    const newContent = before + text + after;
+    handleChangeContent(newContent);
+    // 等下一帧再设置光标（React 还没把新值回填到 DOM）
+    requestAnimationFrame(() => {
+      if (!ta) return;
+      if (selectInside) {
+        ta.focus();
+        ta.setSelectionRange(start + selectInside.start, start + selectInside.end);
+      } else {
+        const pos = start + text.length;
+        ta.focus();
+        ta.setSelectionRange(pos, pos);
+      }
+    });
+  }
+
+  // v6.10 — 点击图片按钮：触发文件选择
+  function handleAddImage() {
+    if (previewMode) {
+      showToast('请先切回编辑模式再插入图片', 'info');
+      return;
+    }
+    fileInputRef.current?.click();
+  }
+
+  // v6.10 — 文件选择回调：压缩 + 插入 markdown 图片
+  async function handleImageSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // 清空 input 的 value，否则连续选同一张图不会触发 change
+    e.target.value = '';
+    if (!file) return;
+    setImageProcessing(true);
+    try {
+      const dataUrl = await compressImageFile(file);
+      if (!dataUrl) return;
+      // 在光标位置插入图片 markdown（前后各空一行，确保单独成段）
+      const insertText = `\n\n![图片](${dataUrl})\n\n`;
+      insertAtCursor(insertText);
+      showToast('图片已插入', 'success');
+    } finally {
+      setImageProcessing(false);
+    }
+  }
+
+  // v6.10 — 切换预览/编辑模式
+  function handleTogglePreview() {
+    if (!previewMode && !content.trim()) {
+      showToast('笔记为空，无内容可预览', 'info');
+      return;
+    }
+    setPreviewMode(!previewMode);
+    // 切换前收起 AI 菜单，避免遮挡
+    if (showAIMenu) setShowAIMenu(false);
+  }
+
   // v6.7 — AI 笔记助手
   async function handleAISummary() {
     if (!content.trim()) { showToast('请先输入笔记内容', 'error'); return; }
@@ -605,6 +873,51 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
           >
             <span style={{ fontSize: 16 }}>📌</span>
           </button>
+          {/* v6.10 — 插入图片 */}
+          <button
+            onClick={handleAddImage}
+            disabled={imageProcessing || previewMode}
+            className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
+            style={{
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+            }}
+            aria-label="插入图片"
+          >
+            {imageProcessing ? (
+              <span className="block w-4 h-4 rounded-full border-2 border-transparent" style={{ borderTopColor: 'var(--primary)', animation: 'spinSlow 0.8s linear infinite' }} />
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="M21 15l-5-5L5 21" />
+              </svg>
+            )}
+          </button>
+          {/* v6.10 — 预览/编辑切换 */}
+          <button
+            onClick={handleTogglePreview}
+            className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+            style={{
+              background: previewMode ? 'var(--primary-soft)' : 'transparent',
+              color: previewMode ? 'var(--primary)' : 'var(--text-secondary)',
+            }}
+            aria-label="预览/编辑切换"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              {previewMode ? (
+                <>
+                  <path d="M12 19l7-7-7-7" />
+                  <path d="M19 12H5" />
+                </>
+              ) : (
+                <>
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </>
+              )}
+            </svg>
+          </button>
           {/* v6.7 — AI 笔记助手 */}
           <div className="relative">
             <button
@@ -655,6 +968,15 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
         </div>
       </div>
 
+      {/* v6.10 — 隐藏的图片选择 input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleImageSelected}
+        style={{ display: 'none' }}
+      />
+
       <div className="px-4 py-3 space-y-3">
         <input
           ref={titleRef}
@@ -665,20 +987,36 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
           style={{ background: 'transparent', border: 'none', padding: '8px 4px' }}
           maxLength={100}
         />
-        <textarea
-          value={content}
-          onChange={e => handleChangeContent(e.target.value)}
-          placeholder="在此输入笔记内容… 支持 Markdown 格式"
-          className="ios-input min-h-[60vh] resize-none leading-relaxed"
-          style={{
-            background: 'transparent',
-            border: 'none',
-            padding: '8px 4px',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif',
-          }}
-        />
+        {previewMode ? (
+          /* v6.10 — 预览模式：渲染 markdown 为 HTML，图片可直接显示 */
+          <div
+            className="note-md-preview ios-input min-h-[60vh]"
+            dangerouslySetInnerHTML={{ __html: previewHtml }}
+            style={{
+              background: 'transparent',
+              padding: '8px 4px',
+              fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif',
+            }}
+          />
+        ) : (
+          <textarea
+            ref={contentRef}
+            value={content}
+            onChange={e => handleChangeContent(e.target.value)}
+            placeholder="在此输入笔记内容… 支持 Markdown 格式，可点击上方图片按钮插入图片"
+            className="ios-input min-h-[60vh] resize-none leading-relaxed"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: '8px 4px',
+              fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif',
+            }}
+          />
+        )}
         <div className="text-[11px] pt-1" style={{ color: 'var(--text-tertiary)' }}>
-          💡 笔记会自动保存。支持 Markdown 语法（# 标题、**粗体**、- 列表 等）。
+          {previewMode
+            ? '👁️ 预览模式：点击眼睛图标可切回编辑。'
+            : '💡 笔记会自动保存。支持 Markdown（# 标题、**粗体**、- 列表 等），点击 🖼️ 可插入图片。'}
         </div>
       </div>
     </SwipeableSheet>
