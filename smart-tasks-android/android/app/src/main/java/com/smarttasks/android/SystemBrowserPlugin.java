@@ -70,7 +70,7 @@ public class SystemBrowserPlugin extends Plugin {
             try {
                 Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(intent);
+                getActivity().startActivity(intent);
                 JSObject ret = new JSObject();
                 ret.put("opened", true);
                 call.resolve(ret);
