@@ -184,8 +184,12 @@ export async function getNoteById(id: string): Promise<Note | null> {
 }
 
 export async function saveNote(note: Note): Promise<void> {
-  note.updatedAt = Date.now();
-  await tx('notes', 'readwrite', s => s.put(note));
+  // v6.10.4 — 修复 #dup：不修改传入对象，避免调用方拿到被污染的 updatedAt
+  // 之前：note.updatedAt = Date.now() ← 直接改原对象
+  // 这导致 syncFromCloud 的 maxUpdatedAt 计算用错值、realtime handler 的
+  // note 对象被永久污染等隐蔽 bug
+  const toSave: Note = { ...note, updatedAt: Date.now() };
+  await tx('notes', 'readwrite', s => s.put(toSave));
 }
 
 export async function deleteNotePermanent(id: string): Promise<void> {
@@ -197,6 +201,51 @@ export async function softDeleteNote(id: string): Promise<void> {
   if (!existing) return;
   const updated = { ...existing, deletedAt: Date.now(), updatedAt: Date.now() };
   await saveNote(updated);
+}
+
+// ============================================================
+// v6.10.4 — 笔记去重工具
+// ============================================================
+// 修复用户反馈的"记录一个笔记出现大量重复"问题
+// 已存在的重复笔记需要手动清理，此函数：
+//   1. 按 (title, content) 分组（content 取前 200 字符做 hash，避免 base64 图片影响）
+//   2. 每组保留 updatedAt 最大的那条（最新的）
+//   3. 其余软删除
+// 返回清理的数量
+// ============================================================
+
+export async function deduplicateNotes(): Promise<number> {
+  const allNotes = await tx<Note[]>('notes', 'readonly', s => s.getAll());
+  // 只处理未删除的
+  const activeNotes = allNotes.filter(n => !n.deletedAt);
+
+  // 分组：按 (title + content 前 200 字符) 作为 key
+  const groups = new Map<string, Note[]>();
+  for (const n of activeNotes) {
+    // 用前 200 字符做 key，避免 base64 图片导致 hash 过大
+    const contentKey = n.content.slice(0, 200);
+    const key = `${n.title || ''}|||${contentKey}`;
+    const arr = groups.get(key);
+    if (arr) arr.push(n);
+    else groups.set(key, [n]);
+  }
+
+  let deletedCount = 0;
+  for (const [, group] of groups) {
+    if (group.length <= 1) continue;
+    // 按 updatedAt 降序，保留最新的
+    group.sort((a, b) => b.updatedAt - a.updatedAt);
+    const keep = group[0];
+    const duplicates = group.slice(1);
+    for (const dup of duplicates) {
+      // 软删除
+      const softDeleted = { ...dup, deletedAt: Date.now(), updatedAt: Date.now() };
+      await tx('notes', 'readwrite', s => s.put(softDeleted));
+      deletedCount++;
+    }
+    console.log(`[deduplicateNotes] 保留 ${keep.id} (updatedAt=${keep.updatedAt}), 软删除 ${duplicates.length} 条`);
+  }
+  return deletedCount;
 }
 
 export async function exportAllData() {

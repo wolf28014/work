@@ -699,9 +699,20 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
   // v6.10.2 — 保存光标位置（点击图片按钮会失焦，需要恢复）
   const savedRangeRef = useRef<Range | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // v6.10.4 — 修复 #dup：把 createdNoteId / createdNoteAt / persisting 改为 useRef
+  // 之前用 useState，setCreatedNoteId 是异步的。如果 persist 被并发调用
+  // （如定时器触发 + 用户点击"完成"几乎同时发生），两次 persist 都看到
+  // createdNoteId === null，各自 genId() 生成不同 ID，导致同一条笔记被
+  // 创建多次（截图里 14 条重复就是这个原因）。
+  // useRef 是同步的，赋值后立即生效，彻底消除竞态。
+  const createdNoteIdRef = useRef<string | null>(null);
+  const createdNoteAtRef = useRef<number | null>(null);
+  // v6.10.4 — 防止 persist 并发执行（in-flight 标志）
+  const persistingRef = useRef(false);
   // 新建笔记时，第一次 persist 会生成 ID 并存到这里，
   // 后续 persist 复用这个 ID（变成 update 而不是 create），
   // 避免每次自动保存都创建一条新笔记。
+  // v6.10.4 — 保留 state 版本用于触发重渲染（如标题栏文案），但逻辑判断走 ref
   const [createdNoteId, setCreatedNoteId] = useState<string | null>(null);
   // v6.6 — 记录新建笔记的首次创建时间，避免每次自动保存把 createdAt 覆盖成当前时间
   const [createdNoteAt, setCreatedNoteAt] = useState<number | null>(null);
@@ -740,9 +751,19 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
   }, [note?.id, previewMode]);
 
   async function persist(t: string, c: string, p: boolean) {
+    // v6.10.4 — 修复 #dup：防止 persist 并发执行
+    // 之前：如果定时器触发 + 用户点击"完成"几乎同时发生，两次 persist 都看到
+    //       createdNoteId === null，各自 genId() 生成不同 ID，导致重复笔记
+    // 现在：persistingRef 是同步的，第二个调用直接 return，避免竞态
+    if (persistingRef.current) {
+      console.log('[persist] already in-flight, skipping');
+      return;
+    }
+    persistingRef.current = true;
     try {
       const now = Date.now();
-      const existingId = note?.id || createdNoteId;
+      // v6.10.4 — 用 ref 而非 state，避免异步 state 更新导致的竞态
+      const existingId = note?.id || createdNoteIdRef.current;
 
       // v6.6 — 修复 #13：编辑现有笔记时，如果远端已删除（deletedAt 不为 null），不覆盖
       if (existingId) {
@@ -765,7 +786,7 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
           title: t,
           content: c,
           pinned: p,
-          createdAt: note?.createdAt || createdNoteAt || now,
+          createdAt: note?.createdAt || createdNoteAtRef.current || now,
           updatedAt: now,
           deletedAt: current?.deletedAt ?? null,
         };
@@ -783,6 +804,9 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
           updatedAt: now,
           deletedAt: null,
         };
+        // v6.10.4 — 同步设置 ref（立即生效），再异步更新 state（触发重渲染）
+        createdNoteIdRef.current = newId;
+        createdNoteAtRef.current = now;
         setCreatedNoteId(newId);
         setCreatedNoteAt(now);
         await saveNote(created);
@@ -790,6 +814,9 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
       }
     } catch (e: any) {
       showToast('保存失败：' + e.message, 'error');
+    } finally {
+      // v6.10.4 — 释放 in-flight 锁
+      persistingRef.current = false;
     }
   }
 
@@ -1051,13 +1078,14 @@ export function NoteEditor({ note, onClose, onSaved }: EditorProps) {
 
   async function handleDelete() {
     // v6.6 — 修复 #12：新建笔记（已自动保存到 IndexedDB）也要能删除
-    const idToDelete = note?.id || createdNoteId;
+    // v6.10.4 — 用 ref 而非 state，避免 state 异步更新导致的竞态
+    const idToDelete = note?.id || createdNoteIdRef.current;
     if (!idToDelete) { onClose(); return; }
     if (!confirm('确定删除此笔记？')) return;
     if (saveTimer) clearTimeout(saveTimer);
     await softDeleteNote(idToDelete);
     const now = Date.now();
-    syncNoteToCloud({ ...(note || {}), id: idToDelete, title, content, pinned, createdAt: note?.createdAt || createdNoteAt || now, updatedAt: now, deletedAt: now } as Note)
+    syncNoteToCloud({ ...(note || {}), id: idToDelete, title, content, pinned, createdAt: note?.createdAt || createdNoteAtRef.current || now, updatedAt: now, deletedAt: now } as Note)
       .catch(e => console.log('Sync failed:', e));
     showToast('已删除', 'info');
     onSaved();

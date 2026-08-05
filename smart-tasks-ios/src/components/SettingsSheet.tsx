@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTaskStore } from '../lib/store';
 import { getAISettings, saveAISettings, clearAISettings } from '../lib/ai-client';
-import { exportAllData, importAllData } from '../lib/db';
+import { exportAllData, importAllData, deduplicateNotes } from '../lib/db';
 import { tasksToCSV, TAG_COLORS, TAG_COLOR_NAMES } from '../lib/task-utils';
 import { showToast } from './Toast';
 import {
@@ -800,6 +800,26 @@ export default function SettingsSheet({ onClose, onOpenAuth, onOpenLegal }: Prop
                   <span className="text-[color:var(--text-tertiary)]">›</span>
                   <input type="file" accept=".json" onChange={handleImport} className="hidden" />
                 </label>
+                {/* v6.10.4 — 笔记去重工具（修复"记录一个出现大量重复"bug 的清理入口） */}
+                <button
+                  onClick={async () => {
+                    if (!confirm('将扫描所有笔记，按标题+内容分组，保留每组最新的，其余软删除到回收站。确定？')) return;
+                    try {
+                      const count = await deduplicateNotes();
+                      if (count > 0) {
+                        showToast(`已清理 ${count} 条重复笔记`, 'success');
+                        // 同步到云端（软删除会通过 syncNoteToCloud 触发）
+                        setTimeout(() => window.location.reload(), 1500);
+                      } else {
+                        showToast('未发现重复笔记', 'info');
+                      }
+                    } catch (e: any) { showToast(e.message || '清理失败', 'error'); }
+                  }}
+                  className="ios-list-item w-full text-left active:active:bg-[var(--card-active)]"
+                >
+                  <span className="text-sm flex-1">清理重复笔记</span>
+                  <span className="text-[color:var(--text-tertiary)]">›</span>
+                </button>
               </div>
               <div className="text-[11px] text-[color:var(--text-tertiary)] px-2">
                 💡 数据存储在手机本地 IndexedDB 中，卸载 App 会丢失。建议定期导出 JSON 备份。

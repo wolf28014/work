@@ -453,8 +453,11 @@ export async function syncFromCloud(): Promise<number> {
           totalUpdated++;
           notesChanged = true;
         }
-        if (remoteNote.updatedAt > maxUpdatedAt) {
-          maxUpdatedAt = remoteNote.updatedAt;
+        // v6.10.4 — 修复 #dup：用云端原始 updated_at 比较，不用 saveNote 后的 remoteNote.updatedAt
+        // （saveNote 内部会把 toSave.updatedAt 设为 Date.now()，但不能让这里取到那个污染值，
+        //  否则 watermark 会跳到本机时间，导致其他设备的更新被漏拉）
+        if (n.updated_at > maxUpdatedAt) {
+          maxUpdatedAt = n.updated_at;
         }
       }
       setLastSyncNotesTime(maxUpdatedAt);
@@ -783,9 +786,18 @@ export function subscribeRealtime(userId: string, handlers: RealtimeHandlers) {
               pinned: !!n.pinned,
               createdAt: n.created_at, updatedAt: n.updated_at, deletedAt: n.deleted_at,
             };
-            // Persist to IndexedDB so NotesView picks it up on refresh
-            saveNote(note).catch(e => console.log('[realtime] saveNote failed:', e));
-            handlers.onNoteChange(eventType, note);
+            // v6.10.4 — 修复 #dup：先对比 updatedAt，避免用旧远端事件覆盖本地新编辑
+            // （之前无条件 saveNote 导致本地最新编辑被旧远端数据覆盖）
+            // v6.6 修复 #7 时 task handler 已经做了这个对比，但 note handler 漏了
+            (async () => {
+              try {
+                const local = await getNoteById(note.id);
+                if (!local || note.updatedAt > local.updatedAt) {
+                  await saveNote(note);
+                  handlers.onNoteChange(eventType, note);
+                }
+              } catch (e) { console.log('[realtime] saveNote failed:', e); }
+            })();
           }
         } catch (e) { console.log('[realtime] note change parse failed:', e); }
       })
